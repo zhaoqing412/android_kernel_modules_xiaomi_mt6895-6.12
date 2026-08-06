@@ -63,17 +63,6 @@ static inline int to_mtk_adapter_ret(int tcpm_ret)
 	}
 }
 
-enum mtk_pd_connect_type {
-	MTK_PD_CONNECT_NONE,
-	MTK_PD_CONNECT_HARD_RESET,
-	MTK_PD_CONNECT_SOFT_RESET,
-	MTK_PD_CONNECT_PE_READY_SNK,
-	MTK_PD_CONNECT_PE_READY_SNK_PD30,
-	MTK_PD_CONNECT_PE_READY_SNK_APDO,
-	MTK_PD_CONNECT_TYPEC_ONLY_SNK,
-	MTK_PD_CONNECT_NEW_SRC_CAP,
-};
-
 static enum mtk_pd_connect_type pd_connect_tbl[] = {
 	MTK_PD_CONNECT_NONE,
 	MTK_PD_CONNECT_TYPEC_ONLY_SNK,

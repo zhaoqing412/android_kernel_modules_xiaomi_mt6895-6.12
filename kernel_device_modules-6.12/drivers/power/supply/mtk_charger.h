@@ -635,6 +635,13 @@ enum xm_pulse_type {
 	QC3_DP_PULSE,
 };
 
+#define CP_SYSFS_FIELD_RO(_name, _prop)	\
+{			\
+	.attr   = __ATTR(_name, 0444, cp_sysfs_show, cp_sysfs_store),\
+	.prop   = _prop,				  \
+	.get	= _name##_get,						\
+}
+
 /* charge-pump properties used by the sc8561/ln8000 sysfs (ported from 5.10) */
 enum cp_property {
 	CP_PROP_VBUS,

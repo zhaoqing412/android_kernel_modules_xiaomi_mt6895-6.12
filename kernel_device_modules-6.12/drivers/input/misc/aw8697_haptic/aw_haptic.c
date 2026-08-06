@@ -16,10 +16,12 @@
 #include <linux/kernel.h>
 #include <linux/i2c.h>
 #include <linux/of_gpio.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/firmware.h>
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
 #include <linux/version.h>
 #include <linux/input.h>
 #include <linux/interrupt.h>
@@ -505,8 +507,7 @@ static int awinic_parse_dt(struct awinic *awinic, struct device *dev,
  * i2c driver
  *
  ******************************************************/
-static int awinic_i2c_probe(struct i2c_client *i2c,
-			    const struct i2c_device_id *id)
+static int awinic_i2c_probe(struct i2c_client *i2c)
 {
 	struct awinic *awinic;
 	struct input_dev *input_dev;
@@ -597,7 +598,7 @@ static int awinic_i2c_probe(struct i2c_client *i2c,
 
 	if (gpio_is_valid(awinic->irq_gpio)) {
 		ret = devm_gpio_request_one(&i2c->dev, awinic->irq_gpio,
-					    GPIOF_DIR_IN, "awinic_int");
+					    GPIOF_IN, "awinic_int");
 		if (ret) {
 			aw_err("%s: int request failed\n", __func__);
 			goto err_irq_gpio_request;
@@ -616,9 +617,9 @@ static int awinic_i2c_probe(struct i2c_client *i2c,
 					sizeof(struct aw8697), GFP_KERNEL);
 		if (awinic->aw8697 == NULL) {
 			if (gpio_is_valid(awinic->irq_gpio))
-				devm_gpio_free(&i2c->dev, awinic->irq_gpio);
+				gpio_free(awinic->irq_gpio);
 			if (gpio_is_valid(awinic->reset_gpio))
-				devm_gpio_free(&i2c->dev, awinic->reset_gpio);
+				gpio_free(awinic->reset_gpio);
 			devm_kfree(&i2c->dev, awinic);
 			awinic = NULL;
 			return -ENOMEM;
@@ -713,9 +714,9 @@ static int awinic_i2c_probe(struct i2c_client *i2c,
 					sizeof(struct aw86927), GFP_KERNEL);
 		if (awinic->aw86927 == NULL) {
 			if (gpio_is_valid(awinic->irq_gpio))
-				devm_gpio_free(&i2c->dev, awinic->irq_gpio);
+				gpio_free(awinic->irq_gpio);
 			if (gpio_is_valid(awinic->reset_gpio))
-				devm_gpio_free(&i2c->dev, awinic->reset_gpio);
+				gpio_free(awinic->reset_gpio);
 			devm_kfree(&i2c->dev, awinic);
 			awinic = NULL;
 			return -ENOMEM;
@@ -859,10 +860,10 @@ err_aw8697_parse_dt:
 	}
 err_id:
 	if (gpio_is_valid(awinic->irq_gpio))
-		devm_gpio_free(&i2c->dev, awinic->irq_gpio);
+		gpio_free(awinic->irq_gpio);
 err_irq_gpio_request:
 	if (gpio_is_valid(awinic->reset_gpio))
-		devm_gpio_free(&i2c->dev, awinic->reset_gpio);
+		gpio_free(awinic->reset_gpio);
 err_reset_gpio_request:
 err_parse_dt:
 	device_init_wakeup(awinic->dev, false);
@@ -872,7 +873,7 @@ err_parse_dt:
 }
 
 
-static int awinic_i2c_remove(struct i2c_client *i2c)
+static void awinic_i2c_remove(struct i2c_client *i2c)
 {
 	struct awinic *awinic = i2c_get_clientdata(i2c);
 
@@ -887,9 +888,9 @@ static int awinic_i2c_remove(struct i2c_client *i2c)
 		devm_free_irq(&i2c->dev, gpio_to_irq(awinic->aw8697->irq_gpio),
 			      awinic->aw8697);
 		if (gpio_is_valid(awinic->aw8697->irq_gpio))
-			devm_gpio_free(&i2c->dev, awinic->aw8697->irq_gpio);
+			gpio_free(awinic->aw8697->irq_gpio);
 		if (gpio_is_valid(awinic->aw8697->reset_gpio))
-			devm_gpio_free(&i2c->dev, awinic->aw8697->reset_gpio);
+			gpio_free(awinic->aw8697->reset_gpio);
 		if (awinic->aw8697 != NULL) {
 			flush_workqueue(awinic->aw8697->work_queue);
 			destroy_workqueue(awinic->aw8697->work_queue);
@@ -904,9 +905,9 @@ static int awinic_i2c_remove(struct i2c_client *i2c)
 		devm_free_irq(&i2c->dev, gpio_to_irq(awinic->aw86927->irq_gpio),
 			      awinic->aw86927);
 		if (gpio_is_valid(awinic->aw86927->irq_gpio))
-			devm_gpio_free(&i2c->dev, awinic->aw86927->irq_gpio);
+			gpio_free(awinic->aw86927->irq_gpio);
 		if (gpio_is_valid(awinic->aw86927->reset_gpio))
-			devm_gpio_free(&i2c->dev, awinic->aw86927->reset_gpio);
+			gpio_free(awinic->aw86927->reset_gpio);
 		if (awinic->aw86927 != NULL) {
 			flush_workqueue(awinic->aw86927->work_queue);
 			destroy_workqueue(awinic->aw86927->work_queue);
@@ -915,13 +916,12 @@ static int awinic_i2c_remove(struct i2c_client *i2c)
 		awinic->aw86927 = NULL;
 	} else {
 		aw_err("%s no chip\n", __func__);
-		return -ERANGE;
+		return;
 	}
 	release_rb();
 	device_init_wakeup(awinic->dev, false);
 
 	aw_info("%s exit\n", __func__);
-	return 0;
 }
 
 

@@ -474,7 +474,6 @@ static int32_t nvt_dump_partition(void)
 		/* initialize variable */
 		SRAM_addr = bin_map[list].SRAM_addr;
 		size = bin_map[list].size;
-		name = bin_map[list].name;
 
 		/* ignore reserved partition (Reserved Partition size is zero) */
 		if (!size)
@@ -573,7 +572,6 @@ return:
 static int32_t nvt_write_firmware(const u8 *fwdata, size_t fwsize)
 {
 	uint32_t list = 0;
-	char *name;
 	uint32_t BIN_addr, SRAM_addr, size;
 	int32_t ret = 0;
 
@@ -584,7 +582,6 @@ static int32_t nvt_write_firmware(const u8 *fwdata, size_t fwsize)
 		SRAM_addr = bin_map[list].SRAM_addr;
 		size = bin_map[list].size;
 		BIN_addr = bin_map[list].BIN_addr;
-		name = bin_map[list].name;
 
 	/* NVT_LOG("[%d][%s] SRAM (0x%08X), SIZE (0x%08X), BIN (0x%08X)\n",
 			list, name, SRAM_addr, size, BIN_addr); */
@@ -955,7 +952,7 @@ nvt_write_disp_off_retry:
 				buf[4] = 0x00;
 				buf[5] = 0x00;
 				CTP_SPI_READ(ts->client, buf, 6);
-				NVT_ERR("0x3F000 ~ 0x3F004 = 0x%02X 0x%02X 0x%02X 0x%02X 0x02X\n",
+				NVT_ERR("0x3F000 ~ 0x3F004 = 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X\n",
 					buf[1], buf[2], buf[3], buf[4], buf[5]);
 			}
 			/* read 0x3F01A and print */

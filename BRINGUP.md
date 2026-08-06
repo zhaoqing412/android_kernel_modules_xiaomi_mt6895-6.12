@@ -93,9 +93,10 @@ mtk 框架(mtk_charger/mtk_battery/mtk_disp_*)  ← 6.12 原生, 一般 OK
 
 ### 2.3 模块注册核对(mgk_64.bzl 已有, 构建时确认在列)
 `bq28z610` / `sc8551` / `sc8561` / `ln8000_charger` / `pmic_voter` /
-`pd_cp_manager` / `qc_cp_manager` / `charger_class`(power/supply);
+`pd_cp_manager` / `charger_class`(power/supply);
 `nt36672c`(touchscreen/NVT36672C);`panel-l16-*` + `leds-ktz8863a`(drm/panel);
 `aw8697_haptic`(input/misc, 经 ddk_makefile glob);`simtray`(misc, Kconfig 接线)。
+> 注:qc_cp_manager 源码在树内但不启用(xaga 是 MTK PD 快充设备, 5.10 也未启用 QC 管理器)。
 
 ---
 

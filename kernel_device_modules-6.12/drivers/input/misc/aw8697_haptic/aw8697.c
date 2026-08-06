@@ -16,10 +16,12 @@
 #include <linux/kernel.h>
 #include <linux/i2c.h>
 #include <linux/of_gpio.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/firmware.h>
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
 #include <linux/version.h>
 #include <linux/input.h>
 #include <linux/interrupt.h>
@@ -317,7 +319,7 @@ static int aw8697_rtp_update(struct aw8697 *aw8697)
 {
 	aw_info("%s enter\n", __func__);
 
-	return request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+	return request_firmware_nowait(THIS_MODULE, true,
 				       awinic_rtp_name[aw8697->rtp_file_num],
 				       aw8697->dev, GFP_KERNEL, aw8697,
 				       aw8697_rtp_loaded);
@@ -515,7 +517,7 @@ static int aw8697_ram_update(struct aw8697 *aw8697)
 	aw8697->rtp_init = 0;
 	aw_info("%s enter\n", __func__);
 
-	return request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+	return request_firmware_nowait(THIS_MODULE, true,
 				       awinic_ram_name, aw8697->dev, GFP_KERNEL,
 				       aw8697, aw8697_ram_loaded);
 }
@@ -1112,16 +1114,15 @@ static int aw8697_haptic_set_f0_preset(struct aw8697 *aw8697)
 #ifndef USE_CONT_F0_CALI
 static int aw8697_haptic_read_f0(struct aw8697 *aw8697)
 {
-	int ret = 0;
 	unsigned char reg_val = 0;
 	unsigned int f0_reg = 0;
 	unsigned long f0_tmp = 0;
 
 	aw_info("%s enter\n", __func__);
 
-	ret = aw8697_i2c_read(aw8697, AW8697_REG_F_LRA_F0_H, &reg_val);
+	aw8697_i2c_read(aw8697, AW8697_REG_F_LRA_F0_H, &reg_val);
 	f0_reg = (reg_val << 8);
-	ret = aw8697_i2c_read(aw8697, AW8697_REG_F_LRA_F0_L, &reg_val);
+	aw8697_i2c_read(aw8697, AW8697_REG_F_LRA_F0_L, &reg_val);
 	f0_reg |= (reg_val << 0);
 	if (!f0_reg) {
 		aw_info("%s: not get f0_reg value is 0!\n", __func__);
@@ -1140,16 +1141,16 @@ static int aw8697_haptic_read_f0(struct aw8697 *aw8697)
 #ifndef USE_CONT_F0_CALI
 static int aw8697_haptic_read_cont_f0(struct aw8697 *aw8697)
 {
-	int ret = 0;
+	
 	unsigned char reg_val = 0;
 	unsigned int f0_reg = 0;
 	unsigned long f0_tmp = 0;
 
 	aw_dbg("%s enter\n", __func__);
 
-	ret = aw8697_i2c_read(aw8697, AW8697_REG_F_LRA_CONT_H, &reg_val);
+	aw8697_i2c_read(aw8697, AW8697_REG_F_LRA_CONT_H, &reg_val);
 	f0_reg = (reg_val << 8);
-	ret = aw8697_i2c_read(aw8697, AW8697_REG_F_LRA_CONT_L, &reg_val);
+	aw8697_i2c_read(aw8697, AW8697_REG_F_LRA_CONT_L, &reg_val);
 	f0_reg |= (reg_val << 0);
 	if (!f0_reg) {
 		aw_info("%s: not get f0_reg value is 0!\n", __func__);
@@ -1164,16 +1165,16 @@ static int aw8697_haptic_read_cont_f0(struct aw8697 *aw8697)
 #else
 static int aw8697_haptic_read_cont_f0(struct aw8697 *aw8697)
 {
-	int ret = 0;
+	
 	unsigned char reg_val = 0;
 	unsigned int f0_reg = 0;
 	unsigned long f0_tmp = 0;
 
 	aw_dbg("%s enter\n", __func__);
 
-	ret = aw8697_i2c_read(aw8697, AW8697_REG_F_LRA_CONT_H, &reg_val);
+	aw8697_i2c_read(aw8697, AW8697_REG_F_LRA_CONT_H, &reg_val);
 	f0_reg = (reg_val << 8);
-	ret = aw8697_i2c_read(aw8697, AW8697_REG_F_LRA_CONT_L, &reg_val);
+	aw8697_i2c_read(aw8697, AW8697_REG_F_LRA_CONT_L, &reg_val);
 	f0_reg |= (reg_val << 0);
 	if (!f0_reg) {
 		aw_info("%s: not get f0_reg value is 0!\n", __func__);
@@ -1192,13 +1193,13 @@ static int aw8697_haptic_read_cont_f0(struct aw8697 *aw8697)
 #ifndef USE_CONT_F0_CALI
 static int aw8697_haptic_read_beme(struct aw8697 *aw8697)
 {
-	int ret = 0;
+	
 	unsigned char reg_val = 0;
 
 	aw_info("%s  %d enter\n", __func__, __LINE__);
-	ret = aw8697_i2c_read(aw8697, AW8697_REG_WAIT_VOL_MP, &reg_val);
+	aw8697_i2c_read(aw8697, AW8697_REG_WAIT_VOL_MP, &reg_val);
 	aw8697->max_pos_beme = (reg_val << 0);
-	ret = aw8697_i2c_read(aw8697, AW8697_REG_WAIT_VOL_MN, &reg_val);
+	aw8697_i2c_read(aw8697, AW8697_REG_WAIT_VOL_MN, &reg_val);
 	aw8697->max_neg_beme = (reg_val << 0);
 
 	aw_info("%s max_pos_beme=%d\n", __func__, aw8697->max_pos_beme);
@@ -1209,13 +1210,13 @@ static int aw8697_haptic_read_beme(struct aw8697 *aw8697)
 #else
 static int aw8697_haptic_read_cont_bemf(struct aw8697 *aw8697)
 {
-	int ret = 0;
+	
 	unsigned char reg_val = 0;
 	unsigned int bemf = 0;
 
-	ret = aw8697_i2c_read(aw8697, AW8697_REG_BEMF_VOL_H, &reg_val);
+	aw8697_i2c_read(aw8697, AW8697_REG_BEMF_VOL_H, &reg_val);
 	bemf |= (reg_val<<8);
-	ret = aw8697_i2c_read(aw8697, AW8697_REG_BEMF_VOL_L, &reg_val);
+	aw8697_i2c_read(aw8697, AW8697_REG_BEMF_VOL_L, &reg_val);
 	bemf |= (reg_val<<0);
 
 	aw_info("%s bemf=%d\n", __func__, bemf);

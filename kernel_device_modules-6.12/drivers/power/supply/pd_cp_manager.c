@@ -30,6 +30,24 @@
 #include "../../misc/hwid/hwid.h"
 
 static struct platform_driver pdm_driver;
+/* 5.10 these lived in mtk_charger.c (xiaomi extension); 6.12 lacks them,
+ * so keep the state local to the manager (xaga only uses pd_cp_manager)
+ */
+static bool xm_pd_soft_reset;
+static void set_soft_reset_status(int val)
+{
+	xm_pd_soft_reset = !!val;
+}
+static int get_soft_reset_status(void)
+{
+	return xm_pd_soft_reset;
+}
+static int xm_night_charging;
+static int night_charging_get_flag(void)
+{
+	return xm_night_charging;
+}
+
 enum pdm_sm_state {
 	PD_PM_STATE_ENTRY,
 	PD_PM_STATE_INIT_VBUS,
@@ -94,7 +112,7 @@ struct usbpd_pm {
 
 	enum pdm_sm_state state;
 	enum pdm_sm_status sm_status;
-	enum adapter_event pd_type;
+	enum mtk_pd_connect_type pd_type;
 	bool	pdm_active;
 	bool	psy_change_running;
 	bool	master_cp_enable;
@@ -326,13 +344,13 @@ static bool pdm_check_votable(struct usbpd_pm *pdpm)
 static bool pdm_evaluate_src_caps(struct usbpd_pm *pdpm)
 {
 	bool legal_pdo = false;
-	int ret = 0, i = 0;
+	int i = 0;
 
 	pdpm->apdo_max_vbus = 0;
 	pdpm->apdo_max_ibus = 0;
 	pdpm->apdo_max_watt = 0;
 
-	ret = adapter_dev_get_cap(pinfo->pd_adapter, MTK_PD, &pdpm->cap);
+	adapter_dev_get_cap(pinfo->pd_adapter, MTK_PD, &pdpm->cap);
 
 	for (i = 0; i < pdpm->cap.nr; i++) {
 		/*some 3thd pps only 16v or 22v max_voltage, fix 67w can't request this pdos*/
@@ -358,7 +376,7 @@ static bool pdm_evaluate_src_caps(struct usbpd_pm *pdpm)
 			pdpm->cp_4_1_mode = true;
 		} else if (pdpm->cap.maxwatt[i] > pdpm->apdo_max_watt) {
 			if((pdpm->supported_4_1) && (pdpm->apdo_max_ibus > pdpm->cap.ma[i])){
-				pdm_info("supported_4_1 = %d, apdo_max_ibus = %d, cap.ma[i] = %d\n", pdpm->supported_4_1, pdpm->apdo_max_ibus, i, pdpm->cap.ma[i]);
+				pdm_info("supported_4_1 = %d, apdo_max_ibus = %d, cap.ma[i] = %d\n", pdpm->supported_4_1, pdpm->apdo_max_ibus, pdpm->cap.ma[i]);
 				legal_pdo = true;
 				break;
 			}
@@ -388,7 +406,7 @@ static bool pdm_evaluate_src_caps(struct usbpd_pm *pdpm)
 				continue;
 
 			if ( pdpm->cap.max_mv[i] == PD2_VBUS) {
-				ret = adapter_dev_set_cap(pinfo->pd_adapter, MTK_PD_APDO, pdpm->cap.max_mv[i], pdpm->cap.ma[i]);
+				adapter_dev_set_cap(pinfo->pd_adapter, MTK_PD_APDO, pdpm->cap.max_mv[i], pdpm->cap.ma[i]);
 				pdm_info("MAX_fixed_PDO = [%d %d %d]\n", pdpm->cap.max_mv[i], pdpm->cap.ma[i], pdpm->cap.maxwatt[i] / 1000000);
 			}
 		}
@@ -1281,9 +1299,7 @@ static ssize_t pdm_show_log_level(struct device *dev, struct device_attribute *a
 
 static ssize_t pdm_store_log_level(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
-	int ret = 0;
-
-	ret = sscanf(buf, "%d", &log_level);
+	sscanf(buf, "%d", &log_level);
 	pdm_info("store log_level = %d\n", log_level);
 
 	return count;
@@ -1492,15 +1508,13 @@ static int pdm_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int pdm_remove(struct platform_device *pdev)
+static void pdm_remove(struct platform_device *pdev)
 {
 	struct usbpd_pm *pdpm = platform_get_drvdata(pdev);
 
 	power_supply_unreg_notifier(&pdpm->nb);
 	cancel_delayed_work(&pdpm->main_sm_work);
 	cancel_work_sync(&pdpm->psy_change_work);
-
-	return 0;
 }
 
 static struct platform_driver pdm_driver = {

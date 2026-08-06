@@ -26,6 +26,7 @@
 #include <linux/uaccess.h>
 #include <linux/input/mt.h>
 #include <linux/of_gpio.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/of_irq.h>
 #include <linux/debugfs.h>
 #include <linux/init.h>
@@ -46,10 +47,9 @@
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE)
 #include "../xiaomi/xiaomi_touch.h"
 #endif
-#ifdef CONFIG_DRM_MEDIATEK_V2
 #include "../../../gpu/drm/mediatek/mediatek_v2/mtk_disp_notify.h"
 #include "../../../gpu/drm/mediatek/mediatek_v2/mtk_disp_recovery.h"
-#endif
+
 #if NVT_TOUCH_ESD_PROTECT
 static struct delayed_work nvt_esd_check_work;
 static struct workqueue_struct *nvt_esd_check_wq;
@@ -88,7 +88,7 @@ static void nvt_ts_late_resume(struct early_suspend *h);
 static int32_t nvt_ts_suspend(struct device *dev);
 static int32_t nvt_ts_resume(struct device *dev);
 extern int get_lockdown_info_for_nvt(unsigned char *plockdowninfo);
-static int32_t nvt_check_palm(uint8_t input_id, uint8_t *data);
+static int32_t __maybe_unused nvt_check_palm(uint8_t input_id, uint8_t *data);
 static int nvt_write_ic_command(int mode, bool enable);
 uint32_t ENG_RST_ADDR  = 0x7FFF80;
 uint32_t SWRST_N8_ADDR = 0; /* read from dtsi */
@@ -146,7 +146,7 @@ static ssize_t nvt_reg_debug_store(struct device *dev,struct device_attribute *a
 	nvt_esd_check_enable(false);
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
 
-	if (sscanf(buf, "%02x %02x %02x %02x %02x", &addr_buf[0], &addr_buf[1], &addr_buf[2], &cnt, &data)) {
+	if (sscanf(buf, "%02hhx %02hhx %02hhx %02hhx %02hhx", &addr_buf[0], &addr_buf[1], &addr_buf[2], &cnt, &data)) {
 		addr = addr_buf[0] << 16 | addr_buf[1] << 8 | addr_buf[2];
 		nvt_set_page(addr);
 		if (0xff == data) {
@@ -179,7 +179,7 @@ static ssize_t nvt_reg_debug_store(struct device *dev,struct device_attribute *a
 			mutex_unlock(&ts->lock);
 			return count;
 		} else {
-			NVT_LOG("addr : %lu, data1 : %d, data2 : %d", addr, cnt, data);
+			NVT_LOG("addr : %u, data1 : %d, data2 : %d", addr, cnt, data);
 			data_buf[0] = (uint8_t) (addr & 0x7F);
 			data_buf[1] = cnt;
 			data_buf[2] = data;
@@ -1041,10 +1041,10 @@ static int32_t nvt_parse_dt(struct device *dev)
 	uint32_t temp_val;
 
 #if NVT_TOUCH_SUPPORT_HW_RST
-	ts->reset_gpio = of_get_named_gpio_flags(np, "novatek,reset-gpio", 0, &ts->reset_flags);
+	ts->reset_gpio = of_get_named_gpio(np, "novatek,reset-gpio", 0);
 	NVT_LOG("novatek,reset-gpio=%d\n", ts->reset_gpio);
 #endif
-	ts->irq_gpio = of_get_named_gpio_flags(np, "novatek,irq-gpio", 0, &ts->irq_flags);
+	ts->irq_gpio = of_get_named_gpio(np, "novatek,irq-gpio", 0);
 	NVT_LOG("novatek,irq-gpio=%d\n", ts->irq_gpio);
 
 	ret = of_property_read_u32(np, "novatek,swrst-n8-addr", &SWRST_N8_ADDR);
@@ -1852,7 +1852,7 @@ static void nvt_open_test_work(struct work_struct *work)
 
 static struct xiaomi_touch_interface xiaomi_touch_interfaces;
 
-int32_t nvt_check_palm(uint8_t input_id, uint8_t *data)
+int32_t __maybe_unused nvt_check_palm(uint8_t input_id, uint8_t *data)
 {
 	int32_t ret = 0;
 	uint8_t func_type = data[2];
@@ -2631,11 +2631,6 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	spi_set_drvdata(ts->client, ts);
 
 	/* ---prepare for spi parameter--- */
-	if (ts->client->master->flags & SPI_MASTER_HALF_DUPLEX) {
-		NVT_ERR("Full duplex not supported by master\n");
-		ret = -EIO;
-		goto err_ckeck_full_duplex;
-	}
 	ts->client->bits_per_word = 8;
 	ts->client->mode = SPI_MODE_0;
 	ts->client->max_speed_hz = ts->spi_max_freq;
@@ -3037,7 +3032,6 @@ err_spi_setup:
 		destroy_workqueue(ts->selftest_wq);
 		ts->selftest_wq = NULL;
 	}
-err_ckeck_full_duplex:
 	spi_set_drvdata(ts->client, NULL);
 	if (ts->xbuf) {
 		kfree(ts->xbuf);

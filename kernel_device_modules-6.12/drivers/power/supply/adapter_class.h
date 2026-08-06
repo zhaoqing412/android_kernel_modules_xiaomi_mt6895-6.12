@@ -71,15 +71,20 @@ enum adapter_event {
 	MTK_UFCS_DETACH,
 	MTK_UFCS_ATTACH,
 	MTK_UFCS_FAIL,
-	/* Xiaomi charge-pump managers (pd_cp_manager etc., ported from 5.10) */
+};
+
+/* 6.12 mtk_pd_adapter.c native enum, hoisted here so the Xiaomi
+ * charge-pump managers (pd_cp_manager etc.) can reference it
+ */
+enum mtk_pd_connect_type {
 	MTK_PD_CONNECT_NONE,
 	MTK_PD_CONNECT_HARD_RESET,
+	MTK_PD_CONNECT_SOFT_RESET,
 	MTK_PD_CONNECT_PE_READY_SNK,
 	MTK_PD_CONNECT_PE_READY_SNK_PD30,
 	MTK_PD_CONNECT_PE_READY_SNK_APDO,
 	MTK_PD_CONNECT_TYPEC_ONLY_SNK,
-	MTK_PD_UVDM,
-	MTK_PD_CONNECT_SOFT_RESET,
+	MTK_PD_CONNECT_NEW_SRC_CAP,
 };
 
 enum adapter_property {

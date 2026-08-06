@@ -3924,7 +3924,7 @@ static int aw86927_ram_update(struct aw86927 *aw86927)
 {
 	aw86927->ram_init = 0;
 	aw86927->rtp_init = 0;
-	return request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+	return request_firmware_nowait(THIS_MODULE, true,
 				       awinic_ram_name, aw86927->dev,
 				       GFP_KERNEL, aw86927, aw86927_ram_loaded);
 }

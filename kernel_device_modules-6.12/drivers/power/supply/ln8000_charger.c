@@ -1494,7 +1494,7 @@ static int ln8000_get_dev_role(struct i2c_client *client)
 		dev_err(&client->dev, "%s: fail to matched of_device_id\n", __func__);
 		return -EINVAL;
 	}
-	sprintf(buf, "%c", of_id->data);
+	sprintf(buf, "%c", (int)(long)of_id->data);
 	memcpy(&data, buf, 4);
 	dev_info(&client->dev, "%s: matched to %s, %p\n", __func__, of_id->compatible, of_id->data);
 	return data;
@@ -2050,11 +2050,10 @@ static int cp_vbus_get(struct ln8000_info *gm,
 	struct mtk_cp_sysfs_field_info *attr,
 	int *val)
 {
-	int ret = 0;
 	u32 data = 0;
 
 	if (gm) {
-		ret = ln8000_get_adc_data(gm, LN8000_ADC_CH_VIN, &data);
+		ln8000_get_adc_data(gm, LN8000_ADC_CH_VIN, &data);
 		*val = data/1000;
 	} else
 		*val = 0;
@@ -2066,11 +2065,10 @@ static int cp_ibus_get(struct ln8000_info *gm,
 	struct mtk_cp_sysfs_field_info *attr,
 	int *val)
 {
-	int ret = 0;
 	u32 data = 0;
 
 	if (gm) {
-		ret = ln8000_get_adc_data(gm, LN8000_ADC_CH_IIN, &data);
+		ln8000_get_adc_data(gm, LN8000_ADC_CH_IIN, &data);
 		*val = data/1000;
 	} else
 		*val = 0;
@@ -2083,11 +2081,10 @@ static int cp_tdie_get(struct ln8000_info *gm,
 	struct mtk_cp_sysfs_field_info *attr,
 	int *val)
 {
-	int ret = 0;
 	u32 data = 0;
 
 	if (gm) {
-		ret = ln8000_get_adc_data(gm, LN8000_ADC_CH_DIETEMP, &data);
+		ln8000_get_adc_data(gm, LN8000_ADC_CH_DIETEMP, &data);
 		*val = data;
 	} else
 		*val = 0;
@@ -2227,7 +2224,7 @@ static int try_to_find_i2c_regess(struct i2c_client *client)
         return ret;
 }
 
-static int ln8000_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static int ln8000_probe(struct i2c_client *client)
 {
 	struct ln8000_info *info;
 	int ret = 0;
@@ -2258,7 +2255,7 @@ static int ln8000_probe(struct i2c_client *client, const struct i2c_device_id *i
 			dev_err(&client->dev, "fail to detect ln8000 on i2c_bus(addr=0x%x), retry\n", client->addr);
 			ret = try_to_find_i2c_regess(client);
 			if (ret != LN8000_DEVICE_ID) {
-				dev_err(&client->dev, "fail to detect ln8000 on i2c_bus, exit\n", client->addr);
+				dev_err(&client->dev, "fail to detect ln8000 on i2c_bus, exit\n");
 				return -ENODEV;
 			}
 		}
@@ -2293,7 +2290,7 @@ static int ln8000_probe(struct i2c_client *client, const struct i2c_device_id *i
 		ret = PTR_ERR(info->regmap);
 		goto err_devmem;
 	}
-	ret = ln8000_check_work_mode(info, id->driver_data);
+	ret = ln8000_check_work_mode(info, ln8000_get_dev_role(client));
 	if (ret) {
 		ln_err("failed to check work_mode\n");
 		return ret;
@@ -2369,7 +2366,7 @@ err_devmem:
 	return ret;
 }
 
-static int ln8000_remove(struct i2c_client *client)
+static void ln8000_remove(struct i2c_client *client)
 {
 	struct ln8000_info *info = i2c_get_clientdata(client);
 
@@ -2393,7 +2390,6 @@ static int ln8000_remove(struct i2c_client *client)
 	kfree(info->pdata);
 	kfree(info);
 
-	return 0;
 }
 
 static void ln8000_shutdown(struct i2c_client *client)
