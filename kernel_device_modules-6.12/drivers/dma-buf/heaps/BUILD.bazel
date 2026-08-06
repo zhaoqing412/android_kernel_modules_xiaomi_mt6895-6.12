@@ -1,0 +1,194 @@
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers")
+load("//build/bazel_mgk_rules:mgk_ddk_ko.bzl", "define_mgk_ddk_ko")
+load("@mgk_info//:kernel_version.bzl","kernel_version",)
+
+package(
+    default_visibility = [
+        "//visibility:public",
+    ],
+)
+
+filegroup(
+    name = "ddk_kconfigs",
+    srcs = glob([
+        "**/Kconfig",
+    ]),
+)
+
+filegroup(
+    name = "ddk_src",
+    srcs = glob([
+        "**/Makefile",
+        "**/Kbuild",
+        "**/*.c",
+        "**/*.h",
+    ]),
+)
+
+ddk_headers(
+    name = "osvelte_public_headers",
+    hdrs = glob([
+        "mm_osvelte/common.h",
+        "mm_osvelte/logger.h",
+        "mm_osvelte/lowmem-dbg.h",
+        "mm_osvelte/memstat.h",
+        "mm_osvelte/mm-config.h",
+        "mm_osvelte/mm-trace.h",
+        "mm_osvelte/proc-memstat.h",
+        "mm_osvelte/sys-memstat.h",
+    ]),
+    includes = [
+        ".",
+    ],
+)
+
+define_mgk_ddk_ko(
+    name = "system_heap",
+    srcs = [
+        "mtk-deferred-free-helper.c",
+        "mtk_cache_pool.c",
+        "mtk_dmabuf_monitor.c",
+        "mtk_page_pool.c",
+        "mtk_system_heap.c",
+    ],
+    hdrs = glob([
+        "mtk-deferred-free-helper.h",
+        "mtk_dmabuf_events.h",
+        "mtk_heap.h",
+        "mtk_heap_priv.h",
+        "mtk_page_pool.h",
+        "mtk_dma_trace.h",
+    ]),
+    includes = ["."],
+    ko_deps = [
+        ":oplus_boost_pool_mtk",
+        ":oplus_bsp_mm_osvelte",
+        ":oplus_bsp_aizerofs",
+        ],
+    header_deps = [
+        "//kernel_device_modules-{}/drivers/iommu/arm/arm-smmu-v3:smmu_public_headers".format(kernel_version),
+    ],
+    out = "system_heap.ko",
+)
+
+define_mgk_ddk_ko(
+    name = "oplus_boost_pool_mtk",
+    srcs = [
+        "mm_boost_pool/oplus_boost_pool_mtk.c",
+    ],
+    hdrs = glob([
+        "mm_boost_pool/oplus_boost_pool_mtk.h",
+        "mm_boost_pool/trace_dma_buf.h",
+        "mtk_page_pool.h",
+        "mtk_heap_priv.h",
+    ]),
+    includes = ["."],
+    header_deps = [":osvelte_public_headers"],
+    ko_deps = [":oplus_bsp_mm_osvelte"],
+    out = "oplus_boost_pool_mtk.ko",
+)
+
+define_mgk_ddk_ko(
+    name = "oplus_bsp_aizerofs",
+    srcs = [
+        "aizerofs/aizerofs.c",
+        "aizerofs/aizerofs_shrink.c",
+    ],
+    hdrs = glob([
+        "aizerofs/aizerofs_internal.h",
+        "aizerofs/aizerofs_shrink.h",
+    ]),
+    includes = ["."],
+    ko_deps = [":oplus_bsp_mm_osvelte"],
+    out = "oplus_bsp_aizerofs.ko",
+)
+
+define_mgk_ddk_ko(
+    name = "mtk_heap_refill",
+    srcs = [
+        "mtk_heap_refill.c",
+    ],
+    ko_deps = [":system_heap"],
+    out = "mtk_heap_refill.ko",
+)
+
+define_mgk_ddk_ko(
+    name = "oplus_bsp_mm_osvelte",
+    srcs = [
+        "mm_osvelte/common.c",
+        "mm_osvelte/logger.c",
+        "mm_osvelte/lowmem-dbg.c",
+        "mm_osvelte/mm-config.c",
+        "mm_osvelte/proc-memstat.c",
+        "mm_osvelte/sys-ashmem.c",
+        "mm_osvelte/sys-dmabuf.c",
+        "mm_osvelte/sys-memstat.c",
+        "mm_osvelte/vsprintf-dup.c",
+    ],
+    hdrs = glob([
+        "mm_osvelte/common.h",
+        "mm_osvelte/internal.h",
+        "mm_osvelte/logger.h",
+        "mm_osvelte/lowmem-dbg.h",
+        "mm_osvelte/memstat.h",
+        "mm_osvelte/mm-config.h",
+        "mm_osvelte/mm-trace.h",
+        "mm_osvelte/proc-memstat.h",
+        "mm_osvelte/sys-memstat.h",
+    ]),
+    includes = ["."],
+    out = "oplus_bsp_mm_osvelte.ko",
+)
+
+define_mgk_ddk_ko(
+    name = "mtk_sec_heap",
+    srcs = [
+        "mtk_sec_heap.h",
+        "mtk_sec_heap_priv.h",
+        "mtk_sec_heap_main.c",
+        "mtk_tmem_interop.c",
+        "mtk_tmem_interop.h",
+    ],
+    hdrs = glob([
+        "mtk_heap.h",
+        "mtk_heap_priv.h",
+        "mtk_page_pool.h",
+    ]),
+    includes = ["."],
+    header_deps = [
+        "//kernel_device_modules-{}/drivers/misc/mediatek/iommu:iommu_misc_headers".format(kernel_version),
+    ],
+    copts = [
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/",
+    ],
+    ko_deps = [
+        "//kernel_device_modules-{}/drivers/misc/mediatek/iommu:iommu_gz".format(kernel_version),
+        "//kernel_device_modules-{}/drivers/misc/mediatek/trusted_mem:trusted_mem".format(kernel_version),
+        ":system_heap",
+    ],
+    out = "mtk_sec_heap.ko",
+)
+
+define_mgk_ddk_ko(
+    name = "mtk_heap_debug",
+    srcs = [
+        "mtk_heap_debug.c",
+    ],
+    hdrs = glob([
+        "mtk-deferred-free-helper.h",
+        "mtk_heap.h",
+        "mtk_heap_priv.h",
+        "mtk_page_pool.h",
+    ]),
+    includes = ["."],
+    copts = [
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/",
+    ],
+    ko_deps = [
+        "//kernel_device_modules-{}/drivers/misc/mediatek/aee/mrdump:mrdump".format(kernel_version),
+        "//kernel_device_modules-{}/drivers/misc/mediatek/monitor_hang:monitor_hang".format(kernel_version),
+        ":mtk_sec_heap",
+        ":system_heap",
+    ],
+    out = "mtk_heap_debug.ko",
+)

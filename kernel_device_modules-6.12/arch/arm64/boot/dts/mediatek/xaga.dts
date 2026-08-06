@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2021-2022 XiaoMi, Inc.
+ * xaga (Redmi Note 11T Pro / POCO X5 Pro, MT6895) board entry.
+ * Ported from the 5.10 ESK kernel (xaga.dts) to the 6.12 MTK tree.
+ */
+
+#include "xaga-mt6895.dtsi"
+&memory_ssmr_features {
+	svp-region-based-size = <0 0x2000000>;
+	svp-page-based-size = <0 0x19000000>;
+};
+#include "cust/xaga.dtsi"

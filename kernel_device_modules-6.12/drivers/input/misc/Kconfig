@@ -1,0 +1,1 @@
+source "drivers/input/misc/aw8697_haptic/Kconfig"

@@ -1,0 +1,77 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (c) 2022 XiaoMi Inc.
+ * Ported from 5.10 xaga kernel (Xiaomi charge control nodes defined in the
+ * 5.10 SoC base mt6895.dts). The matching drivers (mediatek,xagapro_charger /
+ * pd_cp_manager / xagapro_PCM) are not present in the 6.12 tree; these nodes
+ * keep the board DTS buildable and carry the original charge configuration.
+ */
+
+/ {
+	xagapro_charger: xagapro_charger {
+		compatible = "mediatek,xagapro_charger";
+		gauge = <&mtk_gauge>;
+		charger = <&mt6375_chg>;
+		bootmode = <&chosen>;
+
+		algorithm_name = "Basic";
+		charger_configuration= <0>;
+
+		/* common */
+		battery_cv = <4450000>;
+		max_charger_voltage = <6500000>;
+		min_charger_voltage = <4600000>;
+
+		/* sw jeita */
+		enable_vbat_mon= <1>;
+		/* enable_sw_jeita; */
+		jeita_temp_above_t4_cv = <4240000>;
+		jeita_temp_t3_to_t4_cv = <4240000>;
+		jeita_temp_t2_to_t3_cv = <4340000>;
+		jeita_temp_t1_to_t2_cv = <4240000>;
+		jeita_temp_t0_to_t1_cv = <4040000>;
+		jeita_temp_below_t0_cv = <4040000>;
+		temp_t4_thres = <50>;
+		temp_t4_thres_minus_x_degree = <47>;
+		temp_t3_thres = <45>;
+		temp_t3_thres_minus_x_degree = <39>;
+		temp_t2_thres = <10>;
+		temp_t2_thres_plus_x_degree = <16>;
+		temp_t1_thres = <0>;
+		temp_t1_thres_plus_x_degree = <6>;
+		temp_t0_thres = <0>;
+		temp_t0_thres_plus_x_degree = <0>;
+		temp_neg_10_thres = <0>;
+
+		/* battery temperature protection */
+		enable_min_charge_temp;
+		min_charge_temp = <(-10)>;
+		min_charge_temp_plus_x_degree = <2>;
+		max_charge_temp = <60>;
+		max_charge_temp_minus_x_degree = <58>;
+
+		/* charging current */
+		usb_charger_current = <500000>;
+		ac_charger_current = <2050000>;
+		ac_charger_input_current = <3200000>;
+		charging_host_charger_current = <1500000>;
+
+		/* dynamic mivr */
+		enable_dynamic_mivr;
+		min_charger_voltage_1 = <4400000>;
+		min_charger_voltage_2 = <4200000>;
+		max_dmivr_charger_current = <1800000>;
+
+		/* fast charging algo support indicator */
+		enable_fast_charging_indicator;
+	};
+
+	pd_cp_manager: pd_cp_manager {
+	};
+
+	xiaomi_charge: xiaomi_charge {
+	};
+
+	xagapro_PCM: xagapro_PCM {
+	};
+};
