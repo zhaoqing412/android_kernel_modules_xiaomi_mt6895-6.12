@@ -1,1 +1,1 @@
-source "drivers/input/misc/aw8697_haptic/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)drivers/input/misc/aw8697_haptic/Kconfig"

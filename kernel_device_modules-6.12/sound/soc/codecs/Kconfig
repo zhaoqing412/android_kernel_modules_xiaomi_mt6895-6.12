@@ -234,7 +234,6 @@ config SND_SOC_HFDA80X
 	  Config of hfda80x. It is a Smart amplifier
 	  It would be set to yes if device with HFDA801/HFDA803 on it.
 
-# Add for oplus vow monitor
-source "$(KCONFIG_EXT_PREFIX)drivers/soc/oplus/oplus_vow_monitor/Kconfig"
+# (removed oplus vow monitor source: oplus dir stripped from the xaga port tree)
 
 endmenu

@@ -67,8 +67,7 @@ config MTK_VOW_DSP_VERSION
 	  indicate DSP version. This feature need to work
 	  with MTK_VOW_SUPPORT.
 
-# Add for oplus vow monitor
-source "$(KCONFIG_EXT_PREFIX)drivers/soc/oplus/oplus_vow_monitor/Kconfig"
+# (removed oplus vow monitor source: oplus dir stripped from the xaga port tree)
 
 # Add for oplus vow custom payload
 config OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD
