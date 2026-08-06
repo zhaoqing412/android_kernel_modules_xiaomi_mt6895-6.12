@@ -53,4 +53,16 @@ config TOUCHSCREEN_XIAOMI_DOUBLE_CLICK
 	  Provides is_tp_doubleclick_enable()/tp_enable_doubleclick() used by
 	  the touch panel and display panel drivers (ported from 5.10 xaga).
 
+config TOUCHSCREEN_NVT36672C_HOSTDL_SPI
+	tristate  "Novatek NT36xxx host download SPI driver"
+	help
+	  Say Y here if you have a Novatek NT36xxx no flash touchscreen connected
+	  to your system by SPI bus.
+
+	  If unsure, say N.
+
+config TOUCHSCREEN_NVT36672C_DOUBLE_CLICK
+	tristate "double click for nvt36672c"
+	default n
+
 endif

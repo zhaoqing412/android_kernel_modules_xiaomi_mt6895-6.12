@@ -885,6 +885,7 @@ mgk_64_kleaf_device_modules = [
     "//kernel_device_modules-{}/drivers/input/touchscreen/GT9966:gt9966".format(kernel_version),
     "//kernel_device_modules-{}/drivers/input/touchscreen/gt9xx:gt9xx_touch".format(kernel_version),
     "//kernel_device_modules-{}/drivers/input/touchscreen/NT36532:nt36532".format(kernel_version),
+    "//kernel_device_modules-{}/drivers/input/touchscreen/NVT36672C:nt36672c".format(kernel_version),
     "//kernel_device_modules-{}/drivers/input/touchscreen/tui_common:tui-common".format(kernel_version),
     "//kernel_device_modules-{}/drivers/input/touchscreen/ts_scp:ts_scp_common".format(kernel_version),
     "//kernel_device_modules-{}/drivers/input/keyboard:mtk-pmic-keys".format(kernel_version),
