@@ -13,6 +13,12 @@ obj-$(CONFIG_CHARGER_SGM41516D) +=  mtk_chg_det.o
 endif
 #mtk_charger_framework-objs := mtk_charger.o mtk_charger_intf.o mtk_basic_charger.o mtk_pulse_charger.o mtk_adapter_switch.o
 
+# Xiaomi/MTK charge framework (restored from 5.10 wiring; symbol providers
+# charger_class/adapter_class/... needed by the ported charge-pump drivers)
+obj-$(CONFIG_MTK_CHARGER) += mtk_charger_framework.o mtk_pd_charging.o charger_class.o adapter_class.o mtk_charger_algorithm_class.o mtk_pd_adapter.o
+mtk_charger_framework-objs := mtk_charger.o mtk_charger_intf.o mtk_basic_charger.o
+obj-$(CONFIG_MTK_CHARGER_TYPE_DETECT) += mtk_chg_type_det.o
+
 mtk_pd_charging-objs := mtk_pd.o mtk_pd_hal.o
 #obj-$(CONFIG_CHARGER_RT9465)	+= rt9465.o
 #obj-$(CONFIG_BATTERY_MT6359P) += mt6359p_battery.o

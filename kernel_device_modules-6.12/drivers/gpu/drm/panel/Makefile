@@ -1,5 +1,14 @@
 # SPDX-License-Identifier: GPL-2.0
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mtk-interconnect/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/slbc/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/cmdq/mailbox/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/iommu/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/drm/mediatek/mml
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/drm/mediatek/dpc
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/leds/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/tinysys_scmi/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/clk/mediatek
 
 ifneq ($(filter y m, $(CONFIG_MTK_MME_SUPPORT)),)
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mme

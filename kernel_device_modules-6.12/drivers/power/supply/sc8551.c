@@ -539,11 +539,10 @@ static int cp_vbus_get(struct sc8551 *gm,
 	struct mtk_cp_sysfs_field_info *attr,
 	int *val)
 {
-	int ret = 0;
 	u32 data = 0;
 
 	if (gm) {
-		ret = sc8551_read_adc(gm, ADC_VBUS, &data);
+		sc8551_read_adc(gm, ADC_VBUS, &data);
 		*val = data;
 	} else
 		*val = 0;
@@ -555,11 +554,10 @@ static int cp_ibus_get(struct sc8551 *gm,
 	struct mtk_cp_sysfs_field_info *attr,
 	int *val)
 {
-	int ret = 0;
 	u32 data = 0;
 
 	if (gm) {
-		ret = sc8551_read_adc(gm, ADC_IBUS, &data);
+		sc8551_read_adc(gm, ADC_IBUS, &data);
 		*val = data;
 	} else
 		*val = 0;
@@ -571,11 +569,10 @@ static int cp_tdie_get(struct sc8551 *gm,
 	struct mtk_cp_sysfs_field_info *attr,
 	int *val)
 {
-	int ret = 0;
 	u32 data = 0;
 
 	if (gm) {
-		ret = sc8551_read_adc(gm, ADC_TDIE, &data);
+		sc8551_read_adc(gm, ADC_TDIE, &data);
 		*val = data;
 	} else
 		*val = 0;
@@ -683,20 +680,19 @@ static enum power_supply_property sc8551_power_supply_props[] = {
 static int sc8551_get_property(struct power_supply *psy, enum power_supply_property psp, union power_supply_propval *val)
 {
 	struct sc8551 *chip = power_supply_get_drvdata(psy);
-	int ret = 0;
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
 		val->intval = chip->chip_ok;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
-		ret = sc8551_read_adc(chip, ADC_VBAT, &val->intval);
+		sc8551_read_adc(chip, ADC_VBAT, &val->intval);
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
-		ret = sc8551_read_adc(chip, ADC_IBAT, &val->intval);
+		sc8551_read_adc(chip, ADC_IBAT, &val->intval);
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
-		ret = sc8551_read_adc(chip, ADC_TDIE, &val->intval);
+		sc8551_read_adc(chip, ADC_TDIE, &val->intval);
 		break;
 	default:
 		return -EINVAL;
@@ -768,7 +764,7 @@ static ssize_t sc8551_show_adc(struct device *dev, struct device_attribute *attr
 
 	idx = snprintf(buf, PAGE_SIZE, "%s:\n", "SC8551_ADC");
 	for (channel = ADC_IBUS; channel <= ADC_TDIE; channel++) {
-		ret = sc8551_read_adc(chip, channel, &value);
+		sc8551_read_adc(chip, channel, &value);
 		if (ret) {
 			sc_err("%s failed to read ADC\n", chip->log_tag);
 			return idx;
@@ -811,9 +807,8 @@ static ssize_t sc8551_show_log_level(struct device *dev, struct device_attribute
 static ssize_t sc8551_store_log_level(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct sc8551 *chip = dev_get_drvdata(dev);
-	int ret = 0;
 
-	ret = sscanf(buf, "%d", &log_level);
+	sscanf(buf, "%d", &log_level);
 	sc_info("%s store log_level = %d\n", chip->log_tag, log_level);
 
 	return count;
@@ -1061,9 +1056,14 @@ static int try_to_find_i2c_regess(struct i2c_client *client)
 }
 #endif
 
-static int sc8551_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static const struct of_device_id sc8551_of_match[];
+
+static int sc8551_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
+	const struct of_device_id *of_id =
+		of_match_device(sc8551_of_match, &client->dev);
+	int work_mode = of_id ? (int)(long)of_id->data : SC8551_STANDALONE;
 	struct sc8551 *chip;
 	int ret = 0;
 #if defined(CONFIG_TARGET_PRODUCT_XAGA)
@@ -1121,14 +1121,14 @@ static int sc8551_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 	//wakeup_source_init(&chip->irq_handle_wakelock, "sc8551_irq_handle_wakelock");
 	INIT_DELAYED_WORK(&chip->irq_handle_work, sc8551_irq_handler);
-	strncpy(chip->model_name, id->name, I2C_NAME_SIZE);
+	strncpy(chip->model_name, client->name, I2C_NAME_SIZE);
 	chip->regmap = devm_regmap_init_i2c(client, &sc8551_regmap_config);
 	if (IS_ERR(chip->regmap)) {
 		sc_err("failed to allocate regmap\n");
 		return PTR_ERR(chip->regmap);
 	}
 
-	ret = sc8551_check_work_mode(chip, id->driver_data);
+	ret = sc8551_check_work_mode(chip, work_mode);
 	if (ret) {
 		sc_err("failed to check work_mode\n");
 		return ret;
@@ -1213,7 +1213,7 @@ static const struct dev_pm_ops sc8551_pm_ops = {
 	.resume		= sc8551_resume,
 };
 
-static int sc8551_remove(struct i2c_client *client)
+static void sc8551_remove(struct i2c_client *client)
 {
 	struct sc8551 *chip = i2c_get_clientdata(client);
 	int ret = 0;
@@ -1223,7 +1223,6 @@ static int sc8551_remove(struct i2c_client *client)
 		sc_err("%s failed to disable ADC\n", chip->log_tag);
 	power_supply_unregister(chip->cp_psy);
 
-	return 0;
 }
 
 static void sc8551_shutdown(struct i2c_client *client)

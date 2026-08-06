@@ -1033,18 +1033,17 @@ int ln8410_dump_important_regs(struct sc8561_device *cp)
 
 int ln8410_set_REGN_pull_down(struct sc8561_device *cp, bool enable)
 {
-	int ret = 0;
-	ret = regmap_write(cp->regmap, LN8410_REG_LION_CTRL, 0xAA);
+	regmap_write(cp->regmap, LN8410_REG_LION_CTRL, 0xAA);
 	if (enable) {
-		ret = regmap_update_bits(cp->regmap,  LN8410_REG_TEST_MODE_CTRL_2, 0x80, 0x80);   /* FORCE_VWPC_PD = 1 */
-		ret = regmap_update_bits(cp->regmap,  LN8410_REG_TEST_MODE_CTRL_2, 0x40, 0x00);   /* TM_VWPC_PD = 0 */
-		ret = regmap_update_bits(cp->regmap,  LN8410_REG_FORCE_SC_MISC, 0x04, 0x04);      /* TM_REGN_PD = 1 */
+		regmap_update_bits(cp->regmap,  LN8410_REG_TEST_MODE_CTRL_2, 0x80, 0x80);   /* FORCE_VWPC_PD = 1 */
+		regmap_update_bits(cp->regmap,  LN8410_REG_TEST_MODE_CTRL_2, 0x40, 0x00);   /* TM_VWPC_PD = 0 */
+		regmap_update_bits(cp->regmap,  LN8410_REG_FORCE_SC_MISC, 0x04, 0x04);      /* TM_REGN_PD = 1 */
 	} else {
-		ret = regmap_update_bits(cp->regmap,  LN8410_REG_TEST_MODE_CTRL_2, 0x80, 0x00);   /* FORCE_VWPC_PD = 0 */
-		ret = regmap_update_bits(cp->regmap,  LN8410_REG_TEST_MODE_CTRL_2, 0x40, 0x00);   /* TM_VWPC_PD = 0 */
-		ret = regmap_update_bits(cp->regmap,  LN8410_REG_FORCE_SC_MISC, 0x04, 0x00);      /* TM_REGN_PD = 0 */
+		regmap_update_bits(cp->regmap,  LN8410_REG_TEST_MODE_CTRL_2, 0x80, 0x00);   /* FORCE_VWPC_PD = 0 */
+		regmap_update_bits(cp->regmap,  LN8410_REG_TEST_MODE_CTRL_2, 0x40, 0x00);   /* TM_VWPC_PD = 0 */
+		regmap_update_bits(cp->regmap,  LN8410_REG_FORCE_SC_MISC, 0x04, 0x00);      /* TM_REGN_PD = 0 */
 	}
-	ret = regmap_write(cp->regmap, LN8410_REG_LION_CTRL, 0x00);
+	regmap_write(cp->regmap, LN8410_REG_LION_CTRL, 0x00);
 	bq_err("%s REGN_PD=%d\n", cp->log_tag, enable);
 
 	return 0;
@@ -1733,17 +1732,16 @@ static int ln8410_soft_reset(struct sc8561_device *cp)
 {
     unsigned int sys_st;
     int i;
-    int ret;
 
 	/* SOFT_RESET_REQ=1 */
-	ret = regmap_write(cp->regmap, LN8410_REG_LION_CTRL, 0xC6);
-	ret = regmap_update_bits(cp->regmap, LN8410_REG_TEST_MODE_CTRL, 0x1, 0x1);
+	regmap_write(cp->regmap, LN8410_REG_LION_CTRL, 0xC6);
+	regmap_update_bits(cp->regmap, LN8410_REG_TEST_MODE_CTRL, 0x1, 0x1);
 
 	msleep(30); // 30 MS
 
     /* check status */
     for (i=0; i < 30; ++i) {
-		ret = regmap_read(cp->regmap, LN8410_REG_SYS_STS, &sys_st);
+		regmap_read(cp->regmap, LN8410_REG_SYS_STS, &sys_st);
 	            if (sys_st & 0x3) {
 	                    break;
 		}
@@ -2167,11 +2165,10 @@ static int cp_vbus_get(struct sc8561_device *gm,
 	struct mtk_cp_sysfs_field_info *attr,
 	int *val)
 {
-	int ret = 0;
 	u32 data = 0;
 
 	if (gm) {
-		ret = cp_get_adc_data(gm, ADC_VBUS, &data);
+		cp_get_adc_data(gm, ADC_VBUS, &data);
 		*val = data;
 	} else
 		*val = 0;
@@ -2183,11 +2180,10 @@ static int cp_ibus_get(struct sc8561_device *gm,
 	struct mtk_cp_sysfs_field_info *attr,
 	int *val)
 {
-	int ret = 0;
 	u32 data = 0;
 
 	if (gm) {
-		ret = cp_get_adc_data(gm, ADC_IBUS, &data);
+		cp_get_adc_data(gm, ADC_IBUS, &data);
 		*val = data;
 	} else
 		*val = 0;
@@ -2199,11 +2195,10 @@ static int cp_tdie_get(struct sc8561_device *gm,
 	struct mtk_cp_sysfs_field_info *attr,
 	int *val)
 {
-	int ret = 0;
 	u32 data = 0;
 
 	if (gm) {
-		ret = cp_get_adc_data(gm, ADC_TDIE, &data);
+		cp_get_adc_data(gm, ADC_TDIE, &data);
 		*val = data;
 	} else
 		*val = 0;
@@ -2393,10 +2388,14 @@ static int cp_charge_detect_device(struct sc8561_device *bq)
 	return ret;
 }
 
-static int sc8561_probe(struct i2c_client *client,
-			 const struct i2c_device_id *id)
+static const struct of_device_id sc8561_of_match[];
+
+static int sc8561_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
+	const struct of_device_id *of_id =
+		of_match_device(sc8561_of_match, &client->dev);
+	int driver_data = of_id ? (int)(long)of_id->data : 0;
 	struct sc8561_device *bq;
 	int ret = 0;
 #if defined(CONFIG_TARGET_PRODUCT_XAGA)
@@ -2444,13 +2443,13 @@ static int sc8561_probe(struct i2c_client *client,
 		return ret;
 	}
 
-	ret = sc8561_register_charger(bq, id->driver_data);
+	ret = sc8561_register_charger(bq, driver_data);
 	if (ret) {
 		bq_err("%s failed to register charger\n", bq->log_tag);
 		return ret;
 	}
 
-	ret = sc8561_power_supply_init(bq, dev, id->driver_data);
+	ret = sc8561_power_supply_init(bq, dev, driver_data);
 	if (ret) {
 		bq_err("%s failed to init psy\n", bq->log_tag);
 		return ret;
@@ -2506,7 +2505,7 @@ static const struct dev_pm_ops sc8561_pm_ops = {
 	.resume		= sc8561_resume,
 };
 
-static int sc8561_remove(struct i2c_client *client)
+static void sc8561_remove(struct i2c_client *client)
 {
 	struct sc8561_device *bq = i2c_get_clientdata(client);
 	int ret = 0;
@@ -2516,7 +2515,6 @@ static int sc8561_remove(struct i2c_client *client)
 		bq_err("%s failed to disable ADC\n", bq->log_tag);
 
 	power_supply_unregister(bq->cp_psy);
-	return ret;
 }
 
 static void sc8561_shutdown(struct i2c_client *client)

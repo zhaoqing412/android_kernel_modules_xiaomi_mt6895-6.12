@@ -10,6 +10,7 @@
 #include <linux/printk.h>
 #include <linux/slab.h>
 #include <linux/string.h>
+#include <linux/module.h>
 
 #include "pmic_voter.h"
 
@@ -847,3 +848,5 @@ void destroy_votable(struct votable *votable)
 	kfree(votable->name);
 	kfree(votable);
 }
+
+MODULE_LICENSE("GPL");

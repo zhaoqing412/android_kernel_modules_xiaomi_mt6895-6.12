@@ -61,6 +61,8 @@
 #include "charger_class.h"
 #include "pmic_voter.h"
 
+static int mtk_charger_create_votable(struct mtk_charger *mpci);
+
 static int _uA_to_mA(int uA)
 {
 	if (uA == -1)

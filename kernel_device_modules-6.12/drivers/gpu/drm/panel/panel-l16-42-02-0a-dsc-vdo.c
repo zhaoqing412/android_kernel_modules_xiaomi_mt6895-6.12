@@ -1283,12 +1283,12 @@ static int lcm_setbacklight_control(struct drm_panel *panel, unsigned int level)
 	return 0;
 }
 #endif
-static bool get_lcm_initialized(struct drm_panel *panel)
+static bool __maybe_unused get_lcm_initialized(struct drm_panel *panel)
 {
 	struct lcm *ctx;
 	bool ret = false;
 	if (!panel) {
-		pr_err(": panel is NULL\n", __func__);
+		pr_err(": panel is NULL\n");
 		goto err;
 	}
 	ctx = panel_to_lcm(panel);
@@ -1450,7 +1450,7 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 	dsi->lanes = 4;
 	dsi->format = MIPI_DSI_FMT_RGB888;
 	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_SYNC_PULSE
-			 |MIPI_DSI_MODE_LPM | MIPI_DSI_MODE_EOT_PACKET;
+			 |MIPI_DSI_MODE_LPM;
 	backlight = of_parse_phandle(dev->of_node, "backlight", 0);
 	if (backlight) {
 		ctx->backlight = of_find_backlight_by_node(backlight);
@@ -1506,7 +1506,7 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 	pr_debug("l16_42_02_0a_dsc_vdo %s-\n", __func__);
 	return ret;
 }
-static int lcm_remove(struct mipi_dsi_device *dsi)
+static void lcm_remove(struct mipi_dsi_device *dsi)
 {
 	struct lcm *ctx = mipi_dsi_get_drvdata(dsi);
 #if defined(CONFIG_MTK_PANEL_EXT)
@@ -1518,7 +1518,6 @@ static int lcm_remove(struct mipi_dsi_device *dsi)
 	mtk_panel_detach(ext_ctx);
 	mtk_panel_remove(ext_ctx);
 #endif
-	return 0;
 }
 static const struct of_device_id lcm_of_match[] = {
 	{ .compatible = "l16_42_02_0a_dsc_vdo,lcm", },
