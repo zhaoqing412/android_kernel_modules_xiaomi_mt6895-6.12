@@ -552,6 +552,15 @@ config DRM_PANEL_L16_42_02_0A_DSC_VDO
 	  The panel has a 1080x2460 resolution and uses 24-bits RGB per pixel.
 	  It provides a MIPI DSI interface to host.
 
+config DRM_PANEL_LEDS_KTZ8863A
+	tristate "DRM_PANEL_LEDS_KTZ8863A LEDS"
+	depends on OF
+	depends on I2C
+	depends on BACKLIGHT_CLASS_DEVICE
+	help
+	  Say Y here if you want to enable support for KTZ8863A backlight
+	  (mediatek,MI_I2C_LCD_BIAS, ported from 5.10 xaga).
+
 config DRM_PANEL_L16_36_02_0B_DSC_VDO
 	tristate "DRM_PANEL_L16_36_02_0B_DSC_VDO panel"
 	depends on OF

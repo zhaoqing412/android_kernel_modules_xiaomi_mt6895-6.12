@@ -434,6 +434,42 @@ struct mtk_charger {
 	const char *curr_select_name;
 	struct mtk_charger_algorithm algo;
 
+	/* Xiaomi votable framework (pmic_voter), ported from 5.10 */
+	struct votable *fcc_votable;
+	struct votable *fv_votable;
+	struct votable *icl_votable;
+	struct votable *iterm_votable;
+
+	/* Xiaomi USB property backing fields (usb_get/set_property), 5.10 port */
+	int real_type;
+	int quick_charge_type;
+	int pd_authentication;
+	int pd_verifying;
+	int pd_type;
+	int apdo_max;
+	int typec_mode;
+	int typec_cc_orientation;
+	int ffc_enable;
+	int charge_full;
+	int connector_temp;
+	int typec_burn;
+	int sw_cv;
+	int input_suspend;
+	int jeita_chg_index;
+	int power_max;
+	int qc3_type;
+	int otg_enable;
+	int pd_verify_done;
+	int cp_ibus_delta;
+	int mtbf_test;
+	int cp_charge_recovery;
+	int pmic_ibat;
+	int pmic_vbus;
+	int input_current_now;
+	int battcont_online;
+	int thermal_remove;
+	int warm_term;
+
 	/* dtsi custom data */
 	struct charger_custom_data data;
 
@@ -572,6 +608,43 @@ extern int mtk_adapter_protocol_init(struct mtk_charger *info);
 extern void mtk_check_ta_status(struct mtk_charger *info);
 /* functions for other */
 extern int mtk_chg_enable_vbus_ovp(bool enable);
+
+/* Xiaomi USB property interface (ported from 5.10 for pd_cp_manager etc.) */
+struct votable;
+
+enum usb_property {
+	USB_PROP_REAL_TYPE,
+	USB_PROP_QUICK_CHARGE_TYPE,
+	USB_PROP_PD_AUTHENTICATION,
+	USB_PROP_PD_VERIFYING,
+	USB_PROP_PD_TYPE,
+	USB_PROP_APDO_MAX,
+	USB_PROP_TYPEC_MODE,
+	USB_PROP_TYPEC_CC_ORIENTATION,
+	USB_PROP_FFC_ENABLE,
+	USB_PROP_CHARGE_FULL,
+	USB_PROP_CONNECTOR_TEMP,
+	USB_PROP_TYPEC_BURN,
+	USB_PROP_SW_CV,
+	USB_PROP_INPUT_SUSPEND,
+	USB_PROP_JEITA_CHG_INDEX,
+	USB_PROP_POWER_MAX,
+	USB_PROP_QC3_TYPE,
+	USB_PROP_OTG_ENABLE,
+	USB_PROP_PD_VERIFY_DONE,
+	USB_PROP_CP_IBUS_DELTA,
+	USB_PROP_MTBF_TEST,
+	USB_PROP_CP_CHARGE_RECOVERY,
+	USB_PROP_PMIC_IBAT,
+	USB_PROP_PMIC_VBUS,
+	USB_PROP_INPUT_CURRENT_NOW,
+	USB_PROP_BATTCONT_ONLINE,
+	USB_PROP_THERMAL_REMOVE,
+	USB_PROP_WARM_TERM,
+};
+
+extern int usb_get_property(enum usb_property bp, int *val);
+extern int usb_set_property(enum usb_property bp, int val);
 
 #define ONLINE(idx, attach)		((idx & 0xf) << 4 | (attach & 0xf))
 #define ONLINE_GET_IDX(online)		((online >> 4) & 0xf)

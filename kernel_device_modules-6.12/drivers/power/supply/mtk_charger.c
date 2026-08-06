@@ -4322,6 +4322,205 @@ static const struct of_device_id mtk_charger_of_match[] = {
 
 MODULE_DEVICE_TABLE(of, mtk_charger_of_match);
 
+/*
+ * Xiaomi USB property interface (ported from 5.10 for the charge-pump
+ * managers pd_cp_manager/pd_single_cp_manager/qc_cp_manager).
+ * The 5.10 implementation layered these over a sysfs field table; here the
+ * properties are served directly from the backing struct mtk_charger fields
+ * (the sysfs UI is not used by the managers and the 6.12 charger registers a
+ * different power-supply name, so the "usb" lookup may fail at runtime until
+ * charger bring-up aligns the psy naming).
+ */
+static int usb_property_get(struct mtk_charger *gm, enum usb_property bp, int *val)
+{
+	int *field;
+
+	if (!gm)
+		return -EINVAL;
+
+	switch (bp) {
+	case USB_PROP_REAL_TYPE:
+		field = &gm->real_type;
+		break;
+	case USB_PROP_QUICK_CHARGE_TYPE:
+		field = &gm->quick_charge_type;
+		break;
+	case USB_PROP_PD_AUTHENTICATION:
+		field = &gm->pd_authentication;
+		break;
+	case USB_PROP_PD_VERIFYING:
+		field = &gm->pd_verifying;
+		break;
+	case USB_PROP_PD_TYPE:
+		field = &gm->pd_type;
+		break;
+	case USB_PROP_APDO_MAX:
+		field = &gm->apdo_max;
+		break;
+	case USB_PROP_TYPEC_MODE:
+		field = &gm->typec_mode;
+		break;
+	case USB_PROP_TYPEC_CC_ORIENTATION:
+		field = &gm->typec_cc_orientation;
+		break;
+	case USB_PROP_FFC_ENABLE:
+		field = &gm->ffc_enable;
+		break;
+	case USB_PROP_CHARGE_FULL:
+		field = &gm->charge_full;
+		break;
+	case USB_PROP_CONNECTOR_TEMP:
+		field = &gm->connector_temp;
+		break;
+	case USB_PROP_TYPEC_BURN:
+		field = &gm->typec_burn;
+		break;
+	case USB_PROP_SW_CV:
+		field = &gm->sw_cv;
+		break;
+	case USB_PROP_INPUT_SUSPEND:
+		field = &gm->input_suspend;
+		break;
+	case USB_PROP_JEITA_CHG_INDEX:
+		field = &gm->jeita_chg_index;
+		break;
+	case USB_PROP_POWER_MAX:
+		field = &gm->power_max;
+		break;
+	case USB_PROP_QC3_TYPE:
+		field = &gm->qc3_type;
+		break;
+	case USB_PROP_OTG_ENABLE:
+		field = &gm->otg_enable;
+		break;
+	case USB_PROP_PD_VERIFY_DONE:
+		field = &gm->pd_verify_done;
+		break;
+	case USB_PROP_CP_IBUS_DELTA:
+		field = &gm->cp_ibus_delta;
+		break;
+	case USB_PROP_MTBF_TEST:
+		field = &gm->mtbf_test;
+		break;
+	case USB_PROP_CP_CHARGE_RECOVERY:
+		field = &gm->cp_charge_recovery;
+		break;
+	case USB_PROP_PMIC_IBAT:
+		field = &gm->pmic_ibat;
+		break;
+	case USB_PROP_PMIC_VBUS:
+		field = &gm->pmic_vbus;
+		break;
+	case USB_PROP_INPUT_CURRENT_NOW:
+		field = &gm->input_current_now;
+		break;
+	case USB_PROP_BATTCONT_ONLINE:
+		field = &gm->battcont_online;
+		break;
+	case USB_PROP_THERMAL_REMOVE:
+		field = &gm->thermal_remove;
+		break;
+	case USB_PROP_WARM_TERM:
+		field = &gm->warm_term;
+		break;
+	default:
+		return -ENOTSUPP;
+	}
+
+	*val = *field;
+	return 0;
+}
+
+int usb_get_property(enum usb_property bp, int *val)
+{
+	struct mtk_charger *gm;
+	struct power_supply *psy;
+
+	psy = power_supply_get_by_name("usb");
+	if (psy == NULL)
+		return -ENODEV;
+
+	gm = (struct mtk_charger *)power_supply_get_drvdata(psy);
+	return usb_property_get(gm, bp, val);
+}
+EXPORT_SYMBOL(usb_get_property);
+
+int usb_set_property(enum usb_property bp, int val)
+{
+	struct mtk_charger *gm;
+	struct power_supply *psy;
+
+	psy = power_supply_get_by_name("usb");
+	if (psy == NULL)
+		return -ENODEV;
+
+	gm = (struct mtk_charger *)power_supply_get_drvdata(psy);
+	if (!gm)
+		return -EINVAL;
+
+	switch (bp) {
+	case USB_PROP_REAL_TYPE:
+		gm->real_type = val;
+		break;
+	case USB_PROP_PD_AUTHENTICATION:
+		gm->pd_authentication = val;
+		break;
+	case USB_PROP_PD_VERIFYING:
+		gm->pd_verifying = val;
+		break;
+	case USB_PROP_APDO_MAX:
+		gm->apdo_max = val;
+		break;
+	case USB_PROP_TYPEC_MODE:
+		gm->typec_mode = val;
+		break;
+	case USB_PROP_TYPEC_CC_ORIENTATION:
+		gm->typec_cc_orientation = val;
+		break;
+	case USB_PROP_CONNECTOR_TEMP:
+		gm->connector_temp = val;
+		break;
+	case USB_PROP_SW_CV:
+		gm->sw_cv = val;
+		break;
+	case USB_PROP_INPUT_SUSPEND:
+		gm->input_suspend = val;
+		break;
+	case USB_PROP_POWER_MAX:
+		gm->power_max = val;
+		break;
+	case USB_PROP_QC3_TYPE:
+		gm->qc3_type = val;
+		break;
+	case USB_PROP_OTG_ENABLE:
+		gm->otg_enable = val;
+		break;
+	case USB_PROP_PD_VERIFY_DONE:
+		gm->pd_verify_done = val;
+		break;
+	case USB_PROP_CP_IBUS_DELTA:
+		gm->cp_ibus_delta = val;
+		break;
+	case USB_PROP_MTBF_TEST:
+		gm->mtbf_test = val;
+		break;
+	case USB_PROP_CP_CHARGE_RECOVERY:
+		gm->cp_charge_recovery = val;
+		break;
+	case USB_PROP_BATTCONT_ONLINE:
+		gm->battcont_online = val;
+		break;
+	case USB_PROP_THERMAL_REMOVE:
+		gm->thermal_remove = val;
+		break;
+	default:
+		return -ENOTSUPP;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(usb_set_property);
+
 struct platform_device mtk_charger_device = {
 	.name = "charger",
 	.id = -1,

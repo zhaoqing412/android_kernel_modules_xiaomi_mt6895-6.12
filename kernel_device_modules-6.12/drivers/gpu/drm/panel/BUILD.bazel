@@ -103,6 +103,7 @@ PANELS = [
     "panel-hx-nt37701-dphy-cmd-120hz",
     "panel-l16-36-02-0b-dsc-vdo",
     "panel-l16-42-02-0a-dsc-vdo",
+    "leds-ktz8863a",
 ]
 
 PANELS_V1 = [

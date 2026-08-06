@@ -58,6 +58,8 @@
 #include <linux/reboot.h>
 
 #include "mtk_charger.h"
+#include "charger_class.h"
+#include "pmic_voter.h"
 
 static int _uA_to_mA(int uA)
 {
@@ -924,5 +926,111 @@ int mtk_basic_charger_init(struct mtk_charger *info)
 	info->algo.do_hvdvchg2_event = hvdvchg2_dev_event;
 	info->lst_rnd_alg_idx = -1;
 	//info->change_current_setting = mtk_basic_charging_current;
+	mtk_charger_create_votable(info);
 	return 0;
+}
+
+/*
+ * Xiaomi votable framework integration (ported from 5.10 for the charge-pump
+ * managers pd_cp_manager/pd_single_cp_manager/qc_cp_manager, which query the
+ * CHARGER_FCC / CHARGER_FV / CHARGER_ICL votables via find_votable()).
+ */
+static int mt_charger_fcc_vote_callback(struct votable *votable, void *data,
+	int value, const char *client)
+{
+	struct mtk_charger *mpci = data;
+	int ret = 0;
+
+	chr_info("vote FCC = %d\n", value);
+	if (value > 3000)
+		value = 3000 * 1000;
+	else
+		value = value * 1000;
+
+	ret = charger_dev_set_charging_current(mpci->chg1_dev, value);
+	if (ret)
+		chr_err("failed to set FCC\n");
+
+	return ret;
+}
+
+static int mt_charger_fv_vote_callback(struct votable *votable, void *data,
+	int value, const char *client)
+{
+	struct mtk_charger *mpci = data;
+	int ret = 0;
+
+	chr_info("vote FV = %d\n", value);
+
+	mpci->data.battery_cv = value;
+	ret = charger_dev_set_constant_voltage(mpci->chg1_dev, value * 1000);
+	if (ret)
+		chr_err("failed to set FV\n");
+
+	return ret;
+}
+
+static int mt_charger_icl_vote_callback(struct votable *votable, void *data,
+	int value, const char *client)
+{
+	struct mtk_charger *mpci = data;
+	int ret = 0;
+
+	chr_info("vote ICL = %d\n", value);
+
+	ret = charger_dev_set_input_current(mpci->chg1_dev, value * 1000);
+	if (ret)
+		chr_err("failed to set IINLIM0\n");
+
+	return ret;
+}
+
+static int mt_charger_iterm_vote_callback(struct votable *votable, void *data,
+	int value, const char *client)
+{
+	struct mtk_charger *mpci = data;
+	int ret = 0;
+
+	chr_info("vote ITERM = %d\n", value);
+
+	ret = charger_dev_set_eoc_current(mpci->chg1_dev, value * 1000);
+	if (ret)
+		chr_err("failed to set ITERM\n");
+
+	return ret;
+}
+
+static int mtk_charger_create_votable(struct mtk_charger *mpci)
+{
+	int rc = 0;
+
+	mpci->fcc_votable = create_votable("CHARGER_FCC", VOTE_MIN,
+		mt_charger_fcc_vote_callback, mpci);
+	if (IS_ERR(mpci->fcc_votable)) {
+		chr_err("failed to create voter CHARGER_FCC\n");
+		return -1;
+	}
+
+	mpci->fv_votable = create_votable("CHARGER_FV", VOTE_MIN,
+		mt_charger_fv_vote_callback, mpci);
+	if (IS_ERR(mpci->fv_votable)) {
+		chr_err("failed to create voter CHARGER_FV\n");
+		return -1;
+	}
+
+	mpci->icl_votable = create_votable("CHARGER_ICL", VOTE_MIN,
+		mt_charger_icl_vote_callback, mpci);
+	if (IS_ERR(mpci->icl_votable)) {
+		chr_err("failed to create voter CHARGER_ICL\n");
+		return -1;
+	}
+
+	mpci->iterm_votable = create_votable("CHARGER_ITERM", VOTE_MIN,
+		mt_charger_iterm_vote_callback, mpci);
+	if (IS_ERR(mpci->iterm_votable)) {
+		chr_err("failed to create voter CHARGER_ITERM\n");
+		return -1;
+	}
+
+	return rc;
 }

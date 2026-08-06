@@ -71,6 +71,15 @@ enum adapter_event {
 	MTK_UFCS_DETACH,
 	MTK_UFCS_ATTACH,
 	MTK_UFCS_FAIL,
+	/* Xiaomi charge-pump managers (pd_cp_manager etc., ported from 5.10) */
+	MTK_PD_CONNECT_NONE,
+	MTK_PD_CONNECT_HARD_RESET,
+	MTK_PD_CONNECT_PE_READY_SNK,
+	MTK_PD_CONNECT_PE_READY_SNK_PD30,
+	MTK_PD_CONNECT_PE_READY_SNK_APDO,
+	MTK_PD_CONNECT_TYPEC_ONLY_SNK,
+	MTK_PD_UVDM,
+	MTK_PD_CONNECT_SOFT_RESET,
 };
 
 enum adapter_property {
@@ -131,6 +140,8 @@ struct adapter_ops {
 		struct adapter_status *sta);
 	int (*set_cap)(struct adapter_device *dev, enum adapter_cap_type type,
 		int mV, int mA);
+	int (*set_cap_xm)(struct adapter_device *dev, enum adapter_cap_type type,
+		int mV, int mA);
 	int (*get_cap)(struct adapter_device *dev, enum adapter_cap_type type,
 		struct adapter_power_cap *cap);
 	int (*get_output)(struct adapter_device *dev, int *mV, int *mA);
@@ -179,6 +190,9 @@ extern int adapter_dev_get_status(struct adapter_device *adapter_dev,
 extern int adapter_dev_get_output(struct adapter_device *adapter_dev,
 	int *mV, int *mA);
 extern int adapter_dev_set_cap(struct adapter_device *adapter_dev,
+	enum adapter_cap_type type,
+	int mV, int mA);
+extern int adapter_dev_set_cap_xm(struct adapter_device *adapter_dev,
 	enum adapter_cap_type type,
 	int mV, int mA);
 extern int adapter_dev_get_cap(struct adapter_device *adapter_dev,

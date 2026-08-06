@@ -710,6 +710,17 @@ done:
 	return ret;
 }
 
+static atomic_t panel_dead;
+int get_panel_dead_flag(void) {
+	return atomic_read(&panel_dead);
+}
+EXPORT_SYMBOL(get_panel_dead_flag);
+
+void set_panel_dead_flag(int value) {
+	atomic_set(&panel_dead, value);
+}
+EXPORT_SYMBOL(set_panel_dead_flag);
+
 static int mtk_drm_esd_recover(struct drm_crtc *crtc)
 {
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
@@ -727,6 +738,7 @@ static int mtk_drm_esd_recover(struct drm_crtc *crtc)
 		DDPMSG("%s: crtc is inactive\n", __func__);
 		return 0;
 	}
+	atomic_set(&panel_dead, 1);
 	CRTC_MMP_MARK(index, esd_recovery, 0, 1);
 	output_comp = mtk_ddp_comp_request_output(mtk_crtc);
 
@@ -831,6 +843,7 @@ static int mtk_drm_esd_recover(struct drm_crtc *crtc)
 	CRTC_MMP_MARK(index, esd_recovery, 0, 5);
 
 done:
+	atomic_set(&panel_dead, 0);
 	CRTC_MMP_EVENT_END(index, esd_recovery, 0, ret);
 	mtk_drm_trace_end();
 

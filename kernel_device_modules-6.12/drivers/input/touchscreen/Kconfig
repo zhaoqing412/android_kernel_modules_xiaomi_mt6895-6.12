@@ -47,4 +47,10 @@ source "$(KCONFIG_EXT_PREFIX)drivers/input/touchscreen/ILITEK/Kconfig"
 # source "$(KCONFIG_EXT_PREFIX)drivers/input/touchscreen/NT36532/Kconfig"
 source "$(KCONFIG_EXT_PREFIX)drivers/input/touchscreen/xiaomi/Kconfig"
 
+config TOUCHSCREEN_XIAOMI_DOUBLE_CLICK
+	tristate "Xiaomi touch double-click state provider"
+	help
+	  Provides is_tp_doubleclick_enable()/tp_enable_doubleclick() used by
+	  the touch panel and display panel drivers (ported from 5.10 xaga).
+
 endif

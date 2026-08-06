@@ -76,6 +76,18 @@ int adapter_dev_set_cap(struct adapter_device *adapter_dev,
 }
 EXPORT_SYMBOL(adapter_dev_set_cap);
 
+int adapter_dev_set_cap_xm(struct adapter_device *adapter_dev,
+	enum adapter_cap_type type,
+	int mV, int mA)
+{
+	if (adapter_dev != NULL && adapter_dev->ops != NULL &&
+	    adapter_dev->ops->set_cap_xm)
+		return adapter_dev->ops->set_cap_xm(adapter_dev, type, mV, mA);
+
+	return -EOPNOTSUPP;
+}
+EXPORT_SYMBOL(adapter_dev_set_cap_xm);
+
 
 int adapter_dev_get_cap(struct adapter_device *adapter_dev,
 	enum adapter_cap_type type,
