@@ -235,7 +235,7 @@ static bool qcm_check_charger_dev(struct qcm_chip *chip)
 static bool qcm_check_psy(struct qcm_chip *chip)
 {
     if (!chip->usb_psy)
-		chip->usb_psy = power_supply_get_by_name("usb");
+		chip->usb_psy = power_supply_get_by_name("mtk-master-charger");
 
 	if (!chip->usb_psy) {
 		qcm_err("failed to get usb_psy\n");

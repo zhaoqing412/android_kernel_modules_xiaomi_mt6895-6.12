@@ -191,6 +191,24 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 			dev_info(mci->dev, "%s Charger plug out\n", __func__);
 			handle_typec_pd_attach(mci, idx, ATTACH_TYPE_NONE);
 		}
+#ifdef CONFIG_XM_PD_MANAGER
+		/* xaga: mirror the 5.10 mtk_chg_type_det.c writers so the
+		 * charge-pump managers see the typec orientation/state
+		 */
+		if (new_state == TYPEC_ATTACHED_SNK ||
+		    new_state == TYPEC_ATTACHED_SRC ||
+		    new_state == TYPEC_ATTACHED_NORP_SRC ||
+		    new_state == TYPEC_ATTACHED_CUSTOM_SRC ||
+		    new_state == TYPEC_ATTACHED_DBGACC_SNK)
+			usb_set_property(USB_PROP_TYPEC_MODE, POWER_SUPPLY_TYPEC_SINK);
+		else if (new_state == TYPEC_ATTACHED_AUDIO)
+			usb_set_property(USB_PROP_TYPEC_MODE,
+					POWER_SUPPLY_TYPEC_SINK_AUDIO_ADAPTER);
+		else if (new_state == TYPEC_UNATTACHED)
+			usb_set_property(USB_PROP_TYPEC_MODE, POWER_SUPPLY_TYPEC_NONE);
+		usb_set_property(USB_PROP_TYPEC_CC_ORIENTATION,
+				noti->typec_state.polarity);
+#endif
 		break;
 	case TCP_NOTIFY_PR_SWAP:
 		if (noti->swap_state.new_role == PD_ROLE_SOURCE)

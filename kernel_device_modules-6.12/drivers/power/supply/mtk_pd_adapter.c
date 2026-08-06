@@ -13,6 +13,9 @@
 
 #include <tcpm.h>
 #include "adapter_class.h"
+#ifdef CONFIG_XM_PD_MANAGER
+#include "mtk_charger.h"
+#endif
 
 struct info_notifier_block {
 	struct notifier_block nb;
@@ -561,6 +564,16 @@ stop_repeat:
 		data->support_cc = false;
 	dev_info(info->dev, "%s select cap_idx[%d], power limit[%d,%dW]\n",
 			    __func__, apdo_idx, data->pwr_lmt, data->pdp);
+#ifdef CONFIG_XM_PD_MANAGER
+	/* xaga: mirror the 5.10 mtk_pd_adapter.c writers so the charge-pump
+	 * managers see the negotiated PD state (PD_VERIFYING/VERIFY_DONE/
+	 * APDO_MAX/PD_AUTHENTICATION)
+	 */
+	usb_set_property(USB_PROP_PD_VERIFYING, 1);
+	usb_set_property(USB_PROP_PD_VERIFY_DONE, 0);
+	usb_set_property(USB_PROP_APDO_MAX, data->pdp);
+	usb_set_property(USB_PROP_PD_AUTHENTICATION, 1);
+#endif
 out:
 	if (ret != MTK_ADAPTER_OK)
 		dev_notice(info->dev, "%s fail(%d)\n", __func__, ret);

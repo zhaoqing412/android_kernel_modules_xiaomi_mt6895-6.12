@@ -4436,7 +4436,7 @@ int usb_get_property(enum usb_property bp, int *val)
 	struct mtk_charger *gm;
 	struct power_supply *psy;
 
-	psy = power_supply_get_by_name("usb");
+	psy = power_supply_get_by_name("mtk-master-charger");
 	if (psy == NULL)
 		return -ENODEV;
 
@@ -4450,7 +4450,7 @@ int usb_set_property(enum usb_property bp, int val)
 	struct mtk_charger *gm;
 	struct power_supply *psy;
 
-	psy = power_supply_get_by_name("usb");
+	psy = power_supply_get_by_name("mtk-master-charger");
 	if (psy == NULL)
 		return -ENODEV;
 

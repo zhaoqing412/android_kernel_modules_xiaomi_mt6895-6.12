@@ -227,7 +227,7 @@ static bool pdm_check_cp_dev(struct usbpd_pm *pdpm)
 static bool pdm_check_psy(struct usbpd_pm *pdpm)
 {
 	if (!pdpm->usb_psy)
-		pdpm->usb_psy = power_supply_get_by_name("usb");
+		pdpm->usb_psy = power_supply_get_by_name("mtk-master-charger");
 
 	if (!pdpm->usb_psy) {
 		pdm_err("failed to get usb_psy\n");
