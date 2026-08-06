@@ -753,3 +753,74 @@ define_mgk_ddk_ko(
     ],
 )
 
+define_mgk_ddk_ko(
+    name = "pmic_voter",
+    srcs = [
+        "pmic_voter.c",
+    ],
+    hdrs = ["pmic_voter.h",],
+    includes = ["."],
+    ko_deps = [
+        ":mtk_charger_framework",
+    ],
+    copts = [
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/tcpc/inc",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/usb/usb20/",
+        "-I$(DEVICE_MODULES_PATH)/drivers/power/supply/ufcs",
+    ],
+)
+
+define_mgk_ddk_ko(
+    name = "pd_cp_manager",
+    srcs = [
+        "pd_cp_manager.c",
+        "pd_cp_manager.h",
+    ],
+    includes = ["."],
+    ko_deps = [
+        ":adapter_class",
+        ":charger_class",
+        ":mtk_charger_framework",
+        ":pmic_voter",
+        "//kernel_device_modules-{}/drivers/misc/mediatek/typec/tcpc:tcpc_class".format(kernel_version),
+    ],
+    local_defines = [
+        "CONFIG_TARGET_PRODUCT_XAGA"
+    ],
+    copts = [
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/tcpc/inc",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/usb/usb20/",
+        "-I$(DEVICE_MODULES_PATH)/drivers/power/supply/ufcs",
+    ],
+)
+
+define_mgk_ddk_ko(
+    name = "qc_cp_manager",
+    srcs = [
+        "qc_cp_manager.c",
+        "qc_cp_manager.h",
+    ],
+    includes = ["."],
+    ko_deps = [
+        ":adapter_class",
+        ":charger_class",
+        ":mtk_charger_framework",
+        ":pmic_voter",
+        "//kernel_device_modules-{}/drivers/misc/mediatek/typec/tcpc:tcpc_class".format(kernel_version),
+    ],
+    local_defines = [
+        "CONFIG_TARGET_PRODUCT_XAGA"
+    ],
+    copts = [
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/tcpc/inc",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/usb/usb20/",
+        "-I$(DEVICE_MODULES_PATH)/drivers/power/supply/ufcs",
+    ],
+)
+

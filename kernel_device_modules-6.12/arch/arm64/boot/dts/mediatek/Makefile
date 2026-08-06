@@ -50,3 +50,4 @@ dtb-$(CONFIG_ARCH_MEDIATEK) += mt8192-evb.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8516-pumpkin.dtb
 # xaga (Xiaomi Redmi Note 11T Pro / POCO X5 Pro, MT6895) board overlay
 dtb-$(CONFIG_ARCH_MEDIATEK) += xaga.dtb
+dtb-$(CONFIG_ARCH_MEDIATEK) += xaga_global.dtb

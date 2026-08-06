@@ -1,0 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2021-2022 XiaoMi, Inc.
+ * xaga global variant (no SVP memory carveout).
+ * Ported from the official MiCode 5.10.66 xaga tree (xaga_global.dts).
+ */
+
+#include "xaga-mt6895.dtsi"
+#include "cust/xaga.dtsi"
