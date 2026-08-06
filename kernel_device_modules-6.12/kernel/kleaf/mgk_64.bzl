@@ -1112,7 +1112,6 @@ mgk_64_kleaf_device_modules = [
     "//kernel_device_modules-{}/drivers/power/supply:mm8013".format(kernel_version),
     "//kernel_device_modules-{}/drivers/power/supply:pd_cp_manager".format(kernel_version),
     "//kernel_device_modules-{}/drivers/power/supply:pmic_voter".format(kernel_version),
-    "//kernel_device_modules-{}/drivers/power/supply:qc_cp_manager".format(kernel_version),
     "//kernel_device_modules-{}/drivers/power/supply:mt6357_battery".format(kernel_version),
     "//kernel_device_modules-{}/drivers/power/supply:mt6358_battery".format(kernel_version),
     "//kernel_device_modules-{}/drivers/power/supply:mt6359p_battery".format(kernel_version),

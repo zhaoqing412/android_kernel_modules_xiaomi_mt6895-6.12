@@ -612,6 +612,37 @@ extern int mtk_chg_enable_vbus_ovp(bool enable);
 /* Xiaomi USB property interface (ported from 5.10 for pd_cp_manager etc.) */
 struct votable;
 
+enum xmusb350_chg_type {
+	XMUSB350_TYPE_OCP = 0x1,
+	XMUSB350_TYPE_FLOAT = 0x2,
+	XMUSB350_TYPE_SDP = 0x3,
+	XMUSB350_TYPE_CDP = 0x4,
+	XMUSB350_TYPE_DCP = 0x5,
+	XMUSB350_TYPE_HVDCP_2 = 0x6,
+};
+
+enum hvdcp3_type {
+	HVDCP3_NONE,
+	HVDCP3_18,
+	HVDCP3_27,
+	HVDCP35_18,
+	HVDCP35_27,
+};
+
+enum xm_pulse_type {
+	QC3_NONE_PULSE,
+	QC3_DM_PULSE,
+	QC3_DP_PULSE,
+};
+
+/* charge-pump properties used by the sc8561/ln8000 sysfs (ported from 5.10) */
+enum cp_property {
+	CP_PROP_VBUS,
+	CP_PROP_IBUS,
+	CP_PROP_TDIE,
+	CP_PROP_CHIP_OK,
+};
+
 enum usb_property {
 	USB_PROP_REAL_TYPE,
 	USB_PROP_QUICK_CHARGE_TYPE,

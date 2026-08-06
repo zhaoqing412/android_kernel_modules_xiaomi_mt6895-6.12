@@ -1496,7 +1496,7 @@ static int ln8000_get_dev_role(struct i2c_client *client)
 	}
 	sprintf(buf, "%c", of_id->data);
 	memcpy(&data, buf, 4);
-	dev_info(&client->dev, "%s: matched to %s, %d\n", __func__, of_id->compatible, data);
+	dev_info(&client->dev, "%s: matched to %s, %p\n", __func__, of_id->compatible, of_id->data);
 	return data;
 }
 

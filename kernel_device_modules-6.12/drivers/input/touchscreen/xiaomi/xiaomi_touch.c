@@ -278,8 +278,6 @@ EXPORT_SYMBOL_GPL(xiaomitouch_register_modedata);
 
 int update_palm_sensor_value(int value)
 {
-	struct xiaomi_touch *dev = NULL;
-
 	mutex_lock(&xiaomi_touch_dev.palm_mutex);
 
 	if (!touch_pdata) {
@@ -287,7 +285,6 @@ int update_palm_sensor_value(int value)
 		return -ENODEV;
 	}
 
-	dev = touch_pdata->device;
 
 	if (value != touch_pdata->palm_value) {
 		pr_info("%s value:%d\n", __func__, value);
@@ -333,8 +330,6 @@ static ssize_t palm_sensor_store(struct device *dev,
 
 int update_prox_sensor_value(int value)
 {
-	struct xiaomi_touch *dev = NULL;
-
 	mutex_lock(&xiaomi_touch_dev.prox_mutex);
 
 	if (!touch_pdata) {
@@ -342,7 +337,6 @@ int update_prox_sensor_value(int value)
 		return -ENODEV;
 	}
 
-	dev = touch_pdata->device;
 
 	if (value != touch_pdata->prox_value) {
 		pr_info("%s value:%d\n", __func__, value);
@@ -472,14 +466,10 @@ static ssize_t xiaomi_touch_y_resolution_show(struct device *dev, struct device_
 
 int copy_touch_rawdata(char *raw_base,  int len)
 {
-	struct xiaomi_touch *dev = NULL;
-
 	if (!touch_pdata)
 		return -ENODEV;
 
-	dev = touch_pdata->device;
-	memcpy((unsigned char *)touch_pdata->raw_buf[touch_pdata->raw_tail], (unsigned char *)raw_base,  len);
-	touch_pdata->raw_len = len;
+	memcpy((unsigned char *)touch_pdata->raw_buf[touch_pdata->raw_tail], (unsigned char *)raw_base,  len);	touch_pdata->raw_len = len;
 	spin_lock(&touch_pdata->raw_lock);
 	touch_pdata->raw_tail++;
 	if (touch_pdata->raw_tail == RAW_BUF_NUM)
@@ -1034,8 +1024,6 @@ static ssize_t xiaomi_touch_suspend_state(struct device *dev,
 
 int update_fod_press_status(int value)
 {
-	struct xiaomi_touch *dev = NULL;
-
 	mutex_lock(&xiaomi_touch_dev.fod_press_status_mutex);
 
 	if (!touch_pdata) {
@@ -1043,7 +1031,6 @@ int update_fod_press_status(int value)
 		return -ENODEV;
 	}
 
-	dev = touch_pdata->device;
 
 	if (value != touch_pdata->fod_press_status_value) {
 		pr_info("%s: value:%d\n", __func__, value);
@@ -1308,7 +1295,7 @@ static int xiaomi_touch_probe(struct platform_device *pdev)
 	pdata->raw_head = 0;
 	pdata->raw_tail = 0;
 	pdata->phy_base = virt_to_phys(pdata->raw_data);
-	pr_info("%s: kernel base:%lld, phy base:%lld\n", __func__,	(unsigned long)pdata->raw_data, (unsigned long)pdata->phy_base);
+	pr_info("%s: kernel base:%ld, phy base:%ld\n", __func__,	(unsigned long)pdata->raw_data, (unsigned long)pdata->phy_base);
 	spin_lock_init(&pdata->raw_lock);
 	ret = xiaomi_touch_parse_dt(dev, pdata);
 	if (ret < 0) {

@@ -606,8 +606,7 @@ int ktz8863a_brightness_set(int level)
 }
 EXPORT_SYMBOL(ktz8863a_brightness_set);
 
-static int ktz8863a_probe(struct i2c_client *client,
-			const struct i2c_device_id *id)
+static int ktz8863a_probe(struct i2c_client *client)
 {
 	pr_info("ktz8863a_probe: %s\n", client->name);
 	g_ktz8863a_led.client = client;

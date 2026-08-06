@@ -17,7 +17,7 @@
 
 #ifndef __LN8000_CHARGER_H__
 #define __LN8000_CHARGER_H__
-#include <charger_class.h>
+#include "charger_class.h"
 
 //#define LN8000_DUAL_CONFIG	/* uncomment to enable DUAL chip operation */
 //#define LN8000_DEBUG_SUPPORT

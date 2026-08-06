@@ -46,7 +46,7 @@ enum product_name {
 
 static int log_level = 1;
 static int product_name = XAGA_NO;
-static ktime_t time_init = -1;
+static ktime_t fg_time_init = -1;
 
 #define fg_err(fmt, ...)					\
 do {								\
@@ -526,7 +526,6 @@ static int fg_read_rm(struct bq_fg_chip *bq)
 	u16 rm = 0;
 	bool retry = false;
 	int ret = 0;
-	static int pre_rm =2580;
 
 retry:
 	ret = fg_read_word(bq, bq->regs[BQ_FG_REG_RM], &rm);
@@ -547,7 +546,6 @@ retry:
 		if(bq->i2c_error_count > 0)
 			bq->i2c_error_count = 0;
 	}
-	pre_rm = rm;
 	bq->rm = rm;
 	return rm;
 }
@@ -797,7 +795,7 @@ static int calc_delta_time(ktime_t time_last, int *delta_time)
 	if (*delta_time < 0)
 		*delta_time = 0;
 
-	fg_dbg("now:%ld, last:%ld, delta:%d\n", time_now, time_last, *delta_time);
+	fg_dbg("now:%lld, last:%lld, delta:%d\n", time_now, time_last, *delta_time);
 
 	return 0;
 }
@@ -889,9 +887,9 @@ static int bq_battery_soc_smooth_tracking_sencond(struct bq_fg_chip *bq,
 	if (bq->last_soc != soc) {
 		if(abs(soc - bq->last_soc) > 1){
 			union power_supply_propval pval = {0, };
-			int status,rc;
+			int status;
 
-			rc = power_supply_get_property(bq->batt_psy, POWER_SUPPLY_PROP_STATUS, &pval);
+			power_supply_get_property(bq->batt_psy, POWER_SUPPLY_PROP_STATUS, &pval);
 			status = pval.intval;
 
 			calc_delta_time(changed_time, &change_delta);
@@ -992,7 +990,7 @@ static int bq_battery_soc_smooth_tracking(struct bq_fg_chip *bq,
 			last_raw_soc = raw_soc;
 			optimiz_soc += soc_changed;
 			last_optimiz_time = ktime_get();
-			fg_info("optimiz_soc:%d, last_optimiz_time%ld\n",
+			fg_info("optimiz_soc:%d, last_optimiz_time%lld\n",
 					optimiz_soc, last_optimiz_time);
 			if (optimiz_soc > 100)
 				optimiz_soc = 100;
@@ -1237,7 +1235,6 @@ static void fg_update_status(struct bq_fg_chip *bq)
 	int temp_soc = 0,  delta_temp = 0;
 	static int last_soc = 0, last_temp = 0;
 	ktime_t time_now = -1;
-        struct mtk_battery *gm;
 
 	mutex_lock(&bq->data_lock);
 	bq->cycle_count = fg_read_cyclecount(bq);
@@ -1256,22 +1253,13 @@ static void fg_update_status(struct bq_fg_chip *bq)
 		bq->ui_soc = bq->rsoc;
 		return;
 	} else {
-                gm = (struct mtk_battery *)power_supply_get_drvdata(bq->batt_psy);
 		time_now = ktime_get();
-		if (time_init != -1 && (time_now - time_init < 10000 ))
+		if (fg_time_init != -1 && (time_now - fg_time_init < 10000 ))
 		{
 			bq->ui_soc = bq->rsoc;
 			goto out;
 		}
 		bq->ui_soc = bq_battery_soc_smooth_tracking_new(bq, bq->raw_soc, bq->rsoc, bq->ibat);
-#ifdef CONFIG_TARGET_PRODUCT_PEARL
-
-#else
-			if(gm->night_charging && bq->ui_soc > 80 && bq->ui_soc > last_soc){
-                        bq->ui_soc = last_soc;
-                        fg_err("%s last_soc = %d, night_charging = %d,\n", __func__, last_soc, gm->night_charging);
-                }
-#endif
 
 		goto out;
 		temp_soc = bq_battery_soc_smooth_tracking(bq, bq->raw_soc, bq->rsoc, bq->tbat, bq->ibat);
@@ -2229,9 +2217,7 @@ static ssize_t fg_store_log_level(struct device *dev, struct device_attribute *a
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct bq_fg_chip *bq = i2c_get_clientdata(client);
-	int ret = 0;
-
-	ret = sscanf(buf, "%d", &log_level);
+	sscanf(buf, "%d", &log_level);
 	fg_info("%s store log_level = %d\n", bq->log_tag, log_level);
 
 	return count;
@@ -2420,7 +2406,7 @@ static int fg_check_device(struct bq_fg_chip *bq)
 	return ret;
 }
 
-static int fg_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static int fg_probe(struct i2c_client *client)
 {
 	struct bq_fg_chip *bq;
 	int ret = 0;
@@ -2478,7 +2464,7 @@ static int fg_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		return ret;
 	}
 
-	time_init = ktime_get();
+	fg_time_init = ktime_get();
 	fg_update_status(bq);
 
 	ret = fg_init_psy(bq);
@@ -2537,7 +2523,7 @@ static int fg_resume(struct device *dev)
 	return 0;
 }
 
-static int fg_remove(struct i2c_client *client)
+static void fg_remove(struct i2c_client *client)
 {
 	struct bq_fg_chip *bq = i2c_get_clientdata(client);
 
@@ -2545,8 +2531,6 @@ static int fg_remove(struct i2c_client *client)
 	mutex_destroy(&bq->data_lock);
 	mutex_destroy(&bq->i2c_rw_lock);
 	sysfs_remove_group(&bq->dev->kobj, &fg_attr_group);
-
-	return 0;
 }
 
 static void fg_shutdown(struct i2c_client *client)
