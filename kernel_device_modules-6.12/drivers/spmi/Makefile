@@ -3,3 +3,9 @@
 # Makefile for kernel SPMI framework.
 #
 
+
+# xaga: platform module wiring
+obj-m += spmi-mtk-mpu.o
+
+# xaga: platform module wiring
+obj-m += spmi-mtk-pmif.o

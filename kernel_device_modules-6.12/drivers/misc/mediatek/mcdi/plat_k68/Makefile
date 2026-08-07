@@ -11,8 +11,8 @@
 # See http://www.gnu.org/licenses/gpl-2.0.html for more details.
 #
 
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/mcdi/include/
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/mcdi/include/mcdi_v1/
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/mcdi/common_v1/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mcdi/include/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mcdi/include/mcdi_v1/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mcdi/common_v1/
 

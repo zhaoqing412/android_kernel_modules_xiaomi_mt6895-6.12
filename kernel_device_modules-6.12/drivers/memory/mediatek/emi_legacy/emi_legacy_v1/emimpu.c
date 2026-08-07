@@ -10,6 +10,8 @@
 #include <linux/device.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
+int mtk_emimpu_set_protection(struct emimpu_region_t *rg_info);
+
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>

@@ -11,3 +11,15 @@
 
 # obj-$(CONFIG_MTK_MD_POWER_THROTTLING) += mtk_md_power_throttling.o
 
+
+# xaga: platform module wiring
+obj-m += mtk_battery_oc_throttling.o
+
+# xaga: platform module wiring
+obj-m += mtk_dynamic_loading_throttling.o
+
+# xaga: platform module wiring
+obj-m += mtk_low_battery_throttling.o
+
+# xaga: platform module wiring
+obj-m += pmic_lbat_service.o

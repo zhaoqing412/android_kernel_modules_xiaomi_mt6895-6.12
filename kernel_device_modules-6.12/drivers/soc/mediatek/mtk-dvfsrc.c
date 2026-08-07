@@ -2315,7 +2315,7 @@ static const struct dvfsrc_opp_desc dvfsrc_opp_mt6858_desc[] = {
 	DVFSRC_OPP_DESC(dvfsrc_opp_mt6858),
 };
 
-static const struct dvfsrc_soc_data mt6858_data = {
+static const struct dvfsrc_soc_data __maybe_unused mt6858_data = {
 	DVFSRC_MT6983_SERIES_OPS,
 	.opps_desc = dvfsrc_opp_mt6858_desc,
 	.num_opp_desc = ARRAY_SIZE(dvfsrc_opp_mt6858_desc),

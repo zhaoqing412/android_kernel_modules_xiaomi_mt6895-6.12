@@ -367,7 +367,7 @@ static unsigned int get_clk_div(unsigned int type, unsigned int ID)
 
 static int __mt_get_freq(unsigned int ID, int type)
 {
-	unsigned int temp, clk_dbg_cfg, clk_misc_cfg_0, clk26cali_1 = 0;
+	unsigned int temp, clk_dbg_cfg, clk_misc_cfg_0, __maybe_unused clk26cali_1 = 0;
 	unsigned int clk_div = 1, post_div = 1;
 	unsigned long flags;
 	int output = 0, i = 0;

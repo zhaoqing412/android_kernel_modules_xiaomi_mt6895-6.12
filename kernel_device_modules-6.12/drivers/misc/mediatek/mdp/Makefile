@@ -374,3 +374,6 @@ endif # !CONFIG_MTK_GMO_RAM_OPTIMIZE
 #ifeq ($(strip $(CONFIG_MMPROFILE)),y)
 #obj-y += cmdq_mmp.o
 #endif
+
+# xaga: platform module wiring
+obj-m += cmdq_helper_inf.o

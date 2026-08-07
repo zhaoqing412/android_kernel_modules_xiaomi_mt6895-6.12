@@ -6,4 +6,4 @@ subdir-ccflags-y += -I$(srctree)/kernel/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/vhost/	\
 			 -I$(KERNEL_SRC)/drivers/vhost/
 
-#ccflags-y += -I$(srctree)/drivers/misc/mediatek/performance/perf_ioctl
+#ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/performance/perf_ioctl

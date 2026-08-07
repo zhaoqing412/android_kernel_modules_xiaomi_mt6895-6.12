@@ -22,3 +22,6 @@ ccflags-y += -DMMDVFS_HOOK
 ccflags-y += -DMMDVFS_QOS_SUPPORT
 mtk-smi-bwc-objs += mmdvfs_mgr_v3.o mmdvfs_profile_adaptor.o mmdvfs_mgr_util.o
 endif
+
+# xaga: platform module wiring
+obj-m += mtk-smi-dbg.o

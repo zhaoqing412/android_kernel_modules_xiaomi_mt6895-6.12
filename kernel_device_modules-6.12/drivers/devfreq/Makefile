@@ -2,3 +2,6 @@
 
 # DEVFREQ Drivers
 # obj-$(CONFIG_MTK_DVFSRC_DEVFREQ)	+= mtk-dvfsrc-devfreq.o
+
+# xaga: platform module wiring
+obj-m += mtk-dvfsrc-devfreq.o

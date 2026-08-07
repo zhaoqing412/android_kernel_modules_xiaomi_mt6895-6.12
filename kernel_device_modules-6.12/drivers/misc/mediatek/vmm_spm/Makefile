@@ -7,3 +7,6 @@ ifneq ($(wildcard $(src)/mtk-vmm-spm.c),)
 # obj-$(CONFIG_MTK_VMM_SPM) += mtk-vmm-spm.o
 endif
 
+
+# xaga: platform module wiring
+obj-m += mtk-vmm-spm.o

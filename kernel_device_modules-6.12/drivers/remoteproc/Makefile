@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
 
-ccflags-y += -I$(srctree)/drivers/remoteproc
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/remoteproc
 
 #obj-$(CONFIG_MTK_CCU_RPROC)		+= mtk_ccu.o
 #obj-$(CONFIG_MTK_CCU_RPROC)		+= mtk_ccu_mssv.o

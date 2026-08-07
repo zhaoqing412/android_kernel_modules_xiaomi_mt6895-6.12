@@ -15,3 +15,6 @@
 #subdir-ccflags-y += -I$(srctree)/kernel/
 
 #obj-$(CONFIG_MTK_DRAM_LOG_STORE) += log_store.o
+
+# xaga: platform module wiring
+obj-m += log_store.o

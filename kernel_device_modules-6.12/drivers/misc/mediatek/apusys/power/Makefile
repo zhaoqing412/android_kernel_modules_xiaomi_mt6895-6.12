@@ -1,5 +1,5 @@
 # # common part
-# ccflags-y += -I$(srctree)/drivers/devfreq/
+# ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/devfreq/
 # ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/soc/mediatek/
 # ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include
 # ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/apusys/debug/

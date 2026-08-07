@@ -7,8 +7,8 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/blocktag/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/ufs/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/mmc/host
-ccflags-y += -I$(srctree)/drivers/ufs/
-ccflags-y += -I$(srctree)/drivers/mmc/host/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/ufs/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/mmc/host/
 ccflags-y += -I$(srctree)/include/ufs/
 
 #obj-$(CONFIG_DEVICE_MODULES_MMC_MTK)			+= mtk-sd.o
@@ -21,3 +21,9 @@ ccflags-y += -I$(srctree)/include/ufs/
 obj-$(CONFIG_DEVICE_MODULES_MMC_MTK_SW_CQHCI)		+= mtk-mmc-swcqhci.o
 mtk-mmc-swcqhci-y			+= mtk-mmc-swcqhci-core.o
 mtk-mmc-swcqhci-$(CONFIG_MMC_CRYPTO)	+= mtk-mmc-swcqhci-crypto.o
+
+# xaga: platform module wiring
+obj-m += mtk-mmc-dbg.o
+
+# xaga: platform module wiring
+obj-m += mtk-mmc.o

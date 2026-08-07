@@ -44,3 +44,5 @@ endif
 
 #ccflags-y += -DCMDQ_SKIP_BY_CMDQ_BUILT
 ccflags-y += -DCMDQ_DCACHE_INVAL
+# xaga: platform module wiring
+obj-m += cmdq-platform-mt6895.o

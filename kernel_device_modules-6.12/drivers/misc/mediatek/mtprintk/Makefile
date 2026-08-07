@@ -15,3 +15,6 @@
 #subdir-ccflags-y += -I$(srctree)/kernel/
 
 #obj-$(CONFIG_MTK_PRINTK) += mtk_printk_ctrl.o
+
+# xaga: platform module wiring
+obj-m += mtk_printk_ctrl.o

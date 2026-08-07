@@ -34,7 +34,7 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/dramc/$(MTK_PLATFORM
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/pmic/			\
              -I$(DEVICE_MODULES_PATH)/drivers/iommu/				\
              -I$(DEVICE_MODULES_PATH)/drivers/devfreq/				\
-             -I$(srctree)/drivers/gpu/drm/				\
+             -I$(DEVICE_MODULES_PATH)/drivers/gpu/drm/				\
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include/mach/				\
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat/ \
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/leds/ \
@@ -42,7 +42,13 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/dramc/$(MTK_PLATFORM
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/cmdq/mailbox/        \
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/iommu/		\
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mtk-interconnect/        \
-             -I$(srctree)/drivers/gpu/drm/mediatek \
+             -I$(DEVICE_MODULES_PATH)/drivers/gpu/drm/mediatek \
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/slbc/ \
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/cmdq/mailbox/ \
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/clkbuf/v1/inc/ \
+
+# xaga: platform module wiring
+obj-m += mtk_disp_notify.o
+
+# xaga: platform module wiring
+obj-m += mtk_sync.o

@@ -11,17 +11,17 @@
 # GNU General Public License for more details.
 #
 
-ccflags-y  += -I$(srctree)/drivers/misc/mediatek/thermal/v3/inc
-ccflags-y  += -I$(srctree)/drivers/misc/mediatek/base/power/
-ccflags-y  += -I$(srctree)/drivers/misc/mediatek/gpu/hal/
-ccflags-y  += -I$(srctree)/drivers/gpu/mediatek/gpufreq/
-ccflags-y  += -I$(srctree)/drivers/misc/mediatek/thermal/fakeHeader/
-ccflags-y  += -I$(srctree)/drivers/misc/mediatek/base/power/eem_v2/inc
-ccflags-y  += -I$(srctree)/drivers/misc/mediatek/pmic/include/
-ccflags-y  += -I$(srctree)/drivers/misc/mediatek/thermal/common/inc/
-ccflags-y  += -I$(srctree)/drivers/misc/mediatek/sspm/v1/
-ccflags-y  += -I$(srctree)/drivers/misc/mediatek/sspm/
-ccflags-y  += -I$(srctree)/drivers/gpu/mediatek/mt-plat/
-ccflags-y  += -I$(srctree)/drivers/misc/mediatek/include/
-ccflags-y  += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/
+ccflags-y  += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/thermal/v3/inc
+ccflags-y  += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/base/power/
+ccflags-y  += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/gpu/hal/
+ccflags-y  += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpufreq/
+ccflags-y  += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/thermal/fakeHeader/
+ccflags-y  += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/base/power/eem_v2/inc
+ccflags-y  += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/pmic/include/
+ccflags-y  += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/thermal/common/inc/
+ccflags-y  += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/sspm/v1/
+ccflags-y  += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/sspm/
+ccflags-y  += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mt-plat/
+ccflags-y  += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/
+ccflags-y  += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat/
 ccflags-y  += -I$(srctree)/include/dt-bindings/

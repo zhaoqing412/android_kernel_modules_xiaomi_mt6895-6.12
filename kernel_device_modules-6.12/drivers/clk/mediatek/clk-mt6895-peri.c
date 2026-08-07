@@ -120,7 +120,7 @@ static const struct mtk_gate_regs perao1_cg_regs = {
 	.sta_ofs = 0x40,
 };
 
-static const struct mtk_gate_regs perao2_cg_regs = {
+static const struct mtk_gate_regs __maybe_unused perao2_cg_regs = {
 	.set_ofs = 0x44,
 	.clr_ofs = 0x44,
 	.sta_ofs = 0x44,

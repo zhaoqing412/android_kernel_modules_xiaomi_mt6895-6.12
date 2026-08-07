@@ -126,7 +126,7 @@ static void emimpu_vio_dump(struct work_struct *work)
 		return;
 
 	if (mpu->vio_msg)
-		aee_kernel_exception("EMIMPU_V2", mpu->vio_msg);
+		aee_kernel_exception("EMIMPU_V2", "%s", mpu->vio_msg);
 
 	mpu->in_msg_dump = 0;
 }

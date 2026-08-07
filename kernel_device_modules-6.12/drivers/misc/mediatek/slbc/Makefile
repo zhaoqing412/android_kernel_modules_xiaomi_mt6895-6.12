@@ -47,3 +47,9 @@ endif
 
 #obj-${CONFIG_MTK_SLBC_MMSRAM} += mmsram.o
 
+
+# xaga: platform module wiring
+obj-m += slbc_ipi.o
+
+# xaga: platform module wiring
+obj-m += slbc_mt6895.o

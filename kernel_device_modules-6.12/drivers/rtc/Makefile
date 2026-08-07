@@ -10,3 +10,6 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/
 
 #obj-$(CONFIG_DEVICE_MODULES_RTC_DRV_MT6397)	+= rtc-mt6397.o
 #obj-$(CONFIG_RTC_DRV_MT6685)	+= rtc-mt6685.o
+
+# xaga: platform module wiring
+obj-m += rtc-mt6685.o

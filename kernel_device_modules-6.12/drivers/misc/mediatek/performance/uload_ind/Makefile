@@ -15,3 +15,6 @@
 
 obj-$(CONFIG_MTK_LOAD_TRACKER) += uload_ind.o
 
+
+# xaga: platform module wiring
+obj-m += uload_ind.o

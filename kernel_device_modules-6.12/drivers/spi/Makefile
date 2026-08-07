@@ -6,3 +6,6 @@
 ccflags-$(CONFIG_SPI_DEBUG) := -DDEBUG
 
 obj-$(CONFIG_DEVICE_MODULES_SPI_MT65XX)                += spi-mt65xx.o
+
+# xaga: platform module wiring
+obj-m += spi-mt65xx.o

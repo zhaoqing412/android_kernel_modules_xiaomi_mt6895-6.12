@@ -148,7 +148,7 @@ mediatek-drm-hdmi-objs := mtk_hdmi.o \
 	mtk_hdmi_debug.o
 
 ifneq ($(findstring $(CONFIG_DRM_MEDIATEK_HDMI_HDCP), y m),)
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/hdmirx/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/hdmirx/
 mediatek-drm-hdmi-objs += mtk_hdmi_hdcp.o
 endif
 
@@ -181,8 +181,8 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/dramc/$(MTK_PLATFORM
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/pmic/			\
              -I$(DEVICE_MODULES_PATH)/drivers/iommu/				\
              -I$(DEVICE_MODULES_PATH)/drivers/devfreq/				\
-             -I$(srctree)/drivers/gpu/drm/				\
-             -I$(srctree)/drivers/gpu/drm/display/				\
+             -I$(DEVICE_MODULES_PATH)/drivers/gpu/drm/				\
+             -I$(DEVICE_MODULES_PATH)/drivers/gpu/drm/display/				\
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include/mach/				\
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat/ \
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/leds/ \
@@ -191,7 +191,7 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/dramc/$(MTK_PLATFORM
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/iommu/		\
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mtk-interconnect/        \
              -I$(DEVICE_MODULES_PATH)/sound/soc/mediatek/common/ \
-             -I$(srctree)/drivers/gpu/drm/mediatek \
+             -I$(DEVICE_MODULES_PATH)/drivers/gpu/drm/mediatek \
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/slbc/ \
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/cmdq/mailbox/ \
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/tinysys_scmi/ \

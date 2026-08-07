@@ -9,6 +9,12 @@ subdir-ccflags-y += -Wall -Werror \
 		-I$(srctree)/$(src)/include/uapi \
 
 obj-y += drivers/memory/
+obj-y += drivers/pinctrl/mediatek/
+obj-y += drivers/iommu/
+obj-y += drivers/input/keyboard/
+obj-y += drivers/spi/
+obj-y += drivers/reset/
+obj-y += drivers/memory/mediatek/
 
 obj-y += drivers/edac/
 

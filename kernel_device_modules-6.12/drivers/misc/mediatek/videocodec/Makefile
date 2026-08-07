@@ -35,5 +35,5 @@ ccflags-y += \
     -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/videocodec   \
     -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/videocodec/include/kernel   \
     -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mtk-interconnect   \
-    -I$(srctree)/drivers/misc/mediatek/iommu/ \
+    -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/iommu/ \
     -I$(DEVICE_MODULES_PATH)/drivers/dma-buf/heaps

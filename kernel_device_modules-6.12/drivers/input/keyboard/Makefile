@@ -5,3 +5,9 @@
 
 obj-$(CONFIG_KEYBOARD_MTK_KPD)		+= mtk-kpd.o
 obj-$(CONFIG_DEVICE_MODULES_KEYBOARD_MTK_PMIC)		+= mtk-pmic-keys.o
+
+# xaga: platform module wiring
+obj-m += mtk-kpd.o
+
+# xaga: platform module wiring
+obj-m += mtk-pmic-keys.o

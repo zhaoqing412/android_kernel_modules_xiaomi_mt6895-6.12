@@ -1,7 +1,15 @@
 # SPDX-License-Identifier: GPL-2.0
 
-ccflags-y += -I$(srctree)/drivers/usb/typec
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/usb/typec
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/tcpc/inc
 CFLAGS_pi3dpx1205a.o += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/mux
 
 obj-$(CONFIG_TYPEC_MUX_PI3DPX1205A) += pi3dpx1205a.o
+# xaga: platform module wiring
+# obj-m += mux_switch.o  # xaga: include-dep, skipped
+
+# xaga: platform module wiring
+obj-m += ps5170.o
+
+# xaga: platform module wiring
+obj-m += usb_dp_selector.o

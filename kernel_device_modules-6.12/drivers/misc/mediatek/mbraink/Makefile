@@ -4,8 +4,8 @@ ccflags-y += -I$(MTK_MBRAINK_FOLDER)
 subdir-ccflags-y += -I$(MTK_MBRAINK_FOLDER)
 subdir-ccflags-y += -Wno-frame-address
 
-ccflags-y += -I$(srctree)/drivers/android/
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/qos/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/android/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/qos/
 
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/swpm/inc/
 subdir-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/swpm/inc/

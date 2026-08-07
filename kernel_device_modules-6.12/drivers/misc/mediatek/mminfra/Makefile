@@ -13,3 +13,6 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/clk/mediatek
 
 #obj-$(CONFIG_MTK_MMINFRA) += mtk-mminfra-debug.o mtk-mminfra-imax.o
 #obj-$(CONFIG_MTK_MMINFRA) += mtk-mminfra-util.o
+
+# xaga: platform module wiring
+obj-m += mtk-mminfra-debug.o

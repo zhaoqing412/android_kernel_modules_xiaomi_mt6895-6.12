@@ -7,9 +7,9 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/ufs/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/ufs/vendor/
 
 # must after -I$(DEVICE_MODULES_PATH)/drivers/ufs/
-ccflags-y += -I$(srctree)/drivers/ufs/
-ccflags-y += -I$(srctree)/drivers/ufs/core/
-ccflags-y += -I$(srctree)/drivers/ufs/host/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/ufs/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/ufs/core/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/ufs/host/
 
 # UFS KO without iSE
 # obj-$(CONFIG_DEVICE_MODULES_SCSI_UFS_MEDIATEK)  += ufs-mediatek-mod.o

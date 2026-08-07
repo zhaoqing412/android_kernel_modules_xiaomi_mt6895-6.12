@@ -4,6 +4,6 @@
 # tinysys-scmi-y := tinysys-scmi-drv.o tinysys.o
 
 
-ccflags-y += -I$(srctree)/drivers/firmware/arm_scmi
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/firmware/arm_scmi
 
 ccflags-y += -DTINYSYS_SCMI_DEBUG

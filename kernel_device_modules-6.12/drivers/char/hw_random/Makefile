@@ -4,3 +4,6 @@
 #
 
 #obj-$(CONFIG_HW_RANDOM_SECURE) += sec-rng.o
+
+# xaga: platform module wiring
+obj-m += sec-rng.o

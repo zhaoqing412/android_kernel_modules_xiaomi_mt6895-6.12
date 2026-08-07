@@ -19,7 +19,7 @@ ifneq ($(KERNELRELEASE),)
     subdir-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/base/power/include
     subdir-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/clkbuf/src
     subdir-ccflags-y += -Werror -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat
-    subdir-ccflags-y += -I$(srctree)/drivers/mmc/core
+    subdir-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/mmc/core
     subdir-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/eccci/
     subdir-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/clk/mediatek/
     subdir-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/pinctrl/mediatek/

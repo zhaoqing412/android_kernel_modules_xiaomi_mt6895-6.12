@@ -14,3 +14,6 @@
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mmp/
 
 obj-$(CONFIG_MMPROFILE) += mmprofile.o
+
+# xaga: platform module wiring
+obj-m += mmprofile.o

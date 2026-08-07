@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0
-ccflags-y += -I$(srctree)/drivers/pinctrl/mediatek
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/pinctrl/mediatek
 
 # Core
 ifeq ($(CONFIG_DEVICE_MODULES_EINT_MTK),m)
@@ -116,3 +116,6 @@ ifneq ($(wildcard $(src)/pinctrl-mt8188.c),)
 obj-$(CONFIG_DEVICE_MODULES_PINCTRL_MT8188)	+= pinctrl-mt8188.o
 endif
 obj-$(CONFIG_DEVICE_MODULES_PINCTRL_MT8195)    += pinctrl-mt8195.o
+
+# xaga: platform module wiring
+obj-m += pinctrl-mt6895.o

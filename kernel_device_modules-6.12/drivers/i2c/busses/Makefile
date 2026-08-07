@@ -4,3 +4,6 @@
 #
 
 #obj-$(CONFIG_DEVICE_MODULES_I2C_MT65XX)	+= i2c-mt65xx.o
+
+# xaga: platform module wiring
+obj-m += i2c-mt65xx.o

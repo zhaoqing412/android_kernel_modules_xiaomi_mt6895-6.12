@@ -18,3 +18,6 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mmdebug/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mmdvfs/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/smi/
 
+
+# xaga: platform module wiring
+obj-m += mtk-mmdvfs-debug.o

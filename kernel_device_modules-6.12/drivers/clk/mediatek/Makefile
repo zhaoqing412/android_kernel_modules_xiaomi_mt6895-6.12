@@ -402,3 +402,48 @@ endif
 #clk-dbg-mt6899-$(CONFIG_COMMON_CLK_MT6899) += clkdbg-mt6899.o
 #endif
 #endif
+
+# xaga: platform module wiring
+obj-m += clk-bringup.o
+
+# xaga: platform module wiring
+obj-m += clkchk-mt6895.o
+
+# xaga: platform module wiring
+obj-m += clkdbg-mt6895.o
+
+# xaga: platform module wiring
+obj-m += clk-disable-unused.o
+
+# xaga: platform module wiring
+obj-m += clk-fmeter-mt6895.o
+
+# xaga: platform module wiring
+obj-m += clk-mt6895-adsp.o
+
+# xaga: platform module wiring
+obj-m += clk-mt6895-bus.o
+
+# xaga: platform module wiring
+obj-m += clk-mt6895-cam.o
+
+# xaga: platform module wiring
+obj-m += clk-mt6895-ccu.o
+
+# xaga: platform module wiring
+obj-m += clk-mt6895-img.o
+
+# xaga: platform module wiring
+obj-m += clk-mt6895.o
+
+# xaga: platform module wiring
+obj-m += clk-mt6895-mdpsys.o
+
+# xaga: platform module wiring
+obj-m += clk-mt6895-mmsys.o
+
+# xaga: platform module wiring
+obj-m += clk-mt6895-peri.o
+
+# xaga: platform module wiring
+obj-m += clk-mt6895-vcodec.o

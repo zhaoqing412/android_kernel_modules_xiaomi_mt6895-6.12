@@ -81,8 +81,8 @@ obj-$(CONFIG_MTK_PTPOD_LEGACY) += mtk_picachu.o
 mtk_picachu-y += plat_k6833/mtk_picachu.o
 
 else ifneq ($(strip $(CONFIG_MTK_PLAT_POWER_MT6739)),)
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/eem_v2/common_v0/inc
-ccflags-y  += -I$(srctree)/drivers/misc/mediatek/thermal/v4/inc
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/eem_v2/common_v0/inc
+ccflags-y  += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/thermal/v4/inc
 obj-$(CONFIG_MTK_PTPOD_LEGACY) += mediatek_eem.o
 mediatek_eem-y += common_v0/mtk_eem.o
 mediatek_eem-y += common_v0/mtk_eem_platform.o

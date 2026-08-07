@@ -48,9 +48,9 @@ ccflags-$(CONFIG_TRUSTONIC_TEE_DEBUG) += -DDEBUG
 # MobiCore Driver includes
 ccflags-y += -I$(GUD_ROOT_FOLDER)/MobiCoreDriver
 ifeq ($(CONFIG_MTK_ION),y)
-ccflags-y += -I$(srctree)/drivers/staging/android/mtk_ion
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/staging/android/mtk_ion
 else
-ccflags-y += -I$(srctree)/drivers/staging/android/aosp_ion
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/staging/android/aosp_ion
 endif
 
 # timesync to get boot time

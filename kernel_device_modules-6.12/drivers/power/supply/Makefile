@@ -76,3 +76,6 @@ obj-$(CONFIG_XM_QC_MANAGER) += qc_cp_manager.o
 # Xiaomi votable framework (pmic_voter) - dependency of the CP managers
 obj-$(CONFIG_XM_PD_MANAGER) += pmic_voter.o
 obj-$(CONFIG_XM_QC_MANAGER) += pmic_voter.o
+
+# xaga: platform module wiring
+obj-m += mt6375-charger.o

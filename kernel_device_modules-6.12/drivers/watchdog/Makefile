@@ -2,3 +2,6 @@
 #
 # Makefile for the WatchDog device drivers.
 #
+
+# xaga: platform module wiring
+obj-m += mtk_wdt.o

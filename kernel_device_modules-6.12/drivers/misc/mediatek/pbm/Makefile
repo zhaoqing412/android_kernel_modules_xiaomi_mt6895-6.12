@@ -30,3 +30,6 @@
 # endif
 # ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling/
 # obj-$(CONFIG_MTK_PEAK_POWER_BUDGET) += mtk_peak_power_budget.o
+
+# xaga: platform module wiring
+obj-m += mtk_pbm.o

@@ -46,10 +46,10 @@ endif
 ifneq ($(strip $(CONFIG_MTK_PLAT_POWER_MT6739)),)
 ccflags-y += \
 	-I$(CPUFREQ_ROOT_DIR)/inc \
-	-I$(srctree)/drivers/misc/mediatek/include \
-	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/common/include	\
-	-I$(srctree)/drivers/misc/mediatek/cpufreq_v2/src/common/platform   \
-	-I$(srctree)/drivers/misc/mediatek/mcupm/common/
+	-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include \
+	-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat/common/include	\
+	-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/cpufreq_v2/src/common/platform   \
+	-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mcupm/common/
 
 endif
 

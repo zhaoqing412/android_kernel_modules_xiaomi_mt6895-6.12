@@ -10,6 +10,7 @@
 #include <linux/device.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
+
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
@@ -22,6 +23,10 @@
 #include <linux/spinlock.h>
 #include <mt-plat/aee.h>
 #include <soc/mediatek/emi.h>
+int mtk_emimpu_set_protection(struct emimpu_region_t *rg_info);
+int mtk_emimpu_free_region(struct emimpu_region_t *rg_info);
+int mtk_emimpu_init_region(
+	struct emimpu_region_t *rg_info, unsigned int rg_num);
 
 #define EMI_MPUS_OFFSET	(0x1F0)
 #define EMI_MPUT_OFFSET	(0x1F8)

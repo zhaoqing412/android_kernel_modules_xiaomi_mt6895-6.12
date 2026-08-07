@@ -13,3 +13,6 @@
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include
 obj-$(CONFIG_MTK_PID_MAP)	+= pidmap.o
 
+
+# xaga: platform module wiring
+obj-m += pidmap.o

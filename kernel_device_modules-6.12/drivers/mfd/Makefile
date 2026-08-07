@@ -6,3 +6,15 @@ obj-$(CONFIG_MFD_MTK_SPMI_PMIC)	+= hyp-mtk-spmi-pmic.o
 endif
 
 obj-$(CONFIG_REGULATOR_MT6362)	+= mt6362-core.o
+
+# xaga: platform module wiring
+obj-m += mt6375.o
+
+# xaga: platform module wiring
+obj-m += mt6685-audclk.o
+
+# xaga: platform module wiring
+obj-m += mt6685-core.o
+
+# xaga: platform module wiring
+obj-m += mtk-spmi-pmic.o

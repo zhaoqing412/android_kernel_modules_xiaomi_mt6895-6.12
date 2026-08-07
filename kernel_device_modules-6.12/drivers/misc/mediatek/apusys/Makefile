@@ -325,7 +325,7 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/apusys/apusys_ce/2.0
 
 # ipi
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/apusys/ipi/
-ccflags-y += -I$(srctree)/drivers/rpmsg/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/rpmsg/
 # apusys-objs += ipi/mtk_apu_rpmsg.o
 
 # sw logger
