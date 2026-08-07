@@ -33,9 +33,6 @@ define_mgk_ddk_ko(
         "conap_scp/conap_scp_core.c",
         "conap_scp/conap_scp_ipi.c",
         "conap_scp/msg_thread.c",
-        "aolextra/aolextra_core.c",
-        "aolextra/aolextra_netlink.c",
-        "aolextra/aolextra_ring_buffer.c",
     ],
     conditional_srcs = {
       "CONFIG_MTK_AOL_DEBUG": {
@@ -55,7 +52,6 @@ define_mgk_ddk_ko(
         "aoltest",
         "aoltest_v2",
         "conap_scp",
-        "aolextra",
     ],
     hdrs = glob(["**/*.h"]),
     header_deps = [

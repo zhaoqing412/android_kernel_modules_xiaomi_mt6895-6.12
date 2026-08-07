@@ -26,38 +26,6 @@ filegroup(
 )
 
 define_mgk_ddk_ko(
-    name = "aw36515_23081",
-    srcs = [
-        "aw36515_23081.c",
-    ],
-    header_deps =[
-        "//kernel_device_modules-{}/drivers/misc/mediatek/flashlight:flashlight_headers".format(kernel_version),
-    ],
-    ko_deps = [
-        "//kernel_device_modules-{}/drivers/misc/mediatek/flashlight:flashlight".format(kernel_version),
-    ],
-    copts = [
-        "-I$(srctree)/drivers/misc/mediatek/flashlight",
-    ],
-)
-
-define_mgk_ddk_ko(
-    name = "aw36515_23021",
-    srcs = [
-        "aw36515_23021.c",
-    ],
-    header_deps =[
-        "//kernel_device_modules-{}/drivers/misc/mediatek/flashlight:flashlight_headers".format(kernel_version),
-    ],
-    ko_deps = [
-        "//kernel_device_modules-{}/drivers/misc/mediatek/flashlight:flashlight".format(kernel_version),
-    ],
-    copts = [
-        "-I$(srctree)/drivers/misc/mediatek/flashlight",
-    ],
-)
-
-define_mgk_ddk_ko(
     name = "lm3643",
     srcs = [
         "lm3643.c",

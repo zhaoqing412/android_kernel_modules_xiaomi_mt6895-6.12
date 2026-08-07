@@ -57,6 +57,5 @@ int fpsgo_get_rl_l2q_enable(void);
 void fbt_task_reset_pmu(struct rb_root *pmu_info_tree, unsigned long long ts);
 int fbt_cluster_X2Y(int cluster, unsigned long input, int in_type,
 	int out_type, int is_to_scale_cap, const char *caller);
-extern int fpsgo_game2fpsgo_get_game_cb_active(void);
 
 #endif

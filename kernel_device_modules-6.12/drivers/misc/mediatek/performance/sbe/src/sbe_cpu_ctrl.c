@@ -22,15 +22,6 @@
 #include <linux/sched/cputime.h>
 #include <linux/atomic.h>
 #include <sched/sched.h>
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_GKI_CPUFREQ_BOUNCING)
-#include <linux/cpufreq_bouncing.h>
-#endif
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SMART_FREQ)
-#include <linux/smart_freq.h>
-#endif
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_QOS_ARBITER)
-#include <linux/qos_arbiter.h>
-#endif
 
 #include "eas/grp_awr.h"
 #include "eas/group.h"
@@ -43,8 +34,6 @@
 #include "sbe_usedext.h"
 #include "sbe_sysfs.h"
 #include "core_ctl.h"
-
-#include "sbe_trace_event.h"
 
 #define NSEC_PER_HUSEC 100000
 #define SBE_RESCUE_MODE_UNTIL_QUEUE_END 2
@@ -91,8 +80,6 @@ static int gas_threshold_for_low_TLP;
 static int gas_threshold_for_high_TLP;
 static int global_sbe_dy_enhance;
 static int global_sbe_dy_enhance_max_pid;
-static int global_sbe_render_loading;
-static int global_sbe_render_loading_pid;
 static int sbe_critical_basic_cap;
 static int sbe_ai_ctrl_enabled;
 static int sbe_uclamp_margin;
@@ -110,21 +97,11 @@ static int sbe_affinity_task_min_cap;
 static int sbe_affinity_task_low_threshold_cap;
 static int sbe_ignore_vip_task_enable;
 static int sbe_ignore_vip_task_status;
-static int sbe_without_dptv2_enable;
-static int sbe_free_max_perf_idx;
 /*For AI jank detection*/
 static int ai_rescuing_frame_id;
 static int registered;
 static int curr_pid;
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_QOS_ARBITER)
-static bool q2q_jerked;
-static int curr_q2q_jerk_pid;
-static unsigned long long curr_q2q_jerk_bufID;
-#endif
 static unsigned long long curr_idf;
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_GKI_CPUFREQ_BOUNCING)
-static int is_rescue;
-#endif
 
 
 atomic_t g_web_or_flutter_tgid = ATOMIC_INIT(0);
@@ -192,8 +169,6 @@ module_param(sbe_affinity_task, int, 0644);
 module_param(sbe_affinity_task_min_cap, int, 0644);
 module_param(sbe_affinity_task_low_threshold_cap, int, 0644);
 module_param(sbe_ignore_vip_task_enable, int, 0644);
-module_param(sbe_without_dptv2_enable, int, 0644);
-module_param(sbe_free_max_perf_idx, int, 0644);
 
 static void update_hwui_frame_info(struct sbe_render_info *info,
 		struct hwui_frame_info *frame, unsigned long long id,
@@ -210,11 +185,6 @@ static int nsec_to_100usec(unsigned long long nsec)
 	husec = div64_u64(nsec, (unsigned long long)NSEC_PER_HUSEC);
 
 	return (int)husec;
-}
-
-int get_sbe_sbe_without_dptv2_enable(void)
-{
-	return sbe_without_dptv2_enable;
 }
 
 int get_sbe_force_bypass_dptv2(void)
@@ -255,16 +225,6 @@ int sbe_get_perf(void)
 {
 	return global_ux_blc;
 }
-int sbe_get_rescue_enhance(void)
-{
-	return global_sbe_dy_enhance;
-}
-
-int sbe_get_render_loading(void)
-{
-	return global_sbe_render_loading;
-}
-
 
 void sbe_core_ctl_ignore_vip_task(struct sbe_render_info *thr, int ignore_enable)
 {
@@ -336,12 +296,6 @@ void sbe_set_global_sbe_dy_enhance(int cur_pid, int cur_dy_enhance)
 {
 	global_sbe_dy_enhance = cur_dy_enhance;
 	global_sbe_dy_enhance_max_pid = cur_pid;
-}
-
-void sbe_set_global_render_loading(int cur_pid, int cur_loading)
-{
-	global_sbe_render_loading = cur_loading;
-	global_sbe_render_loading_pid = cur_pid;
 }
 
 /**
@@ -530,7 +484,7 @@ void sbe_notify_ux_jank_detection(bool enable, int tgid, int pid, unsigned long 
 	if (!enable_ux_jank_detection_fp || !sbe_ai_ctrl_enabled)
 		return;
 
-	proc_name = vzalloc(MAX_PROCESS_NAME_LEN * sizeof(char));
+	proc_name = kcalloc(MAX_PROCESS_NAME_LEN, sizeof(char), GFP_KERNEL);
 	if (!proc_name)
 		goto out;
 
@@ -543,7 +497,7 @@ void sbe_notify_ux_jank_detection(bool enable, int tgid, int pid, unsigned long 
 	if (enable && test_bit(SBE_HWUI, &mask) && sbe_thr != NULL)
 		sbe_set_curr_thread_info(pid, buf_id);
 
-	vfree(proc_name);
+	kfree(proc_name);
 out:
 	return;
 }
@@ -658,7 +612,6 @@ void __sbe_set_per_task_cap(struct sbe_render_info *thr, int min_cap, int max_ca
 	unsigned long cur_max;
 	struct sched_attr attr = {};
 	struct task_struct *p;
-	bool need_trace = trace_sbe_trace_enabled();
 
 	attr.sched_policy = -1;
 	attr.sched_flags =
@@ -684,14 +637,11 @@ void __sbe_set_per_task_cap(struct sbe_render_info *thr, int min_cap, int max_ca
 		}
 	}
 
-	if (need_trace) {
-		local_dep_str = vzalloc((MAX_TASK_NUM + 1) * 7 * sizeof(char));
-		if (!local_dep_str)
-			goto out;
-		local_dep_str[0] = '\0';
-	}
+	local_dep_str = kcalloc(MAX_TASK_NUM + 1, 7 * sizeof(char), GFP_KERNEL);
+	if (!local_dep_str)
+		goto out;
 
-	for (i = 0; i < min(thr->dep_num, MAX_TASK_NUM); i++) {
+	for (i = 0; i < thr->dep_num; i++) {
 		if (thr->dep_arr[i] <= 0)
 			continue;
 
@@ -724,24 +674,19 @@ void __sbe_set_per_task_cap(struct sbe_render_info *thr, int min_cap, int max_ca
 		sbe_systrace_c(thr->dep_arr[i], 0, attr.sched_util_min, "min_cap");
 		sbe_systrace_c(thr->dep_arr[i], 0, attr.sched_util_max, "max_cap");
 
-		if (need_trace && local_dep_str) {
-			if (strlen(local_dep_str) == 0)
-				ret = snprintf(temp, sizeof(temp), "%d", thr->dep_arr[i]);
-			else
-				ret = snprintf(temp, sizeof(temp), ",%d", thr->dep_arr[i]);
-			if (ret > 0 && strlen(local_dep_str) + strlen(temp) < 256)
-				strcat(local_dep_str, temp);
-		}
+		if (strlen(local_dep_str) == 0)
+			ret = snprintf(temp, sizeof(temp), "%d", thr->dep_arr[i]);
+		else
+			ret = snprintf(temp, sizeof(temp), ",%d", thr->dep_arr[i]);
+
+		if (ret > 0 && strlen(local_dep_str) + strlen(temp) < 256)
+			strncat(local_dep_str, temp, strlen(temp));
 	}
 
-	if (need_trace && local_dep_str) {
-		local_dep_str[255] = '\0';
-		sbe_trace("[%d] dep-list %s", thr->pid, local_dep_str);
-	}
+	sbe_trace("[%d] dep-list %s", thr->pid, local_dep_str);
 
 out:
-	if (local_dep_str)
-		vfree(local_dep_str);
+	kfree(local_dep_str);
 }
 
 void sbe_set_per_task_cap(struct sbe_render_info *thr)
@@ -778,7 +723,7 @@ void sbe_set_per_task_cap(struct sbe_render_info *thr)
 
 	if (!sbe_ai_ctrl_enabled) {
 		local_min_cap = set_blc_wt;
-		if (!set_blc_wt || thr->sbe_enhance > 0 || sbe_free_max_perf_idx)
+		if (!set_blc_wt || thr->sbe_enhance > 0)
 			local_max_cap = 100;
 		else
 			local_max_cap = set_blc_wt;
@@ -794,20 +739,6 @@ void sbe_set_per_task_cap(struct sbe_render_info *thr)
 		sbe_systrace_c(thr->pid, thr->buffer_id, ai_boost, "[ux_ai]perf_idx");
 		sbe_systrace_c(thr->pid, thr->buffer_id, set_blc_wt, "[ux_sbe]perf_idx");
 	}
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_GKI_CPUFREQ_BOUNCING)
-	if (is_rescue && local_min_cap > 50)
-		cb_ceiling_free_enable(true);
-	else
-		cb_ceiling_free_enable(false);
-#endif
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SMART_FREQ)
-	if (is_rescue && local_min_cap > 50)
-		smart_freq_ceiling_free_enable(true);
-	else
-		smart_freq_ceiling_free_enable(false);
-#endif
 
 	__sbe_set_per_task_cap(thr, local_min_cap, local_max_cap);
 	sbe_systrace_c(thr->pid, thr->buffer_id, local_min_cap, "[ux]perf_idx");
@@ -996,7 +927,7 @@ int sbe_query_cur_buffer_count(struct sbe_render_info *thr)
 	int tmp_render_num = 0;
 	struct render_fw_info *tmp_render_arr = NULL;
 
-	tmp_render_arr = vzalloc(sizeof(struct render_fw_info) * FPSGO_MAX_RENDER_INFO_SIZE);
+	tmp_render_arr = kcalloc(FPSGO_MAX_RENDER_INFO_SIZE, sizeof(struct render_fw_info), GFP_KERNEL);
 	if (!tmp_render_arr)
 		return -ENOMEM;
 
@@ -1009,7 +940,7 @@ int sbe_query_cur_buffer_count(struct sbe_render_info *thr)
 			break;
 		}
 	}
-	vfree(tmp_render_arr);
+	kfree(tmp_render_arr);
 	if (unlikely(i >= tmp_render_num)) {
 		sbe_trace("pid:%d buffer_id:0x%llx not get cur_buffer_count", thr->pid, thr->buffer_id);
 		return -EINVAL;
@@ -1019,13 +950,13 @@ int sbe_query_cur_buffer_count(struct sbe_render_info *thr)
 }
 
 void sbe_exec_doframe_end(struct sbe_render_info *thr, unsigned long long frame_id,
-				long long frame_flags, unsigned long long cur_ts)
+				long long frame_flags)
 {
 	int frame_status = (frame_flags & FRAME_MASK) >> 16;
 	int rescue_type = frame_flags & RESCUE_MASK;
 	struct hwui_frame_info *frame;
 	unsigned long long rescue_time = 0;
-	unsigned long long ts = cur_ts;
+	unsigned long long ts = 0;
 
 	if (!thr || !sbe_dy_rescue_enable)
 		return;
@@ -1057,6 +988,7 @@ void sbe_exec_doframe_end(struct sbe_render_info *thr, unsigned long long frame_
 			return;
 
 		scroll_info->last_frame_ID = frame_id;
+		ts = sbe_get_time();
 
 		//try enable buffer count filter
 		if ((frame->rescue || (rescue_type & RESCUE_TRAVERSAL_OVER_VSYNC) != 0)
@@ -1330,7 +1262,7 @@ void set_sbe_thread_vip(int set_vip, int tgid, char *dep_name, int dep_num)
 	sbe_pid = sbe_get_kthread_tid();
 
 	if (dep_num > 0) {
-		local_specific_tid_arr = vzalloc(dep_num * sizeof(int));
+		local_specific_tid_arr = kcalloc(dep_num, sizeof(int), GFP_KERNEL);
 		if (local_specific_tid_arr) {
 			local_specific_tid_num = sbe_split_task_tid(dep_name, dep_num,
 					local_specific_tid_arr, __func__);
@@ -1360,7 +1292,7 @@ void set_sbe_thread_vip(int set_vip, int tgid, char *dep_name, int dep_num)
 		}
 	}
 out:
-	vfree(local_specific_tid_arr);
+	kfree(local_specific_tid_arr);
 #endif
 }
 
@@ -1379,13 +1311,11 @@ int sbe_calculate_dy_enhance(struct sbe_render_info *thr)
 	int result = -1;
 	int scroll_count = 0;
 	unsigned long long rescue_target_time = 0LLU;
-	int h_score = 0, l_score = 0, p_score = 0;
+	int h_score = 0;
+	int l_score = 0;
+	int p_score = 0;
 	int max_avg_cap = 0;
 	int loading_scroll_limit = scroll_cnt > 0 ? scroll_cnt >> 1 : 1;
-	int loading_score = scroll_cnt > 0 ? scroll_cnt - 1 : 5;
-	int loading_score_4 = loading_score > 4 ? loading_score - 1 : 4;
-	int loading_score_3 = loading_score_4 > 3 ? loading_score_4 - 1 : 3;
-	int loading_score_2 = loading_score_3 > 2 ? loading_score_3 - 1 : 2;
 
 	if (!sbe_dy_rescue_enable || !thr || IS_ERR_OR_NULL(&thr->scroll_list))
 		return result;
@@ -1410,9 +1340,6 @@ int sbe_calculate_dy_enhance(struct sbe_render_info *thr)
 		return result;
 	}
 
-	if (scroll_count < scroll_cnt) // scroll info not enough
-		loading_score = scroll_count;
-
 	list_for_each_entry (scroll_info, &thr->scroll_list, queue_list) {
 		if (IS_ERR_OR_NULL(&scroll_info->frame_list))
 			continue;
@@ -1433,19 +1360,19 @@ int sbe_calculate_dy_enhance(struct sbe_render_info *thr)
 				rescue_rate = (int)div64_u64(rescue_f * percent,
 						scroll_info->frame_count);
 				if (rescue_rate >= 80 && scroll_info->frame_count > target_fps)
-					p_score += loading_score;
+					p_score += 5;
 				else if (rescue_rate >= 10)
-					h_score += loading_score_3;
+					h_score += 3;
 				else if (rescue_rate >= 7)
-					h_score += loading_score_2;
+					h_score += 2;
 				else if (rescue_rate >= 3)
 					h_score++;
 			}
 
 			if (scroll_info->rescue_frame_count >= 20)
-				h_score += loading_score_3;
+				h_score += 3;
 			else if (scroll_info->rescue_frame_count >= 10)
-				h_score += loading_score_2;
+				h_score += 2;
 			else if (scroll_info->rescue_frame_count > 6)
 				h_score++;
 
@@ -1455,26 +1382,15 @@ int sbe_calculate_dy_enhance(struct sbe_render_info *thr)
 
 		//caclulate frame info
 		if (scroll_info->frame_count > 0) {
-			int jank_rate = 0;
 			unsigned long long avg_tcpu_time = div64_u64(scroll_info->frame_ctime_count,
 						scroll_info->frame_count);
 			int avg_cap = (int)div64_u64(scroll_info->frame_cap_count,
 						scroll_info->frame_count);
 			unsigned long long target_time_100U = nsec_to_100usec(target_time);
 			unsigned long long target_time_100U_95_p = div64_u64(target_time_100U * 95ULL, 100);
-			unsigned long long scroll_dur_100U = nsec_to_100usec(scroll_info->dur_ts);
 
-			if (target_time_100U > 0 && scroll_dur_100U > 0) {
-				int target_frame_in_dur = div64_u64(scroll_dur_100U, target_time_100U);
-
-				jank_rate = div64_u64(scroll_info->jank_count * 100ULL, target_frame_in_dur);
-			}
-
-
-			sbe_trace("SBE_UX caclulate frame info avg_cap %d avg_tcpu_time %llu frame %d",
-					avg_cap, avg_tcpu_time, scroll_info->frame_count);
-			sbe_trace("SBE_UX jank:%d rate %d dur_ts %llu\n",
-					scroll_info->jank_count, jank_rate, scroll_dur_100U);
+			sbe_trace("SBE_UX caclulate frame info avg_cap %d avg_tcpu_time %llu",
+					avg_cap, avg_tcpu_time);
 
 			if (avg_tcpu_time > target_time_100U)
 				h_score++;
@@ -1482,29 +1398,23 @@ int sbe_calculate_dy_enhance(struct sbe_render_info *thr)
 				l_score++;
 
 			if (avg_cap >= sbe_loading_threashold_m)
-				h_score += loading_score_4;
+				h_score += 4;
 
 			if (avg_cap > max_avg_cap)
 				max_avg_cap = avg_cap;
 
 			if (avg_cap >= sbe_loading_threashold_h
 					&& avg_tcpu_time > target_time_100U)
-				p_score += loading_score;
-
-			//drop 15 frame in 1 seconds, and refresh rate 120hz
-			//scroll duration > 800ms
-			if (jank_rate > 20 && scroll_dur_100U > 8000)
-				p_score += loading_score;
+				p_score += 5;
 		}
 	}
 
-	last_enhance = (thr->sbe_dy_enhance_f > 0 && thr->dy_compute_rescue)
-			? thr->sbe_dy_enhance_f : sbe_enhance_f;
+	last_enhance = thr->sbe_dy_enhance_f > 0 ? thr->sbe_dy_enhance_f : sbe_enhance_f;
 
 	//check rescue enhance
 	if (all_rescue_frame_count > 20 || max_avg_cap >= sbe_loading_threashold_m) {
 		if (last_enhance >= 60)
-			h_score += loading_score_2;
+			h_score += 2;
 		else if (last_enhance > sbe_loading_threashold_m)
 			h_score++;
 	}
@@ -1512,13 +1422,13 @@ int sbe_calculate_dy_enhance(struct sbe_render_info *thr)
 	if (max_avg_cap > 0 && max_avg_cap < sbe_loading_threashold_l)
 		l_score++;
 
-	if (thr->is_webfunctor || thr->user_request_affinity_mask)
-		h_score += loading_score;
+	if (thr->is_webfunctor)
+		h_score += 5;
 
 	//update render loading type
-	if (p_score >= loading_score)
+	if (p_score >= 5)
 		thr->loading_type = RENDER_LOADING_PEAK;
-	else if (h_score >= loading_score)
+	else if (h_score >= 5)
 		thr->loading_type = RENDER_LOADING_HIGH;
 	else if (l_score > scroll_cnt) // every time scroll, avg c time less than 80%
 		thr->loading_type = RENDER_LOADING_LOW;
@@ -1542,9 +1452,8 @@ int sbe_calculate_dy_enhance(struct sbe_render_info *thr)
 		thr->affinity_task_mask = SBE_PREFER_NONE;
 
 	sbe_systrace_c(thr->pid, thr->buffer_id, thr->affinity_task_mask, "[ux]affinity_task");
-	sbe_trace("[SBE]  pid: %d, bufid:%llu, af_cap: %d, t: %d", thr->pid, thr->buffer_id,
-			thr->ux_affinity_task_basic_cap, thr->loading_type);
-
+	sbe_trace("[SBE] dy enhance pid: %d, bufid:%llu, af_basic_cap: %d, l_type: %d",
+			thr->pid, thr->buffer_id, thr->ux_affinity_task_basic_cap, thr->loading_type);
 
 	// do not compute new rescue
 	if (scroll_cnt > 0 && scroll_count < scroll_cnt)
@@ -1684,7 +1593,7 @@ void sbe_ux_scrolling_start(int type, unsigned long long start_ts, struct sbe_re
 
 }
 
-void sbe_ux_scrolling_end(unsigned long long ts, struct sbe_render_info *thr)
+void sbe_ux_scrolling_end(struct sbe_render_info *thr)
 {
 	struct ux_scroll_info *scroll_info;
 
@@ -1725,8 +1634,6 @@ void sbe_ux_scrolling_end(unsigned long long ts, struct sbe_render_info *thr)
 	}
 
 	thr->sbe_dy_enhance_f = sbe_calculate_dy_enhance(thr);
-
-	//store global info
 	if (thr->sbe_dy_enhance_f > 0
 			&& ((thr->pid != global_sbe_dy_enhance_max_pid
 			&& thr->sbe_dy_enhance_f > global_sbe_dy_enhance)
@@ -1734,12 +1641,6 @@ void sbe_ux_scrolling_end(unsigned long long ts, struct sbe_render_info *thr)
 		sbe_set_global_sbe_dy_enhance(thr->pid, thr->sbe_dy_enhance_f);
 	sbe_systrace_c(thr->pid, thr->buffer_id, thr->sbe_dy_enhance_f, "[ux]sbe_dy_enhance_f");
 	sbe_systrace_c(thr->pid, thr->buffer_id, 0, "[ux]sbe_dy_enhance_f");
-
-	if (thr->loading_type > 0
-			&& ((thr->pid != global_sbe_render_loading_pid
-			&& thr->loading_type > global_sbe_render_loading)
-			|| thr->pid == global_sbe_render_loading_pid))
-		sbe_set_global_render_loading(thr->pid, thr->loading_type);
 }
 
 static void release_scroll(struct ux_scroll_info *info)
@@ -1752,7 +1653,7 @@ static void release_scroll(struct ux_scroll_info *info)
 	}
 
 	list_del(&info->queue_list);
-	vfree(info->score);
+	kfree(info->score);
 	kmem_cache_free(ux_scroll_info_cachep, info);
 }
 
@@ -1774,8 +1675,6 @@ void clear_ux_info(struct sbe_render_info *thr)
 	//when activity resume, will call this function
 	global_sbe_dy_enhance = 0;
 	global_sbe_dy_enhance_max_pid = 0;
-	global_sbe_render_loading = 0;
-	global_sbe_render_loading_pid = 0;
 	thr->buffer_count_filter = 0;
 	thr->rescue_more_count = 0;
 	release_all_ux_info(thr);
@@ -1941,11 +1840,6 @@ void sbe_do_rescue(struct sbe_render_info *thr, int start, int enhance,
 {
 	unsigned long long ts = 0;
 	int sbe_dy_enhance = -1;
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_QOS_ARBITER)
-	struct oplus_qos_event_data event_data = {
-		.duration = 8,
-	};
-#endif
 
 	if (!thr || !sbe_rescue_enable)	//thr must find the 5566 one.
 		return;
@@ -1975,9 +1869,7 @@ void sbe_do_rescue(struct sbe_render_info *thr, int start, int enhance,
 		thr->sbe_rescuing_frame_id = frame_id;
 
 		//update sbe rescue enhance
-		if (sbe_dy_max_enhance > 0 && ((rescue_type & RESCUE_TYPE_TRAVERSAL_HEAVY) != 0))
-			sbe_dy_enhance = sbe_enhance_f;
-		else if (sbe_dy_max_enhance > 0 && ((rescue_type & RESCUE_TYPE_MAX_ENHANCE) != 0))
+		if (sbe_dy_max_enhance > 0 && ((rescue_type & RESCUE_TYPE_MAX_ENHANCE) != 0))
 			sbe_dy_enhance = sbe_dy_max_enhance;
 		else if (!sbe_dy_rescue_enable)
 			sbe_dy_enhance = sbe_enhance_f;
@@ -2029,12 +1921,6 @@ void sbe_do_rescue(struct sbe_render_info *thr, int start, int enhance,
 		if (sbe_switch_ai_clear_boost_info(thr))
 			goto leave;
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_GKI_CPUFREQ_BOUNCING) || IS_ENABLED(CONFIG_OPLUS_FEATURE_SMART_FREQ)
-		is_rescue = 1;
-#endif
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_QOS_ARBITER)
-		sbe_notify_event(SBE_EVENT_ACTIVATE, &event_data);
-#endif
 		sbe_set_per_task_cap(thr);
 		sbe_systrace_c(thr->pid, thr->buffer_id, thr->sbe_enhance, "[ux]sbe_rescue");
 	} else {
@@ -2064,13 +1950,8 @@ void sbe_do_rescue(struct sbe_render_info *thr, int start, int enhance,
 			sbe_set_affinity_on_scrolling(thr->pid, SBE_PREFER_NONE);
 			#endif
 		}
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_GKI_CPUFREQ_BOUNCING) || IS_ENABLED(CONFIG_OPLUS_FEATURE_SMART_FREQ)
-		is_rescue = 0;
-#endif
+
 		sbe_set_per_task_cap(thr);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_QOS_ARBITER)
-		sbe_notify_event(SBE_EVENT_DEACTIVE, &event_data);
-#endif
 		sbe_systrace_c(thr->pid, thr->buffer_id, 0, "[ux]rescue_type");
 		sbe_systrace_c(thr->pid, thr->buffer_id, thr->sbe_enhance, "[ux]sbe_rescue");
 	}
@@ -2121,7 +2002,9 @@ void enqueue_ux_scroll_info(int type, unsigned long long start_ts, struct sbe_re
 	if (new_node != NULL)
 		memset(new_node, 0, sizeof(struct ux_scroll_info));
 
-	new_node->score = vzalloc((RESCUE_MAX_MONITOR_DROP_ARR_SIZE) * sizeof(int));
+	new_node->score = kmalloc(
+					(RESCUE_MAX_MONITOR_DROP_ARR_SIZE) * sizeof(int)
+					, GFP_KERNEL | __GFP_ZERO);
 
 	if (!new_node->score) {
 		kmem_cache_free(ux_scroll_info_cachep, new_node);
@@ -2545,7 +2428,7 @@ void fpsgo2sbe_hint_frameinfo(unsigned long cmd, struct render_frame_info *iter)
 	if (sbe_tgid <= 0 || iter->tgid != sbe_tgid)
 		return;
 
-	tmp_dep_arr = vzalloc(sizeof(struct task_info) * MAX_TASK_NUM);
+	tmp_dep_arr = kcalloc(MAX_TASK_NUM, sizeof(struct task_info), GFP_KERNEL);
 	//get cur render dep
 	if (tmp_dep_arr)
 		dep_num = fpsgo_other2xgf_get_critical_tasks(iter->pid,
@@ -2555,43 +2438,8 @@ void fpsgo2sbe_hint_frameinfo(unsigned long cmd, struct render_frame_info *iter)
 		sbe_notify_update_fpsgo_jerk_boost_info(iter->tgid, iter->pid,
 				iter->blc, cmd,  iter->jerk_boost_flag, tmp_dep_arr);
 
-	if (tmp_dep_arr)
-		vfree(tmp_dep_arr);
+	kfree(tmp_dep_arr);
 }
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_QOS_ARBITER)
-void sbe_set_curr_q2q_jerk_pid(int cur_pid, unsigned long long cur_buffID)
-{
-	curr_q2q_jerk_bufID = cur_buffID;
-	curr_q2q_jerk_pid = cur_pid;
-}
-
-void fpsgo2sbe_hint_jerkinfo(unsigned long cmd, struct render_frame_info *iter)
-{
-	int do_jerk_pid = 0;
-	struct oplus_qos_event_data event_data = {
-		.duration = 8,
-	};
-
-	if (!iter)
-		return;
-
-	do_jerk_pid = iter->pid;
-	if (curr_q2q_jerk_pid == do_jerk_pid) {
-		q2q_jerked = true;
-		sbe_notify_event(SBE_EVENT_ACTIVATE, &event_data);
-	}
-}
-
-void fpsgo2sbe_hint_queue_end(unsigned long cmd, struct render_frame_info *iter)
-{
-	struct oplus_qos_event_data *event_data = NULL;
-
-	if (q2q_jerked) {
-		q2q_jerked = false;
-		sbe_notify_event(SBE_EVENT_DEACTIVE, event_data);
-	}
-}
-#endif
 
 void update_fpsgo_hint_param(int scrolling, int tgid)
 {
@@ -2659,10 +2507,6 @@ int sbe_get_fpsgo_info(int tgid, int pid, int blc,
 void __exit sbe_cpu_ctrl_exit(void)
 {
 	unregister_fpsgo_frame_info_callback(fpsgo2sbe_hint_frameinfo);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_QOS_ARBITER)
-	unregister_fpsgo_frame_info_callback(fpsgo2sbe_hint_jerkinfo);
-	unregister_fpsgo_frame_info_callback(fpsgo2sbe_hint_queue_end);
-#endif
 	destroy_smart_launch_capinfo();
 	kmem_cache_destroy(frame_info_cachep);
 	kmem_cache_destroy(ux_scroll_info_cachep);
@@ -2704,26 +2548,16 @@ int __init sbe_cpu_ctrl_init(void)
 	sbe_dptv2_status = 0;
 	sbe_ignore_vip_task_enable = 1;
 	sbe_ignore_vip_task_status = 0;
-	sbe_without_dptv2_enable = 1;
-	sbe_free_max_perf_idx = 0;
 
 	ai_rescuing_frame_id = -1;
 	registered = 0;
 	sbe_ai_ctrl_enabled = 0;
 	sbe_uclamp_margin = 0;
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_QOS_ARBITER)
-	q2q_jerked = false;
-#endif
+
 	atomic_set(&g_web_or_flutter_tgid, 0);
 
 	register_fpsgo_frame_info_callback(1 << GET_FPSGO_Q2Q_TIME,
 			fpsgo2sbe_hint_frameinfo);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_QOS_ARBITER)
-	register_fpsgo_frame_info_callback(1 << GET_FPSGO_Q2Q_JERK_START,
-			fpsgo2sbe_hint_jerkinfo);
-	register_fpsgo_frame_info_callback(1 << GET_FPSGO_Q2Q_JERK_END,
-			fpsgo2sbe_hint_queue_end);
-#endif
 
 	frame_info_cachep = kmem_cache_create("ux_frame_info",
 		sizeof(struct ux_frame_info), 0, SLAB_HWCACHE_ALIGN, NULL);
@@ -2731,8 +2565,7 @@ int __init sbe_cpu_ctrl_init(void)
 		sizeof(struct ux_scroll_info), 0, SLAB_HWCACHE_ALIGN, NULL);
 	hwui_frame_info_cachep = kmem_cache_create("hwui_frame_info",
 		sizeof(struct hwui_frame_info), 0, SLAB_HWCACHE_ALIGN, NULL);
-	if (!frame_info_cachep || !ux_scroll_info_cachep
-		|| !hwui_frame_info_cachep)
+	if (!frame_info_cachep || !ux_scroll_info_cachep || !hwui_frame_info_cachep)
 		return -1;
 
 	return 0;

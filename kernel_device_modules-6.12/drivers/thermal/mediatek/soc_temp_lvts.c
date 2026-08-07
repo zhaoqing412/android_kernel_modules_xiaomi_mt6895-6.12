@@ -35,7 +35,7 @@
  *==================================================
  */
 #define DUMP_MORE_LOG
-
+#define MT6993_MCU2_DOMAIN_INDEX (4)
 #ifdef DUMP_MORE_LOG
 #define NUM_LVTS_DEVICE_REG (9)
 #define LVTS_CONTROLLER_DEBUG_NUM (12)
@@ -385,63 +385,7 @@ static unsigned int lvts_read_device(struct lvts_data *lvts_data,
 	return data;
 }
 
-static void wait_all_tc_sensing_point_idle(struct lvts_data *lvts_data)
-{
-	struct device *dev = lvts_data->dev;
-	unsigned int mask, error_code, is_error;
-	void __iomem *base;
-	int i, cnt, ret;
-
-	mask = BIT(10) | BIT(7) | BIT(0);
-
-	for (cnt = 0; cnt < 2; cnt++) {
-		is_error = 0;
-		for (i = 0; i < lvts_data->num_tc; i++) {
-			base = GET_BASE_ADDR(i);
-			ret = readl_poll_timeout(LVTSMSRCTL1_0 + base, error_code,
-				!(error_code & mask), 2, 200);
-			/*
-			 * Error code
-			 * 000: IDLE
-			 * 001: Write transaction
-			 * 010: Waiting for read after Write
-			 * 011: Disable Continue fetching on Device
-			 * 100: Read transaction
-			 * 101: Set Device special Register for Voltage threshold
-			 * 111: Set TSMCU number for Fetch
-			 */
-			error_code = ((error_code & BIT(10)) >> 8) +
-				((error_code & BIT(7)) >> 6) +
-				(error_code & BIT(0));
-
-			if (ret)
-				dev_info(dev,
-				"Error LVTS %d sensing points aren't idle, error_code %d\n",
-				i, error_code);
-
-			if (error_code != 0)
-				is_error = 1;
-		}
-
-		if (is_error == 0)
-			break;
-	}
-}
-
-static void lvts_reset(struct lvts_data *lvts_data)
-{
-	int i;
-
-	for (i = 0; i < lvts_data->num_domain; i++) {
-		if (lvts_data->domain[i].reset)
-			reset_control_assert(lvts_data->domain[i].reset);
-
-		if (lvts_data->domain[i].reset)
-			reset_control_deassert(lvts_data->domain[i].reset);
-	}
-}
-
-static noinline void device_identification_v1(struct lvts_data *lvts_data)
+static void device_identification_v1(struct lvts_data *lvts_data)
 {
 	struct device *dev = lvts_data->dev;
 	unsigned int i, data;
@@ -615,6 +559,7 @@ static void read_device_reg_when_error(struct lvts_data *lvts_data)
 		}
 	}
 }
+
 
 static void dump_lvts_device_register_value(struct lvts_data *lvts_data)
 {
@@ -1131,119 +1076,6 @@ static const struct thermal_zone_device_ops soc_temp_lvts_ops = {
 	.set_trip_temp = soc_temp_lvts_set_trip_temp,
 };
 
-static bool lvts_lk_init_check(struct lvts_data *lvts_data)
-{
-	struct device *dev = lvts_data->dev;
-	unsigned int i, data;
-	void __iomem *base;
-	bool ret = false;
-
-	for (i = 0; i < lvts_data->num_tc; i++) {
-		base = GET_BASE_ADDR(i);
-
-		/* Check LVTS device ID */
-		data = (readl(LVTSSPARE0_0 + base) & GENMASK(11, 0));
-
-		if (data == LK_LVTS_MAGIC) {
-			writel(0x0, LVTSSPARE0_0 + base);
-			ret = true;
-		} else {
-			dev_info(dev, "%s, %d\n", __func__, i);
-			ret = false;
-			break;
-		}
-	}
-	return ret;
-}
-
-static int read_calibration_data(struct lvts_data *lvts_data)
-{
-	struct tc_settings *tc = lvts_data->tc;
-	unsigned int i, j, s_index;
-	void __iomem *base;
-	struct device *dev = lvts_data->dev;
-	struct sensor_cal_data *cal_data = &lvts_data->cal_data;
-
-	cal_data->efuse_data = devm_kcalloc(dev, lvts_data->num_sensor,
-				sizeof(*cal_data->efuse_data), GFP_KERNEL);
-
-	if (!cal_data->efuse_data)
-		return -ENOMEM;
-
-	for (i = 0; i < lvts_data->num_tc; i++) {
-		base = GET_BASE_ADDR(i);
-
-		for (j = 0; j < tc[i].num_sensor; j++) {
-			s_index = tc[i].sensor_map[j];
-
-			cal_data->efuse_data[s_index] =
-				readl(LVTSEDATA00_0 + base + 0x4 * j);
-
-			dev_info(dev, "%s,efuse_data: 0x%x\n", __func__,
-				cal_data->efuse_data[s_index] );
-		}
-	}
-	return 0;
-}
-
-
-static int lvts_init(struct lvts_data *lvts_data)
-{
-	struct platform_ops *ops = &lvts_data->ops;
-	struct device *dev = lvts_data->dev;
-	int ret;
-	bool lk_init = false;
-
-	ret = clk_prepare_enable(lvts_data->clk);
-	if (ret)
-		dev_info(dev,
-			"Error: Failed to enable lvts controller clock: %d\n",
-			ret);
-
-	lk_init = lvts_lk_init_check(lvts_data);
-
-	if (lk_init == true) {
-		ret = read_calibration_data(lvts_data);
-		set_all_tc_hw_reboot(lvts_data);
-		lvts_data->init_done = true;
-		dev_info(dev, "%s, LK init LVTS\n", __func__);
-		return ret;
-	}
-
-	lvts_reset(lvts_data);
-
-	if (ops->device_identification)
-		ops->device_identification(lvts_data);
-
-	if (ops->device_enable_and_init)
-		ops->device_enable_and_init(lvts_data);
-
-	if (IS_ENABLE(FEATURE_DEVICE_AUTO_RCK)) {
-		if (ops->device_enable_auto_rck)
-			ops->device_enable_auto_rck(lvts_data);
-	} else {
-		if (ops->device_read_count_rc_n)
-			ops->device_read_count_rc_n(lvts_data);
-	}
-
-	if (ops->set_cal_data)
-		ops->set_cal_data(lvts_data);
-
-	disable_all_sensing_points(lvts_data);
-	wait_all_tc_sensing_point_idle(lvts_data);
-	if (ops->init_controller)
-		ops->init_controller(lvts_data);
-
-	enable_all_sensing_points(lvts_data);
-
-	set_all_tc_hw_reboot(lvts_data);
-
-	lvts_data->init_done = true;
-
-	return 0;
-}
-
-
 static void check_cal_data_v1(struct lvts_data *lvts_data)
 {
 	struct device *dev = lvts_data->dev;
@@ -1501,17 +1333,23 @@ static int of_update_lvts_data(struct lvts_data *lvts_data,
 
 	for (i = 0; i < lvts_data->num_domain; i++) {
 		/* Get base address */
-		res = platform_get_resource(pdev, IORESOURCE_MEM, i);
-		if (!res) {
-			dev_err(dev, "Error: No IO resource, index %d\n", i);
-			return -ENXIO;
-		}
+		if (i != MT6993_MCU2_DOMAIN_INDEX) {
+			res = platform_get_resource(pdev, IORESOURCE_MEM, i);
+			if (!res) {
+				// Check service FAIL !, Cosimo suggested using pr_info
+				//dev_err(dev, "No IO resource, index %d\n", i);
+				pr_info("No IO resource, index %d\n", i);
+				return -ENXIO;
+			}
 
-		domain[i].base = devm_ioremap_resource(dev, res);
-		if (IS_ERR(domain[i].base)) {
-			dev_err(dev, "Error: Failed to remap io, index %d\n", i);
-			return PTR_ERR(domain[i].base);
-		}
+			domain[i].base = devm_ioremap_resource(dev, res);
+			if (IS_ERR(domain[i].base)) {
+				// Check service FAIL !, Cosimo suggested using pr_info
+				//dev_err(dev, "Failed to remap io, index %d\n", i);
+				pr_info("Failed to remap io, index %d\n", i);
+				return PTR_ERR(domain[i].base);
+			}
+	}
 
 		/* Get interrupt number */
 		irq = platform_get_irq(pdev, i);
@@ -1581,27 +1419,6 @@ static enum interrupt_type interrupt_type_switch(struct lvts_data *lvts_data,
 	enable_sensing_points(lvts_data, tc_id);
 
 	return ret;
-}
-
-static void lvts_device_close(struct lvts_data *lvts_data)
-{
-	unsigned int i;
-	void __iomem *base;
-
-	for (i = 0; i < lvts_data->num_tc; i++) {
-		base = GET_BASE_ADDR(i);
-
-		lvts_write_device(lvts_data, RESET_ALL_DEVICES, i);
-		writel(DISABLE_LVTS_CTRL_CLK, LVTSCLKEN_0 + base);
-	}
-}
-
-static void lvts_close(struct lvts_data *lvts_data)
-{
-	disable_all_sensing_points(lvts_data);
-	wait_all_tc_sensing_point_idle(lvts_data);
-	lvts_device_close(lvts_data);
-	clk_disable_unprepare(lvts_data->clk);
 }
 
 static void tc_irq_handler(struct lvts_data *lvts_data, int tc_id, char thermintst_str[])
@@ -1747,6 +1564,13 @@ static void lvts_debug_to_sysram(struct lvts_data *lvts_data, int tc_id)
 	}
 }
 
+static irqreturn_t irq_handler_ldro(int irq, void *dev_id)
+{
+	writel(irq, (void __iomem *)(thermal_csram_base + 0x380));
+	writel(irq+1, (void __iomem *)(thermal_csram_base + 0x384));
+	return IRQ_HANDLED;
+}
+
 static irqreturn_t irq_handler(int irq, void *dev_id)
 {
 	struct lvts_data *lvts_data = (struct lvts_data *) dev_id;
@@ -1828,16 +1652,17 @@ static int lvts_register_irq_handler(struct lvts_data *lvts_data)
 		if(lvts_data->ap_domain_no_irq)
 			if (i == 0)
 				continue;
-
-		ret = devm_request_irq(dev, lvts_data->domain[i].irq_num,
-			irq_handler, IRQF_TRIGGER_HIGH, "mtk_lvts", lvts_data);
-
+		if(i == MT6993_MCU2_DOMAIN_INDEX) {
+			ret = devm_request_irq(dev, lvts_data->domain[i].irq_num,
+				irq_handler_ldro, IRQF_TRIGGER_HIGH, "mtk_lvts_ldro", lvts_data);
+		} else {
+			ret = devm_request_irq(dev, lvts_data->domain[i].irq_num,
+				irq_handler, IRQF_TRIGGER_HIGH, "mtk_lvts", lvts_data);
+		}
 		if (ret) {
 			dev_err(dev,
 				"Failed to register LVTS IRQ, ret %d, domain %d irq_num %d\n",
 				ret, i, lvts_data->domain[i].irq_num);
-			if (lvts_data->init_flow_in_kernel)
-				lvts_close(lvts_data);
 			return ret;
 		}
 	}
@@ -1854,8 +1679,6 @@ static int lvts_register_thermal_zone(int id, struct lvts_data *lvts_data,
 
 	lvts_tz = devm_kzalloc(dev, sizeof(*lvts_tz), GFP_KERNEL);
 	if (!lvts_tz) {
-		if (lvts_data->init_flow_in_kernel)
-			lvts_close(lvts_data);
 		return -ENOMEM;
 	}
 
@@ -1981,11 +1804,6 @@ static int lvts_probe(struct platform_device *pdev)
 	if (lvts_data->mcu_sensor_id_remap)
 		lvts_get_chipid();
 
-	if (lvts_data->init_flow_in_kernel) {
-		ret = lvts_init(lvts_data);
-		if (ret)
-			return ret;
-	}
 
 	ret = lvts_register_irq_handler(lvts_data);
 	if (ret)
@@ -2003,24 +1821,10 @@ static int lvts_probe(struct platform_device *pdev)
 
 static void lvts_remove(struct platform_device *pdev)
 {
-	struct lvts_data *lvts_data;
-
-	lvts_data = (struct lvts_data *) platform_get_drvdata(pdev);
-
-	if (lvts_data->init_flow_in_kernel)
-		lvts_close(lvts_data);
-
 }
 
 static int lvts_suspend_noirq(struct device *dev)
 {
-	struct lvts_data *lvts_data;
-
-	lvts_data = (struct lvts_data *) dev_get_drvdata(dev);
-
-	if (lvts_data->init_flow_in_kernel)
-		lvts_close(lvts_data);
-
 	dev_info(dev, "[Thermal/LVTS]%s\n", __func__);
 
 	return 0;
@@ -2028,18 +1832,6 @@ static int lvts_suspend_noirq(struct device *dev)
 
 static int lvts_resume_noirq(struct device *dev)
 {
-	struct lvts_data *lvts_data;
-
-	lvts_data = (struct lvts_data *) dev_get_drvdata(dev);
-
-	if (lvts_data->init_flow_in_kernel) {
-		int ret;
-
-		ret = lvts_init(lvts_data);
-		if (ret)
-			return ret;
-	}
-
 	dev_info(dev, "[Thermal/LVTS]%s\n", __func__);
 
 	return 0;
@@ -5628,7 +5420,6 @@ static struct lvts_data mt6895_lvts_data = {
 	},
 	.init_done = false,
 	.enable_dump_log = 0,
-	.init_flow_in_kernel = true,
 };
 
 /*==================================================
@@ -6083,7 +5874,6 @@ static struct lvts_data mt6855_lvts_data = {
 	},
 	.init_done = false,
 	.enable_dump_log = 0,
-	.init_flow_in_kernel = true,
 };
 
 /*==================================================
@@ -6408,7 +6198,6 @@ static struct lvts_data mt6789_lvts_data = {
 	},
 	.init_done = false,
 	.enable_dump_log = 0,
-	.init_flow_in_kernel = true,
 };
 
 /*==================================================
@@ -7172,6 +6961,7 @@ enum mt6993_lvts_domain {
 	MT6993_MCU_DOMAIN,
 	MT6993_APU_DOMAIN,
 	MT6993_GPU_DOMAIN,
+	MT6993_MCU2_DOMAIN,
 	MT6993_NUM_DOMAIN
 };
 

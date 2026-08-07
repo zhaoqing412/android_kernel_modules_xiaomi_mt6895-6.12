@@ -1,14 +1,11 @@
 load("//build/bazel_mgk_rules:mgk_ddk_ko.bzl", "define_mgk_ddk_ko")
 load("@mgk_info//:kernel_version.bzl","kernel_version",)
-load("//build/kernel/oplus:oplus_modules_define.bzl", "oplus_ddk_get_target")
 
 package(
     default_visibility = [
         "//visibility:public",
     ],
 )
-
-target = oplus_ddk_get_target()
 
 define_mgk_ddk_ko(
     name = "mtk_sbe",
@@ -39,18 +36,6 @@ define_mgk_ddk_ko(
         "//kernel_device_modules-{}/drivers/misc/mediatek/performance/fpsgo_v8:mtk_fpsgo_v8".format(kernel_version),
         "//kernel_device_modules-{}/drivers/gpu/mediatek/ged:ged".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/sched:scheduler".format(kernel_version),
-        "//vendor/oplus/kernel/cpu:cpufreq_bouncing",
-        "//kernel_device_modules-{}/drivers/misc/mediatek/sched:cpufreq_sugov_ext".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/gpu/drm/mediatek/mediatek_v2:mediatek-drm".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/sched:mtk_core_ctl".format(kernel_version),
-        "//vendor/oplus/kernel/cpu:oplus_freq_qos_arbiter",
-        "//vendor/oplus/kernel/cpu:oplus_bsp_smart_freq",
-    ] if target == "k6993v1_64" else [
-        "//kernel_device_modules-{}/drivers/misc/mediatek/performance:mtk_sbe_ioctl".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/performance/fpsgo_v8:mtk_fpsgo_v8".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/gpu/mediatek/ged:ged".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/sched:scheduler".format(kernel_version),
-        "//vendor/oplus/kernel/cpu:cpufreq_bouncing",
         "//kernel_device_modules-{}/drivers/misc/mediatek/sched:cpufreq_sugov_ext".format(kernel_version),
         "//kernel_device_modules-{}/drivers/gpu/drm/mediatek/mediatek_v2:mediatek-drm".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/sched:mtk_core_ctl".format(kernel_version),

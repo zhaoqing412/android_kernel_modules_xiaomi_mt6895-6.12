@@ -58,8 +58,6 @@
 #define OD_TABLE_DBV_GAIN_TABLE 0x0500
 #define OD_TABLE_DATA 0x0600
 #define OD_TABLE_END ODDMR_SECTION_END
-#define DMR_MODE_MAX 3
-#define DMR_CUS_MAX_FPS_NUM 5
 
 enum MTK_ODDMR_PARAM_DATA_TYPE {
 	ODDMR_OD_BASIC_INFO = 0x03,
@@ -368,25 +366,6 @@ struct mtk_drm_cus_setting_info {
 	struct mtk_drm_dmr_fps_dbv_change_cfg fps_dbv_change_cfg[MAX_DBV_MODE_NUM];
 };
 
-//#ifdef OPLUS_DISPLAY_FEATURE_DMR
-struct oplus_cus_binset_data {
-	uint8_t fps;
-	uint8_t binset_num; //binset num at binset_list struct; as binset_list[binset_num]
-};
-
-struct oplus_cus_binset {
-	uint8_t mode_id; //pwm:
-	uint8_t fps_num; //fps count
-	struct oplus_cus_binset_data t_binset_data[DMR_CUS_MAX_FPS_NUM];
-};
-
-struct oplus_cus_data {
-	uint8_t mode_num; //pwm:
-	struct oplus_cus_binset t_binset[DMR_MODE_MAX];
-};
-
-//#endif //OPLUS_DISPLAY_FEATURE_DMR
-
 struct cus_own_data {
 	unsigned int size;
 	void *data;
@@ -623,7 +602,6 @@ struct mtk_disp_oddmr_data {
 	unsigned int stash_lead_time;
 	bool is_dbi_support_stash;
 	bool is_od_support_stash;
-	unsigned int min_port_bw;
 	unsigned int min_stash_port_bw;
 	int slc_read_alloc;
 	int slc_period;
@@ -717,12 +695,7 @@ struct mtk_disp_oddmr_dmr_data {
 	atomic_t cus_own_data_state;
 	atomic_t reg_tuning_chg;
 	atomic_t dmr_cfg_done;
-	atomic_t dmr_bin_chg;
 	unsigned int max_table_size;
-	unsigned int dmr_bl_level;
-	unsigned int dmr_vrefresh;
-	unsigned int dmr_dbv_mode;
-	unsigned int dmr_binset_idx;
 };
 
 struct mtk_disp_oddmr_cfg {

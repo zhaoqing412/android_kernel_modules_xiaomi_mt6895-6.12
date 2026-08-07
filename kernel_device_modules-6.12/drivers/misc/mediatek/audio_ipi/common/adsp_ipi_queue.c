@@ -1074,11 +1074,7 @@ static int dsp_process_msg_thread(void *data)
 		return -EFAULT;
 	}
 
-#ifdef OPLUS_ARCH_EXTENDS
-	sched_setscheduler_nocheck(msg_queue->dsp_thread_task, SCHED_FIFO, &param);
-#else
 	sched_setscheduler(current, SCHED_RR, &param);
-#endif
 
 	while (msg_queue->thread_enable && !kthread_should_stop()) {
 		/* wait until element pushed */

@@ -7,18 +7,12 @@
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/pinctrl/mt6789-pinfunc.h>
-
-/* Trustonic Mobilecore real driver */
-/* #ifdef OPLUS_FEATURE_SECURITY_COMMON */
-&mobicore{
-	trustonic,real-drv = <1>;
-};
-/* #endif OPLUS_FEATURE_SECURITY_COMMON */
+#include "mediatek/cust_mt6789_camera.dtsi"
 
 &chosen {
 
 };
-#ifdef OPLUS_CONFIG_DELETE_PLATFORM_PANEL
+
 &mtk_leds {
 	compatible = "mediatek,i2c-leds";
 
@@ -67,7 +61,6 @@
 		};
 	};
 };
-#endif
 
 &mtkfb {
 	pinctrl-names = "lcm_led_en1_gpio", "lcm_led_en0_gpio",
@@ -89,6 +82,45 @@
 	pinctrl-1 = <&mtkfb_pins_lcm_rst_out0_gpio>;
 	pinctrl-2 = <&mtkfb_pins_lcm_dsi_te>;
 	status = "okay";
+};
+
+&dsi0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	panel1@0 {
+		compatible = "jdi,nt36672e,vdo,120hz,hfp";
+		reg = <0>;
+		pm-enable-gpios = <&pio 12 0>;
+		reset-gpios = <&pio 85 0>;
+		gate-ic = <4831>;
+		pinctrl-names = "default";
+		port {
+			panel_in1: endpoint {
+				remote-endpoint = <&dsi_out>;
+			};
+		};
+	};
+	panel2@0 {
+		compatible = "truly,td4330,cmd";
+		reg = <1>;
+		pm-enable-gpios = <&pio 12 0>;
+		reset-gpios = <&pio 85 0>;
+		gate-ic = <4831>;
+		pinctrl-names = "default";
+		port {
+			panel_in2: endpoint {
+				remote-endpoint = <&dsi_out>;
+			};
+		};
+	};
+	ports {
+		port {
+			dsi_out: endpoint {
+				remote-endpoint = <&panel_in1>;
+			};
+		};
+	};
 };
 
 /* GPS GPIO standardization start */
@@ -149,6 +181,8 @@
 };
 /* GPS GPIO standardization end */
 
+#include "mediatek/cust_mt6789_touch_1080x2400.dtsi"
+#include "mediatek/cust_mt6789_camera_v4l2.dtsi"
 
 &i2c6 {
 	spk: speaker_amp@5c {
@@ -159,26 +193,6 @@
 		sound-name-prefix = "Left";
 	};
 };
-
-//#ifdef OPLUS_FEATURE_SECURITY_COMMON
-&mtkheap_region_svp {
-	status = "ok";
-};
-
-&mtkheap_region_wfd {
-	status = "ok";
-};
-
-&mtee_svp {
-	mtee: MTEE {
-		compatible = "mediatek,mtk_svp_on_mtee_support";
-	};
-
-	svp: SecureVideoPath {
-		compatible = "mediatek,mtk_sec_video_path_support";
-	};
-};
-//#endif /* OPLUS_FEATURE_SECURITY_COMMON */
 
 &sound {
 	mediatek,spk-i2s = <3 0>;
@@ -191,5 +205,5 @@
 	pd_vbus_upper_bound = <9000000>;
 };
 
-//#include <k6789v1_64/cust.dtsi>
+#include <k6789v1_64/cust.dtsi>
 /*End of this file, DO NOT ADD ANYTHING HERE*/

@@ -12,9 +12,6 @@
 #include <linux/cpu.h>
 #include <linux/arm-smccc.h>
 #include <linux/soc/mediatek/mtk_sip_svc.h>
-#include <linux/nvmem-consumer.h>
-#include <linux/io.h>
-#include <linux/of_platform.h>
 #include "mtk_battery_oc_throttling.h"
 #include "mtk_low_battery_throttling.h"
 #include "mtk_bp_thl.h"
@@ -39,7 +36,6 @@ static bool bootup_pt_support;
 static bool switch_pt;
 static int lbat_tb_num;
 static unsigned int mpmm_gear;
-static const char *efuse_field = "fab_info";
 
 enum cpu_pt_table_num {
 	CPU_PT_TABLE0,
@@ -69,7 +65,6 @@ struct cpu_pt_priv {
 	u32 *core_active;
 	u32 mpmm_enable;
 	u32 mpmm_activate_lv;
-	u32 *soc_limit_cmep_lv;
 };
 
 struct cpu_bootup_pt_priv {
@@ -149,82 +144,6 @@ static struct cpu_pause_tbl cicb = {
 
 static LIST_HEAD(pt_policy_list);
 static LIST_HEAD(bootup_pt_policy_list);
-
-#if IS_ENABLED(CONFIG_MTK_BATTERY_PERCENT_THROTTLING)
-static void __iomem *cmep_addr;
-static void __iomem *swpt_freq_limit_B_addr;
-
-static int cmep_init(void)
-{
-	struct device_node *dev_node;
-	struct platform_device *pdev_temp;
-	struct resource *sram_res;
-	int ret = 0;
-
-	/* init cmep */
-	dev_node = of_find_node_by_name(NULL, "cmep");
-	if (!dev_node) {
-		pr_info("failed to find node cmep @ %s\n", __func__);
-		return -ENODEV;
-	}
-
-	pdev_temp = of_find_device_by_node(dev_node);
-	of_node_put(dev_node); // release reference
-
-	if (!pdev_temp) {
-		pr_info("failed to find cmep pdev @ %s\n", __func__);
-		return -EINVAL;
-	}
-
-	sram_res = platform_get_resource(pdev_temp, IORESOURCE_MEM, 0);
-	if (sram_res) {
-		cmep_addr = ioremap(sram_res->start, resource_size(sram_res));
-		if (!cmep_addr) {
-			pr_info("%s ioremap failed\n", __func__);
-			cmep_addr = NULL;
-			return -ENOMEM;
-		}
-	} else {
-		pr_info("%s can't find cmep resource\n", __func__);
-		cmep_addr = NULL;
-		return -ENODEV;
-	}
-	sram_res = platform_get_resource(pdev_temp, IORESOURCE_MEM, 1);
-	if (sram_res) {
-		swpt_freq_limit_B_addr = ioremap(sram_res->start, resource_size(sram_res));
-		if (!swpt_freq_limit_B_addr) {
-			pr_info("%s ioremap failed\n", __func__);
-			swpt_freq_limit_B_addr = NULL;
-			return -ENOMEM;
-		}
-	} else {
-		pr_info("%s can't find swpt_freq_limit_B_addr resource\n", __func__);
-		swpt_freq_limit_B_addr = NULL;
-		return -ENODEV;
-	}
-	iowrite8(1, cmep_addr); // set init cmep_addr default value
-	iowrite32(CPU_UNLIMIT_FREQ, swpt_freq_limit_B_addr); // set init swpt_freq_limit_B_addr default value
-	return ret;
-}
-
-static void cmep_exit(void)
-{
-	if (cmep_addr) {
-		iounmap(cmep_addr);
-		pr_info("cmep_addr unmapped\n");
-		cmep_addr = NULL;
-	} else
-		pr_info("cmep_addr already unmapped\n");
-
-	if (swpt_freq_limit_B_addr) {
-		iounmap(swpt_freq_limit_B_addr);
-		pr_info("swpt_freq_limit_B_addr unmapped\n");
-		swpt_freq_limit_B_addr = NULL;
-	} else
-		pr_info("swpt_freq_limit_B_addr already unmapped\n");
-
-}
-#endif
 
 static int pt_set_cpu_active(unsigned int cpu, bool active)
 {
@@ -354,46 +273,6 @@ static void cpu_pt_battery_percent_cb(enum BATTERY_PERCENT_LEVEL_TAG level)
 		mpmm_enable(mpmm_gear);
 	else if (pt_info_p->mpmm_enable != 0 && level < pt_info_p->mpmm_activate_lv)
 		mpmm_enable (DISABLE_MPMM);
-
-	// CME policy trigger by battery percentage
-	if (!cmep_addr) {
-		pr_info("cmep_addr is NULL, skip write!\n");
-		return;
-	}
-
-	u8 tcm_val = 1;
-	s32 freq_limit_B = CPU_UNLIMIT_FREQ;
-	int lv_idx;
-
-	if (!cmep_addr || !swpt_freq_limit_B_addr) {
-		pr_info("%s: addr is NULL, skip tcm control (cmep:%p, B:%p)\n",
-			__func__, cmep_addr, swpt_freq_limit_B_addr);
-		return;
-	}
-
-	if (level < 0) {
-		pr_info("%s: invalid level %d, skip tcm control\n", __func__, level);
-		goto write_reg;
-	}
-
-	if (level == BATTERY_PERCENT_LEVEL_0)
-		goto write_reg;
-
-	lv_idx = level - 1;
-	if (lv_idx < 0 || lv_idx >= pt_info_p->max_lv) {
-		pr_info("%s: invalid lv_idx %d (level=%d, max_lv=%u), set default\n",
-			__func__, lv_idx, level, pt_info_p->max_lv);
-		goto write_reg;
-	}
-
-	tcm_val = (pt_info_p->soc_limit_cmep_lv[lv_idx] == 0) ? 0 : 1;
-	freq_limit_B = pt_info_p->freq_limit[lv_idx * CLUSTER_NUM + 2];
-
-write_reg:
-	iowrite8(tcm_val, cmep_addr);
-	iowrite32(freq_limit_B, swpt_freq_limit_B_addr);
-
-	// pr_info("%s: level=%d, tcm_val=%u, B=%d\n", __func__, level, tcm_val, freq_limit_B);
 }
 #endif
 static void __used cpu_limit_default_setting(struct device *dev, enum cpu_pt_type type)
@@ -439,15 +318,11 @@ static void __used cpu_limit_default_setting(struct device *dev, enum cpu_pt_typ
 	}
 }
 
-static unsigned int delay_time_s;
 static bool parse_bootup_pt_table(struct device_node *np, struct tag_bootmode *tag)
 {
 	struct cpu_bootup_pt_priv *bootup_pt_info_p;
-	int ret, k, bootup_temp, bootup_voltage;
-	int bootup_temp_count, bootup_volts_count, num;
-	int temp_stage, volt_stage, val, index;
+	int ret, k;
 	char buf[NAME_LENGTH];
-	u32 *temp_threshold = NULL, *volt_threshold = NULL;
 
 	bootup_pt_info_p = &cpu_bootup_pt_info;
 	bootup_pt_info_p->max_lv = 1;
@@ -458,92 +333,22 @@ static bool parse_bootup_pt_table(struct device_node *np, struct tag_bootmode *t
 
 	memset(buf, 0, sizeof(buf));
 
-	bootup_temp_count = of_property_count_u32_elems(np, "bootup-temperature-stage-threshold");
-	bootup_volts_count = of_property_count_u32_elems(np, "bootup-voltage-threshold");
-	num = of_property_count_u32_elems(np, "bootup-throttle-level");
-
-	if (num != (bootup_temp_count + 1)*(bootup_volts_count + 1))
-		return false;
-
-	temp_threshold = kcalloc(bootup_temp_count, sizeof(u32), GFP_KERNEL);
-	if (!temp_threshold)
-		return false;
-	volt_threshold = kcalloc(bootup_volts_count, sizeof(u32), GFP_KERNEL);
-	if (!temp_threshold || !volt_threshold) {
-		kfree(temp_threshold);
-		return false;
-	}
-	ret = of_property_read_u32(np, "bootup-temp", &bootup_temp);
-	ret |= of_property_read_u32(np, "bootup-voltage", &bootup_voltage);
-	ret |= of_property_read_u32_array(np, "bootup-temperature-stage-threshold", temp_threshold, bootup_temp_count);
-	ret |= of_property_read_u32_array(np, "bootup-voltage-threshold", volt_threshold, bootup_volts_count);
-	if (ret < 0) {
-		kfree(temp_threshold);
-		kfree(volt_threshold);
-		return false;
-	}
-	pr_info ("[%s]: bootup-volts: %d, bootup-temp: %d", __func__, bootup_voltage, bootup_temp);
-	for (temp_stage = 0; temp_stage < bootup_temp_count; temp_stage++) {
-		if (bootup_temp > temp_threshold[temp_stage])
-			break;
-	}
-	for (volt_stage = 0; volt_stage < bootup_volts_count; volt_stage++) {
-		if (bootup_voltage > volt_threshold[volt_stage])
-			break;
-	}
-
-	index = temp_stage * (bootup_volts_count + 1) + volt_stage;
-	if(index >= num){
-		kfree(temp_threshold);
-		kfree(volt_threshold);
-		return false;
-	}
-
-	ret = of_property_read_u32_index(np, "bootup-throttle-level", index, &val);
-	if (ret < 0) {
-		kfree(temp_threshold);
-		kfree(volt_threshold);
-		return false;
-	}
-	if (val != 0){
-		ret = snprintf(buf, sizeof(buf), "%s%d-lv%d", bootup_pt_info_p->freq_limit_booting_name,
-				tag->bootmode, val);
-		if (ret < 0){
-			pr_notice("can't merge %s %d\n", bootup_pt_info_p->freq_limit_booting_name, tag->bootmode);
-			for (k = 0; k < CLUSTER_NUM; k++)
-				bootup_pt_info_p->freq_limit_booting[k] = CPU_UNLIMIT_FREQ;
-			kfree(temp_threshold);
-			kfree(volt_threshold);
-			return false;
-		}
-		ret = of_property_read_u32_array(np, buf,
-			&bootup_pt_info_p->freq_limit_booting[0], CLUSTER_NUM);
-		if (ret < 0) {
-			pr_notice("%s: get %s fail %d\n", __func__, buf, ret);
-			for (k = 0; k < CLUSTER_NUM; k++)
-				bootup_pt_info_p->freq_limit_booting[k] = CPU_UNLIMIT_FREQ;
-			kfree(temp_threshold);
-			kfree(volt_threshold);
-			return false;
-		}
-	} else if (val == 0){
-		pr_notice("%s: bootup unlimited", __func__);
+	ret = snprintf(buf, sizeof(buf), "%s%d", bootup_pt_info_p->freq_limit_booting_name, tag->bootmode);
+	if (ret < 0){
+		pr_notice("can't merge %s %d\n", bootup_pt_info_p->freq_limit_booting_name, tag->bootmode);
 		for (k = 0; k < CLUSTER_NUM; k++)
 			bootup_pt_info_p->freq_limit_booting[k] = CPU_UNLIMIT_FREQ;
-		kfree(temp_threshold);
-		kfree(volt_threshold);
 		return false;
 	}
-	ret = of_property_read_u32(np,
-		"bootup-delay-release-time", &delay_time_s);
+	ret = of_property_read_u32_array(np, buf,
+		&bootup_pt_info_p->freq_limit_booting[0], CLUSTER_NUM);
 	if (ret < 0) {
-		delay_time_s = 0;
-		pr_info("[%s] read bootup-delay-release-time fail, ret = %d\n",
-			__func__, ret);
+		pr_notice("%s: get %s fail %d\n", __func__, buf, ret);
+		for (k = 0; k < CLUSTER_NUM; k++)
+			bootup_pt_info_p->freq_limit_booting[k] = CPU_UNLIMIT_FREQ;
+		return false;
 	}
 	pr_notice("%s: bootmode:0x%x\n", __func__, tag->bootmode);
-	kfree(temp_threshold);
-	kfree(volt_threshold);
 	return true;
 
 }
@@ -615,9 +420,6 @@ static int __used parse_cpu_limit_table(struct device *dev)
 		if (!pt_info_p->core_active)
 			return -ENOMEM;
 
-		if (i == SOC_POWER_THROTTLING)
-			pt_info_p->soc_limit_cmep_lv = kzalloc(sizeof(u32) * pt_info_p->max_lv , GFP_KERNEL);
-
 		for (j = 0; j < pt_info_p->max_lv; j++) {
 			memset(buf, 0, sizeof(buf));
 			ret = snprintf(buf, sizeof(buf), "%s%d", pt_info_p->freq_limit_name, j+1);
@@ -643,20 +445,6 @@ static int __used parse_cpu_limit_table(struct device *dev)
 					pr_notice("%s: get %s fail %d set core limit to 1\n", __func__, buf, ret);
 					for (k = 0; k < CORE_NUM; k++)
 						pt_info_p->core_active[j * CORE_NUM + k] = 1;
-				}
-				// For cmep
-				if (cmep_addr != NULL) {
-					memset(buf, 0, sizeof(buf));
-					if (snprintf(buf, sizeof(buf), "soc-limit-cmep-lv%d", j + 1) < 0) {
-						pr_info("%s: snprintf fail at lv%d\n", __func__, j + 1);
-						break;
-					}
-					ret = of_property_read_u32(np, buf, &pt_info_p->soc_limit_cmep_lv[j]);
-					if (ret) {
-						pr_info("%s: get %s fail (%d)at cmep-lv\n", __func__, buf, ret);
-						break;
-					}
-					pr_info("%s: %s = %u\n", __func__, buf, pt_info_p->soc_limit_cmep_lv[j]);
 				}
 				ret = of_property_read_u32(np, "mpmm-enable", &pt_info_p->mpmm_enable);
 				if (ret) {
@@ -821,28 +609,13 @@ static ssize_t boot_notify_show(struct device *dev,
 	return len;
 }
 
-static void release_cpu_performance_work_func(struct work_struct *work)
-{
-	struct cpu_bootup_pt_policy *bootup_pt_policy;
-	s32 freq_limit;
-
-	list_for_each_entry(bootup_pt_policy, &bootup_pt_policy_list, cpu_bootup_pt_list) {
-		freq_limit = FREQ_QOS_MAX_DEFAULT_VALUE;
-		pr_info("%s: freq_limit=%d\n", __func__, freq_limit);
-		freq_qos_update_request(&bootup_pt_policy->qos_req, freq_limit);
-	}
-}
-
 static ssize_t boot_notify_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf, size_t size)
 {
 	unsigned int boot_completed = 0;
-	static struct delayed_work work_struct;
-	static int only_do_one_time;
-
-	if (only_do_one_time == 0)
-		INIT_DELAYED_WORK(&work_struct, release_cpu_performance_work_func);
+	struct cpu_bootup_pt_policy *bootup_pt_policy;
+	s32 freq_limit;
 
 	if (bootup_pt_support == false){
 		dev_info(dev, "not support cpu bootup\n");
@@ -857,9 +630,11 @@ static ssize_t boot_notify_store(struct device *dev,
 		return -EINVAL;
 	}
 	system_boot_completed = boot_completed;
-	if (only_do_one_time == 0) {
-		schedule_delayed_work(&work_struct, delay_time_s * HZ);
-		only_do_one_time = 1;
+
+	list_for_each_entry(bootup_pt_policy, &bootup_pt_policy_list, cpu_bootup_pt_list) {
+		freq_limit = FREQ_QOS_MAX_DEFAULT_VALUE;
+		pr_info("%s: freq_limit=%d\n", __func__, freq_limit);
+		freq_qos_update_request(&bootup_pt_policy->qos_req, freq_limit);
 	}
 
 	return size;
@@ -981,42 +756,16 @@ EXPORT_SYMBOL(register_pt_isolate_cb);
 
 static int mtk_cpu_power_throttling_probe(struct platform_device *pdev)
 {
-	int cpu, ret, max_lv;
-	size_t len;
 	struct cpufreq_policy *policy;
 	struct cpu_pt_policy *pt_policy;
 	struct cpu_bootup_pt_policy *bootup_pt_policy;
-	struct device_node *es_np;
-	struct nvmem_cell *cell;
+	unsigned int i = 0, j = 0, k = 0;
+	int cpu, ret, max_lv;
 	s32 *freq_limit_t;
 	s32 *freq_limit_booting_t;
-	u32 *nvmem_buf, value;
-	unsigned int i = 0, j = 0, k = 0;
-
-	cell = nvmem_cell_get(&pdev->dev, efuse_field);
-	if (!IS_ERR(cell)) {
-		nvmem_buf = (u32 *)nvmem_cell_read(cell, &len);
-		nvmem_cell_put(cell);
-		if (!IS_ERR(nvmem_buf)) {
-			value = *nvmem_buf;
-			pr_info("[%s]:fab_value = %u", __func__, value);
-			if (value == 0) {
-				es_np = of_find_compatible_node(NULL, NULL, "mediatek,es-cpu-power-throttling");
-				if (es_np != NULL)
-					pdev->dev.of_node = es_np;
-				else
-					pr_info("[%s]:es_np is NULL", __func__);
-			}
-			kfree(nvmem_buf);
-		} else
-			pr_info ("[%s]:get fab_info failed", __func__);
-	}
 
 	switch_pt = false;
 	bootup_pt_support = false;
-#if IS_ENABLED(CONFIG_MTK_BATTERY_PERCENT_THROTTLING)
-	cmep_init();
-#endif
 	ret = parse_cpu_limit_table(&pdev->dev);
 	if (ret != 0)
 		return ret;
@@ -1147,9 +896,6 @@ static void mtk_cpu_power_throttling_remove(struct platform_device *pdev)
 		list_del(&pt_policy->cpu_pt_list);
 		kfree(pt_policy);
 	}
-#if IS_ENABLED(CONFIG_MTK_BATTERY_PERCENT_THROTTLING)
-	cmep_exit();
-#endif
 }
 static const struct of_device_id cpu_power_throttling_of_match[] = {
 	{ .compatible = "mediatek,cpu-power-throttling", },

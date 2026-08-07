@@ -12,7 +12,6 @@ enum SDA_FEATURE {
 	SDA_SYSTRACKER = 2,
 	SDA_DBGTOP_DRM = 3,
 	SDA_CHINFRA_MASTER = 4,
-	SDA_ERRATA_3502731_CTRL = 5,
 	NR_SDA_FEATURE
 };
 
@@ -39,13 +38,6 @@ enum CHINFRA_MASTER_OP {
 	NR_CHINFRA_MASTER_OP,
 };
 
-enum ERRATA_CTRL_OP {
-	ERRATA_DISABLE = 0,
-	ERRATA_ENABLE = 1,
-	ERRATA_STATUS_GET = 2,
-	NR_ERRATA_CTRL,
-};
-
 struct tag_chipid {
 	u32 size;
 	u32 hw_code;
@@ -53,7 +45,4 @@ struct tag_chipid {
 	u32 hw_ver;
 	u32 sw_ver;
 };
-
-extern void init_mem_rename_opt(void);
-
 #endif   /*__MTK_SDA_H__*/

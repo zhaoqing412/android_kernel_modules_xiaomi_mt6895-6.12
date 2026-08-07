@@ -30,16 +30,3 @@ camera_eeprom-objs += ../common/$(COMMON_VERSION)/eeprom_utils.o
 # Platform code
 camera_eeprom-objs += eeprom_i2c_custom_driver.o
 camera_eeprom-objs += cam_cal_list.o
-camera_eeprom-objs += otp_insensor_dev.o
-comma := ,
-empty :=
-space := $(empty) $(empty)
-
-KERNEL_CAM_CAL_SRC := $(notdir $(wildcard $(CAM_CAL_CUSTOM_SRC_LAYOUT_PATH)/*.c))
-KERNEL_CAM_CAL_OBJ := $(addprefix layout/,$(patsubst %.c, %.o, $(KERNEL_CAM_CAL_SRC)))
-KERNEL_CAM_CAL := $(basename $(KERNEL_CAM_CAL_SRC))
-CAM_CAL_CONFIG_LIST := $(subst $(space),$(comma),$(foreach e,$(subst ",,$(KERNEL_CAM_CAL)),E($(e))))
-subdir-ccflags-y += -D'CAM_CAL_CONFIG_LIST=$(CAM_CAL_CONFIG_LIST)'
-
-camera_eeprom-objs += cam_cal_config.o
-camera_eeprom-objs += $(KERNEL_CAM_CAL_OBJ)

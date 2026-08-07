@@ -52,7 +52,7 @@
 #define VOW_IPI_SEND_CNT_TIMEOUT       (50) /* 50 loop */
 /* UBM_V1:0xA000, UBM_V2:0xDC00, UBM_V3: 2*0x11000, UBM_V4: 2*0x16800  */
 #define VOW_MODEL_SIZE_THRES           (0x2800)
-#define VOW_MODEL_SIZE                 (0x1D3D0)
+#define VOW_MODEL_SIZE                 (0x16800)
 #define VOW_VOICEDATA_OFFSET           (VOW_MODEL_SIZE * MAX_VOW_SPEAKER_MODEL)
 #define VOW_VOICEDATA_SIZE             (0x12C00) /* 74880 + 6*320, need over 2.3sec */
 #define VOW_NORMAL_REC_SIZE            (0x12480) /* 2.3sec(74880B) can be divided by 320byte */
@@ -135,9 +135,6 @@
 #define VOW_SET_VOW_DELAY_WAKEUP      _IOW(VOW_IOC_MAGIC, 0x1C, unsigned int)
 #define VOW_SET_VOW_PAYLOAD_CALLBACK  _IOW(VOW_IOC_MAGIC, 0x1D, unsigned int)
 #define VOW_SET_VOW_DIGITAL_GAIN      _IOW(VOW_IOC_MAGIC, 0x1E, unsigned int)
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD)
-#define OPLUS_VOW_SET_CUSTOM_PAYLOAD_INFO     _IOW(VOW_IOC_MAGIC, 0x20, unsigned int)
-#endif /* CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD */
 
 #ifdef VOW_ECHO_SW_SRC
 #define VOW_BARGEIN_AFE_MEMIF_SIZE        (0x1E00)
@@ -214,13 +211,7 @@ enum vow_ipi_msgid_t {
 	/* IPI id 32~35 reserved for SCP VOW merged task using */
 	IPIMSG_VOW_PMIC_EFUSE_VER = 36,
 	/*------ sound_soc-vow-kernel ------*/
-	IPIMSG_VOW_PCM_HWFREE = 100,
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VOW_MONITOR)
-	IPIMSG_OPLUS_VOW_SCP_MONITOR = 101,
-#endif
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD)
-	IPIMSG_OPLUS_VOW_SCP_CUSTOM_PAYLOAD = 102,
-#endif /* CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD */
+	IPIMSG_VOW_PCM_HWFREE = 100
 };
 
 enum vow_eint_status_t {
@@ -431,18 +422,6 @@ struct vow_payloaddump_info_kernel_t {
 	compat_size_t max_payloaddump_size;
 };
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD)
-struct oplus_vow_custom_payload_info_t {
-	long return_payload_addr;
-	long payload_size;
-};
-
-struct oplus_vow_custom_payload_info_kernel_t {
-	compat_size_t return_payload_addr;
-	compat_size_t payload_size;
-};
-#endif /* CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD */
-
 struct vow_scp_recover_info_t {
 	long return_event_addr;
 };
@@ -502,13 +481,6 @@ struct vow_payloaddump_info_t {
 	long return_payloaddump_size_addr;
 	long max_payloaddump_size;
 };
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD)
-struct oplus_vow_custom_payload_info_t {
-	long return_payload_addr;
-	long payload_size;
-};
-#endif /* CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD */
 
 struct vow_scp_recover_info_t {
 	long return_event_addr;
@@ -577,13 +549,6 @@ struct vow_ipi_combined_info_t {
 	unsigned int vffpout_dump_offset_2nd_ch;
 };
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD)
-struct oplus_vow_scp_custom_payload_ipi_info_t {
-	unsigned int tag;
-	unsigned int kws_durations;
-	int average_rms;
-};
-#endif /* CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD */
 
 /*****************************************************************************
  * VOW Function Declaration

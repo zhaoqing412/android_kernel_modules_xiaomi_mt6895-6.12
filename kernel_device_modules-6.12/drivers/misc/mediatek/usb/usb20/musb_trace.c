@@ -28,5 +28,4 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(musb_gadget_disable);
 EXPORT_TRACEPOINT_SYMBOL_GPL(musb_g_giveback);
 EXPORT_TRACEPOINT_SYMBOL_GPL(musb_gadget_queue);
 EXPORT_TRACEPOINT_SYMBOL_GPL(musb_host_urb_giveback);
-EXPORT_TRACEPOINT_SYMBOL_GPL(musb_urb_enqueue_);
 

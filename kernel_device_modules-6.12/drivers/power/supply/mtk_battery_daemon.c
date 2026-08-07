@@ -724,7 +724,7 @@ void Intr_Number_to_Name(struct mtk_battery *gm, char *intr_name, unsigned int i
 
 void exec_BAT_EC(struct mtk_battery *gm, int cmd, int param)
 {
-	int i;
+	int i, used_tables;
 	struct BAT_EC_Struct *ec;
 	struct fuel_gauge_custom_data *fg_cust_data;
 	struct fuel_gauge_table_custom_data *fg_table_cust_data;
@@ -733,6 +733,12 @@ void exec_BAT_EC(struct mtk_battery *gm, int cmd, int param)
 	ec = &gm->Bat_EC_ctrl;
 	fg_cust_data = &gm->fg_cust_data;
 	fg_table_cust_data = &gm->fg_table_cust_data;
+
+	used_tables = fg_table_cust_data->active_table_number;
+	if (used_tables < 1)
+		used_tables = 1;
+	else if (used_tables > MAX_TABLE)
+		used_tables = MAX_TABLE;
 
 	bm_err(gm, "exe_BAT_EC cmd %d, param %d\n", cmd, param);
 	switch (cmd) {
@@ -1013,9 +1019,7 @@ void exec_BAT_EC(struct mtk_battery *gm, int cmd, int param)
 		break;
 	case 705:
 		{
-			for (i = 0;
-				i < fg_table_cust_data->active_table_number;
-				i++) {
+			for (i = 0; i < used_tables; i++) {
 				fg_table_cust_data->fg_profile[i].pmic_min_vol =
 					param * UNIT_TRANS_10;
 			}
@@ -1026,9 +1030,7 @@ void exec_BAT_EC(struct mtk_battery *gm, int cmd, int param)
 		break;
 	case 706:
 		{
-			for (i = 0;
-				i < fg_table_cust_data->active_table_number;
-				i++) {
+			for (i = 0; i < used_tables; i++) {
 				fg_table_cust_data->fg_profile[i].pon_iboot =
 				param * UNIT_TRANS_10;
 			}
@@ -1118,6 +1120,11 @@ void exec_BAT_EC(struct mtk_battery *gm, int cmd, int param)
 		break;
 	case 717:
 		{
+			if (param < 1 || param > MAX_TABLE) {
+				bm_err(gm, "exe_BAT_EC cmd %d, invalid active_table_number %d\n",
+					cmd, param);
+				return;
+			}
 			fg_table_cust_data->active_table_number = param;
 			bm_err(gm,
 				"exe_BAT_EC cmd %d, param %d, additional_battery_table_en\n",
@@ -2654,6 +2661,7 @@ static ssize_t BAT_EC_store(
 	char cmd_buf[4], param_buf[16];
 	struct mtk_battery *gm;
 	struct mtk_gauge *gauge;
+	size_t param_len = 0, copy_len = 0;
 
 	gauge = dev_get_drvdata(dev);
 	gm = gauge->gm;
@@ -2670,17 +2678,22 @@ static ssize_t BAT_EC_store(
 	}
 
 	if (buf != NULL && size != 0) {
+
 		bm_err(gm, "buf is %s\n", buf);
+
 		cmd_buf[0] = buf[0];
 		cmd_buf[1] = buf[1];
 		cmd_buf[2] = buf[2];
 		cmd_buf[3] = '\0';
 
-		if ((size - 4) > 0) {
-			strncpy(param_buf, buf + 4, size - 4);
-			param_buf[size - 4 - 1] = '\0';
-			bm_err(gm, "[FG_IT]cmd_buf %s, param_buf %s\n",
-				cmd_buf, param_buf);
+		param_len = (size > 4) ? (size - 4) : 0;
+		if (param_len > 0) {
+			copy_len = param_len;
+			if (copy_len >= sizeof(param_buf))
+				copy_len = sizeof(param_buf) - 1;
+			memcpy(param_buf, buf + 4, copy_len);
+			param_buf[copy_len] = '\0';
+			bm_err(gm, "[FG_IT]cmd_buf %s, param_buf %s\n", cmd_buf, param_buf);
 			ret2 = kstrtouint(param_buf, 10, &gm->BAT_EC_param);
 		}
 
@@ -2758,13 +2771,15 @@ static ssize_t BAT_SHUTDOWN_store(
 	struct device *dev, struct device_attribute *attr,
 	const char *buf, size_t size)
 {
-	char copy_str[8], buf_str[350];
+	char buf_str[350];
 	char *s = buf_str, *pch;
 	/* char *ori = buf_str; */
-	int chr_size = 0;
-	int i = 0, j=0, count = 0, value[7], result = 0;
+	int i = 0, j = 0, count = 0, value[7], result = 0;
 	struct mtk_battery *gm;
 	struct mtk_gauge *gauge;
+	size_t copy_len;
+	char saved;
+	const char *field_start;
 
 	gauge = dev_get_drvdata(dev);
 	gm = gauge->gm;
@@ -2774,7 +2789,7 @@ static ssize_t BAT_SHUTDOWN_store(
 		return -1;
 	}
 
-	for (i = 0; i < strlen(buf); i++) {
+	for (i = 0; i < size; i++) {
 		if (buf[i] == ',')
 			j++;
 	}
@@ -2783,27 +2798,40 @@ static ssize_t BAT_SHUTDOWN_store(
 		return -1;
 	}
 
-	bm_err(gm, "%s, size =%zu, str=%s\n", __func__, size, buf);
-	strscpy(buf_str, buf, size);
+	bm_err(gm, "%s, size =%zu\n", __func__, size);
+	copy_len = size;
+	if (copy_len >= sizeof(buf_str))
+		copy_len = sizeof(buf_str) - 1;
+	memcpy(buf_str, buf, copy_len);
+	buf_str[copy_len] = '\0';
 	bm_err(gm, "%s, copy str=%s\n", __func__, buf_str);
 
 	if (buf != NULL && size != 0) {
 		pch = strchr(s, ',');
 		while (pch != NULL) {
-			memset(copy_str, 0, sizeof(copy_str));
-
-			chr_size = pch - s;
-			strscpy(copy_str, s, chr_size+1);
-
-			result = kstrtoint(copy_str, 10, &value[count]);
-			if (result < 0)
-				bm_err(gm, "[%s]str:%s\n", __func__, copy_str);
-			else {
-				bm_err(gm, "::%s::count:%d,%d\n", copy_str, count, value[count]);
-				s = pch + 1;
-				pch = strchr(s, ',');
-				count++;
+			if (count >= 7) {
+				bm_err(gm, "%s error, too many items\n", __func__);
+				return -1;
 			}
+
+			field_start = s;
+
+			saved = *pch;
+			*pch = '\0';
+
+			result = kstrtoint(field_start, 10, &value[count]);
+			if (result < 0) {
+				bm_err(gm, "[%s]str:%s\n", __func__, field_start);
+				*pch = saved;
+				return -1;
+			}
+
+			bm_err(gm, "::%s::count:%d,%d\n", field_start, count, value[count]);
+
+			*pch = saved;
+			s = pch + 1;
+			pch = strchr(s, ',');
+			count++;
 		}
 	}
 	if (count == 7) {
@@ -2852,13 +2880,14 @@ static ssize_t BAT_HEALTH_store(
 	struct device *dev, struct device_attribute *attr,
 	const char *buf, size_t size)
 {
-	char copy_str[7], buf_str[350];
+	char buf_str[350];
 	char *s = buf_str, *pch;
-	/* char *ori = buf_str; */
-	int chr_size = 0;
 	int i = 0, j = 0, count = 0, value[50], result = 0;
 	struct mtk_battery *gm;
 	struct mtk_gauge *gauge;
+	size_t copy_len;
+	char saved;
+	const char *field_start;
 
 	gauge = dev_get_drvdata(dev);
 	gm = gauge->gm;
@@ -2871,7 +2900,7 @@ static ssize_t BAT_HEALTH_store(
 	}
 
 	if (size >= 90 && size <= 350) {
-		for (i = 0; i < strlen(buf); i++) {
+		for (i = 0; i < size; i++) {
 			if (buf[i] == ',')
 				j++;
 		}
@@ -2881,30 +2910,34 @@ static ssize_t BAT_HEALTH_store(
 		}
 	}
 
-	strncpy(buf_str, buf, size);
+	copy_len = size;
+	if (copy_len >= sizeof(buf_str))
+		copy_len = sizeof(buf_str) - 1;
+	memcpy(buf_str, buf, copy_len);
+	buf_str[copy_len] = '\0';
 	bm_err(gm, "%s, copy str=%s\n", __func__, buf_str);
 
 	if (buf != NULL && size != 0) {
 		pch = strchr(s, ',');
 		while (pch != NULL) {
-			memset(copy_str, 0, 7);
-			copy_str[6] = '\0';
+			field_start = (count == 0) ? s : (s + 1);
 
-			chr_size = pch - s;
-			if (count == 0)
-				strncpy(copy_str, s, chr_size);
-			else
-				strncpy(copy_str, s+1, chr_size-1);
+			saved = *pch;
+			*pch = '\0';
 
-			result = kstrtoint(copy_str, 10, &value[count]);
-			if (result < 0)
-				bm_err(gm, "[%s]str:%s\n", __func__, copy_str);
-			else {
-				bm_err(gm, "::%s::count:%d,%d\n", copy_str, count, value[count]);
-				s = pch;
-				pch = strchr(pch + 1, ',');
-				count++;
+			result = kstrtoint(field_start, 10, &value[count]);
+
+			if (result < 0) {
+				bm_err(gm, "[%s]str:%s\n", __func__, field_start);
+				*pch = saved;
+				return -1;
 			}
+
+			bm_err(gm, "::%s::count:%d,%d\n", field_start, count, value[count]);
+			*pch = saved;
+			s = pch;
+			pch = strchr(pch + 1, ',');
+			count++;
 		}
 	}
 
@@ -2980,13 +3013,15 @@ static ssize_t RL_store(
 	struct device *dev, struct device_attribute *attr,
 	const char *buf, size_t size)
 {
-	char copy_str[7], buf_str[350];
+	char buf_str[350];
 	char *s = buf_str, *pch;
 	/* char *ori = buf_str; */
-	int chr_size = 0;
 	int i = 0, j = 0, count = 0, value[11], result = 0;
 	struct mtk_battery *gm;
 	struct mtk_gauge *gauge;
+	size_t copy_len;
+	char saved;
+	const char *field_start;
 
 	gauge = dev_get_drvdata(dev);
 	gm = gauge->gm;
@@ -2996,7 +3031,7 @@ static ssize_t RL_store(
 		return -1;
 	}
 
-	for (i = 0; i < strlen(buf); i++) {
+	for (i = 0; i < size; i++) {
 		if (buf[i] == ',')
 			j++;
 	}
@@ -3005,27 +3040,40 @@ static ssize_t RL_store(
 		return -1;
 	}
 
-	bm_err(gm, "%s, size =%zu, str=%s\n", __func__, size, buf);
-	strscpy(buf_str, buf, size);
+	bm_err(gm, "%s, size =%zu\n", __func__, size);
+	copy_len = size;
+	if (copy_len >= sizeof(buf_str))
+		copy_len = sizeof(buf_str) - 1;
+	memcpy(buf_str, buf, copy_len);
+	buf_str[copy_len] = '\0';
 	bm_err(gm, "%s, copy str=%s\n", __func__, buf_str);
 
 	if (buf != NULL && size != 0) {
 		pch = strchr(s, ',');
 		while (pch != NULL) {
-			memset(copy_str, 0, sizeof(copy_str));
-
-			chr_size = pch - s;
-			strscpy(copy_str, s, chr_size+1);
-
-			result = kstrtoint(copy_str, 10, &value[count]);
-			if (result < 0)
-				bm_err(gm, "[%s]str:%s\n", __func__, copy_str);
-			else {
-				bm_err(gm, "::%s::count:%d,%d\n", copy_str, count, value[count]);
-				s = pch + 1;
-				pch = strchr(s, ',');
-				count++;
+			if (count >= 9) {
+				bm_err(gm, "%s error, too many items\n", __func__);
+				return -1;
 			}
+
+			field_start = s;
+
+			saved = *pch;
+			*pch = '\0';
+
+			result = kstrtoint(field_start, 10, &value[count]);
+			if (result < 0) {
+				bm_err(gm, "[%s]str:%s\n", __func__, field_start);
+				*pch = saved;
+				return -1;
+			}
+
+			bm_err(gm, "::%s::count:%d,%d\n", field_start, count, value[count]);
+
+			*pch = saved;
+			s = pch + 1;
+			pch = strchr(s, ',');
+			count++;
 		}
 	}
 
@@ -3171,10 +3219,6 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 	static int ptim_vbat, ptim_i;
 	int int_value;
 	static int badcmd;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	struct power_supply *chg_psy = NULL;
-	union power_supply_propval prop;
-#endif
 
 	if (gm == NULL) {
 		bm_err(gm, "[%s]gm is NULL\n", __func__);
@@ -3383,27 +3427,10 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 	{
 		int is_charger_exist = 0;
 
-#ifndef OPLUS_FEATURE_CHG_BASIC
 		if (gm->bm->bs_data.bat_status == POWER_SUPPLY_STATUS_CHARGING)
 			is_charger_exist = true;
 		else
 			is_charger_exist = false;
-#else
-		chg_psy = devm_power_supply_get_by_phandle(&gm->gauge->pdev->dev,
-						       "charger");
-		if (IS_ERR_OR_NULL(chg_psy)) {
-			bm_err(gm, "%s Couldn't get chg_psy\n", __func__);
-			is_charger_exist = false;
-		} else {
-			power_supply_get_property(chg_psy,
-				POWER_SUPPLY_PROP_ONLINE, &prop);
-					bm_err(gm, "%s get chg_psy\n", __func__);
-			if (prop.intval)
-				is_charger_exist = true;
-			else
-				is_charger_exist = false;
-		}
-#endif /*OPLUS_FEATURE_CHG_BASIC*/
 
 		ret_msg->data_len += sizeof(is_charger_exist);
 		memcpy(ret_msg->data,
@@ -3503,20 +3530,6 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 		ret_msg->data_len += sizeof(fg_coulomb);
 		memcpy(ret_msg->data,
 			&fg_coulomb, sizeof(fg_coulomb));
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		gm->pre_info.total_car = gm->total_car;
-		if (fg_coulomb != 0)
-			gm->total_car += fg_coulomb - gm->car_c;
-		gm->pre_info.car_c = gm->car_c;
-		gm->car_c = fg_coulomb;
-		if (gm->oplus_track_ops != NULL &&
-		    gm->gauge_cali_track_update_state.begin_flag) {
-			if (gauge_cali_track_check_state(&gm->gauge_cali_track_update_state,
-			    GAUGE_TRACK_CAR_C_FLAG_BIT_OFFSET))
-				gauge_cali_track_trig_upload(gm,
-					&gm->gauge_cali_track_update_state, GAUGE_TRACK_CALI_FLAG_ZCV);
-		}
-#endif
 
 		bm_debug(gm,
 			"BATTERY_METER_CMD_GET_FG_HW_CAR=%d\n",
@@ -3747,28 +3760,12 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 		/* charger status need charger API */
 		/* CHR_ERR = -1 */
 		/* CHR_NORMAL = 0 */
-#ifndef OPLUS_FEATURE_CHG_BASIC
+
 		if (gm->bm->bs_data.bat_status ==
 			POWER_SUPPLY_STATUS_NOT_CHARGING)
 			charger_status = -1;
 		else
 			charger_status = 0;
-#else
-		chg_psy = devm_power_supply_get_by_phandle(&gm->gauge->pdev->dev,
-						       "charger");
-		if (IS_ERR_OR_NULL(chg_psy)) {
-			bm_err(gm, "%s Couldn't get chg_psy\n", __func__);
-			charger_status = -1;
-		} else {
-			power_supply_get_property(chg_psy,
-				POWER_SUPPLY_PROP_ONLINE, &prop);
-					bm_err(gm, "%s get chg_psy\n", __func__);
-			if (prop.intval)
-				charger_status = 0;
-			else
-				charger_status = -1;
-		}
-#endif /*OPLUS_FEATURE_CHG_BASIC*/
 
 		ret_msg->data_len += sizeof(charger_status);
 		memcpy(ret_msg->data,
@@ -3894,16 +3891,6 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 		zcv = gauge_get_int_property(gm, GAUGE_PROP_ZCV);
 		ret_msg->data_len += sizeof(zcv);
 		memcpy(ret_msg->data, &zcv, sizeof(zcv));
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		gm->pre_info.zcv = gm->zcv;
-		gm->zcv = zcv;
-		if (gm->oplus_track_ops != NULL && gm->gauge_cali_track_update_state.begin_flag) {
-			if (gauge_cali_track_check_state(&gm->gauge_cali_track_update_state,
-			    GAUGE_TRACK_ZCV_FLAG_BIT_OFFSET))
-				gauge_cali_track_trig_upload(gm,
-					&gm->gauge_cali_track_update_state, GAUGE_TRACK_CALI_FLAG_ZCV);
-		}
-#endif /*OPLUS_FEATURE_CHG_BASIC*/
 		bm_debug(gm, "FG_DAEMON_CMD_GET_ZCV=%d\n", zcv);
 	}
 	break;
@@ -4156,20 +4143,9 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 		soc_type = msg->subcmd_para1;
 
 		memcpy(&daemon_soc, &msg->data[0], sizeof(daemon_soc));
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		gm->pre_info.soc = gm->soc;
-#endif
 		if (soc_type == 0)
 			gm->soc = (daemon_soc + 50) / 100;
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		if (gm->oplus_track_ops != NULL && gm->gauge_cali_track_update_state.begin_flag) {
-			if (gauge_cali_track_check_state(&gm->gauge_cali_track_update_state,
-			    GAUGE_TRACK_SOC_FLAG_BIT_OFFSET))
-				gauge_cali_track_trig_upload(gm,
-					&gm->gauge_cali_track_update_state, GAUGE_TRACK_CALI_FLAG_ZCV);
-		}
-#endif
 		bm_debug(gm,
 		"FG_DAEMON_CMD_SET_KERNEL_SOC = %d %d, type:%d\n",
 		daemon_soc, gm->soc, soc_type);
@@ -4191,9 +4167,7 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 				daemon_ui_soc);
 			daemon_ui_soc = 0;
 		}
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		gm->pre_info.ui_soc = gm->ui_soc;
-#endif
+
 		gm->fg_cust_data.ui_old_soc = daemon_ui_soc;
 		old_uisoc = gm->ui_soc;
 
@@ -4471,10 +4445,6 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 			gauge_get_property_control(gm, GAUGE_PROP_BATTERY_VOLTAGE,
 				&vbat, 0);
 			vbat *= 10;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		gm->pre_info.vbat = gm->batt_volt;
-		gm->batt_volt = vbat;
-#endif
 		}
 
 		ret_msg->data_len += sizeof(vbat);
@@ -4484,40 +4454,6 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 	break;
 	case FG_DAEMON_CMD_SEND_SD_DATA:
 	case FG_DAEMON_CMD_SEND_DAEMON_DATA:
-	{
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		char *rcv;
-		struct afw_data_param *prcv;
-		struct fgd_cmd_daemon_data param;
-#endif /* OPLUS_FEATURE_CHG_BASIC */
-		fg_daemon_send_data(gm, msg->cmd,
-			&msg->data[0],
-			&ret_msg->data[0], msg->hash);
-		ret_msg->data_len =
-			sizeof(struct afw_data_param);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		rcv = &msg->data[0];
-		prcv = (struct afw_data_param *)rcv;
-		memcpy(&param, prcv->input, sizeof(struct fgd_cmd_daemon_data));
-
-		gm->prev_batt_fcc = param.quse;
-		gm->prev_batt_remaining_capacity = param.quse /10 * param.soc / 10000;
-
-		bm_err(gm, "FG_DAEMON_CMD_SET_BATTERY_CAPACITY2 = %d %d %d %d %d %d %d %d %d %d %d\n",
-			param.uisoc,
-			param.fg_c_soc,
-			param.fg_v_soc,
-			param.soc,
-			param.fg_c_d0_soc,
-			param.car_c,
-			param.fg_v_d0_soc,
-			param.car_v,
-			param.qmxa_t_0ma,
-			param.quse,
-			param.tmp);
-#endif /* OPLUS_FEATURE_CHG_BASIC */
-	}
-	break;
 	case FG_DAEMON_CMD_SEND_VERSION_CONTROL:
 	{
 		bm_debug(gm, "FG_DAEMON_CMD_SEND_VERSION_CONTROL\n");
@@ -4648,14 +4584,6 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 	{
 		memcpy(&int_value, &msg->data[0], sizeof(int_value));
 		gm->soc = (int_value + 50) / 100;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		if (gm->oplus_track_ops != NULL && gm->gauge_cali_track_update_state.begin_flag) {
-			if (gauge_cali_track_check_state(&gm->gauge_cali_track_update_state,
-			    GAUGE_TRACK_SOC_FLAG_BIT_OFFSET))
-				gauge_cali_track_trig_upload(gm,
-					&gm->gauge_cali_track_update_state, GAUGE_TRACK_CALI_FLAG_ZCV);
-		}
-#endif
 		bm_debug(gm, "FG_DAEMON_CMD_SET_SOC %d\n",
 			gm->soc);
 	}
@@ -4679,18 +4607,7 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 	case FG_DAEMON_CMD_SET_C_SOC:
 	{
 		memcpy(&int_value, &msg->data[0], sizeof(int_value));
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		gm->pre_info.c_soc = gm->fg_cust_data.c_soc;
-#endif
 		gm->fg_cust_data.c_soc = int_value;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		if (gm->oplus_track_ops != NULL && gm->gauge_cali_track_update_state.begin_flag) {
-			if (gauge_cali_track_check_state(&gm->gauge_cali_track_update_state,
-			    GAUGE_TRACK_C_SOC_FLAG_BIT_OFFSET))
-				gauge_cali_track_trig_upload(gm,
-					&gm->gauge_cali_track_update_state, GAUGE_TRACK_CALI_FLAG_ZCV);
-		}
-#endif
 		bm_debug(gm, "FG_DAEMON_CMD_SET_C_SOC %d\n",
 		gm->fg_cust_data.c_soc);
 	}
@@ -4698,19 +4615,7 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 	case FG_DAEMON_CMD_SET_V_SOC:
 	{
 		memcpy(&int_value, &msg->data[0], sizeof(int_value));
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		gm->pre_info.v_soc = gm->fg_cust_data.v_soc;
-#endif
 		gm->fg_cust_data.v_soc = int_value;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		if (gm->oplus_track_ops != NULL && gm->gauge_cali_track_update_state.begin_flag) {
-			if (gauge_cali_track_check_state(&gm->gauge_cali_track_update_state,
-			    GAUGE_TRACK_V_SOC_FLAG_BIT_OFFSET))
-				gauge_cali_track_trig_upload(gm,
-					&gm->gauge_cali_track_update_state, GAUGE_TRACK_CALI_FLAG_ZCV);
-
-		}
-#endif
 		bm_debug(gm, "FG_DAEMON_CMD_SET_V_SOC %d\n",
 		gm->fg_cust_data.v_soc);
 	}
@@ -4732,11 +4637,6 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 	case FG_DAEMON_CMD_SET_AGING_FACTOR:
 	{
 		memcpy(&int_value, &msg->data[0], sizeof(int_value));
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		gm->pre_info.aging_factor = gm->aging_factor;
-		/*Delay 1s to ensure qmax updates*/
-		schedule_delayed_work(&gm->aging_trigger_work, msecs_to_jiffies(1000));
-#endif
 		gm->aging_factor = int_value;
 		bm_debug(gm, "FG_DAEMON_CMD_SET_AGING_FACTOR %d\n",
 		gm->aging_factor);
@@ -4753,9 +4653,6 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 	case FG_DAEMON_CMD_SET_QMAX:
 	{
 		memcpy(&int_value, &msg->data[0], sizeof(int_value));
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		gm->pre_info.qmax = gm->algo_qmax;
-#endif
 		gm->algo_qmax = int_value;
 		bm_debug(gm, "FG_DAEMON_CMD_SET_QMAX %d\n",
 		gm->algo_qmax);
@@ -4764,9 +4661,6 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 	case FG_DAEMON_CMD_SET_BAT_CYCLES:
 	{
 		memcpy(&int_value, &msg->data[0], sizeof(int_value));
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		gm->pre_info.batt_cc = gm->bat_cycle;
-#endif
 		gm->bat_cycle = int_value;
 		bm_debug(gm, "FG_DAEMON_CMD_SET_BAT_CYCLES %d\n",
 		gm->bat_cycle);
@@ -4928,11 +4822,6 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 		rcv = &msg->data[0];
 		prcv = (struct afw_data_param *)rcv;
 		memcpy(&param, prcv->input, sizeof(struct fgd_cmd_param_t_8));
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		gm->prev_batt_fcc = param.data[4];
-		gm->pre_info.quse = gm->prev_batt_fcc;
-		gm->prev_batt_remaining_capacity = param.data[4] /10 * param.data[6] / 10000;
-#endif /* OPLUS_FEATURE_CHG_BASIC */
 
 		bm_err(gm, " FG_DAEMON_CMD_SET_BATTERY_CAPACITY = %d %d %d %d %d %d %d %d %d %d RM:%d\n",
 				param.data[0],
@@ -5544,12 +5433,6 @@ static void zcv_irq_handler(struct mtk_battery *gm)
 
 	if (abs(zcv_intr_curr) < gm->fg_cust_data.sleep_current_avg) {
 		wakeup_fg_algo(gm, FG_INTR_FG_ZCV);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		if (gm->oplus_track_ops != NULL && !gm->gauge_cali_track_update_state.begin_flag) {
-			gauge_cali_track_init_state(gm,
-				&gm->gauge_cali_track_update_state, GAUGE_TRACK_CALI_FLAG_ZCV);
-		}
-#endif
 		zcv_intr_en = 0;
 		gauge_set_property(gm, GAUGE_PROP_ZCV_INTR_EN, zcv_intr_en);
 	} else

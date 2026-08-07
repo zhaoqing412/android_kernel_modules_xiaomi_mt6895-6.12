@@ -42,8 +42,6 @@ static DECLARE_WAIT_QUEUE_HEAD(notifier_wq_queue);
 
 struct task_info g_dep_arr[FPSGO_MAX_TASK_NUM];
 
-static int sbe_without_dptv2_status;
-
 //ConsistencyEngine pointer interface for Taskturbo implement
 //We are using sbe when ConsistencyEngine API called.
 void (*task_turbo_do_set_binder_uclamp_param)(pid_t pid,
@@ -84,12 +82,13 @@ static void sbe_do_recycle(struct work_struct *work)
 	sbe_put_tree_lock(__func__);
 
 	mutex_lock(&sbe_recycle_lock);
-	sbe_recycle_idle_cnt++;
-	if (sbe_recycle_idle_cnt >= MAX_SBE_RECYCLE_IDLE_CNT) {
-		sbe_recycle_active = 0;
-		goto out;
+	if (non_empty) {
+		sbe_recycle_idle_cnt++;
+		if (sbe_recycle_idle_cnt >= MAX_SBE_RECYCLE_IDLE_CNT) {
+			sbe_recycle_active = 0;
+			goto out;
+		}
 	}
-	sbe_trace("[SBE] %s: non_empty: %d", __func__, non_empty);
 	hrtimer_start(&sbe_recycle_hrt, ktime_set(0, NSEC_PER_SEC), HRTIMER_MODE_REL);
 
 out:
@@ -225,7 +224,7 @@ static void __sbe_receive_frame_end(struct sbe_render_info *f_render,
 	unsigned long long t_enqueue_end   = 0;
 
 	if (get_sbe_extra_sub_en_deque_enable()) {
-		fpsgo_render_info = vzalloc(sizeof(struct render_frame_info) * FPSGO_MAX_RENDER_INFO_SIZE);
+		fpsgo_render_info = kcalloc(FPSGO_MAX_RENDER_INFO_SIZE, sizeof(struct render_frame_info), GFP_KERNEL);
 		if (!fpsgo_render_info) {
 			fpsgo_other2xgf_calculate_dep(f_render->pid, f_render->buffer_id,
 				&local_raw, &local_ema, &enq_running_time,
@@ -246,7 +245,7 @@ static void __sbe_receive_frame_end(struct sbe_render_info *f_render,
 					break;
 				}
 			}
-			vfree(fpsgo_render_info);
+			kfree(fpsgo_render_info);
 		}
 
 		if (find_match_render
@@ -290,7 +289,7 @@ static void __sbe_receive_frame_end(struct sbe_render_info *f_render,
 		fpsgo_other2comp_set_no_boost_info(1, f_render->dep_arr[i], 0);
 
 	memset(f_render->dep_arr, 0, MAX_TASK_NUM * sizeof(int));
-	tmp_dep_arr = vzalloc(sizeof(struct task_info) * MAX_TASK_NUM);
+	tmp_dep_arr = kcalloc(MAX_TASK_NUM, sizeof(struct task_info), GFP_KERNEL);
 	if (tmp_dep_arr) {
 		f_render->dep_num = fpsgo_other2xgf_get_critical_tasks(f_render->pid,
 			MAX_TASK_NUM, tmp_dep_arr, 1, f_render->buffer_id);
@@ -299,7 +298,7 @@ static void __sbe_receive_frame_end(struct sbe_render_info *f_render,
 				f_render->dep_arr[i] = tmp_dep_arr[i].pid;
 		} else
 			f_render->dep_num = 0;
-		vfree(tmp_dep_arr);
+		kfree(tmp_dep_arr);
 	} else {
 		sbe_systrace_c(f_render->pid, bufID, frameid, "[ux]get_dep_malloc_fail");
 		sbe_systrace_c(f_render->pid, bufID, 0, "[ux]get_dep_malloc_fail");
@@ -451,7 +450,7 @@ void sbe_receive_doframe_end(int pid,
 		return;
 	}
 
-	sbe_exec_doframe_end(f_render, frameID, frame_flags, frame_end_time);
+	sbe_exec_doframe_end(f_render, frameID, frame_flags);
 	sbe_put_tree_lock(__func__);
 }
 
@@ -469,14 +468,12 @@ void sbe_set_critical_task(int cur_pid, unsigned long long id,
 
 	sbe_get_render_tid_by_render_pid(sbe_get_tgid(cur_pid), cur_pid, out_tid_arr,
 		out_bufID_arr, &out_tid_num, FPSGO_MAX_RENDER_INFO_SIZE);
-	if (out_tid_num <= 0) {
-		sbe_trace("%s: out_tid_num = 0", __func__);
+	if (out_tid_num <= 0)
 		return;
-	}
 
 	if (dep_mode && dep_num > 0) {
-		local_specific_tid_arr = vzalloc(dep_num * sizeof(int));
-		local_specific_action_arr = vzalloc(dep_num * sizeof(struct task_info));
+		local_specific_tid_arr = kcalloc(dep_num, sizeof(int), GFP_KERNEL);
+		local_specific_action_arr = kcalloc(dep_num, sizeof(struct task_info), GFP_KERNEL);
 		if (local_specific_tid_arr && local_specific_action_arr) {
 			int local_action = 0;
 			int op_dep_by_tid = 0;
@@ -529,8 +526,8 @@ void sbe_set_critical_task(int cur_pid, unsigned long long id,
 			}
 		}
 
-		vfree(local_specific_action_arr);
-		vfree(local_specific_tid_arr);
+		kfree(local_specific_action_arr);
+		kfree(local_specific_tid_arr);
 	} else if (dep_mode == 5 && dep_num == 0) {
 		//CLEAR dep set before
 		fpsgo_other2xgf_set_critical_tasks(cur_pid, id, NULL, 0, 0);
@@ -650,7 +647,7 @@ int sbe_get_render_tid_by_render_name(int tgid, char *name,
 		!out_tid_num || out_tid_max_num <= 0)
 		return -EINVAL;
 
-	tmp_arr = vzalloc(out_tid_max_num * sizeof(struct render_fw_info));
+	tmp_arr = kcalloc(out_tid_max_num, sizeof(struct render_fw_info), GFP_KERNEL);
 	if (!tmp_arr)
 		return -ENOMEM;
 
@@ -674,7 +671,7 @@ int sbe_get_render_tid_by_render_name(int tgid, char *name,
 	}
 	*out_tid_num = index;
 
-	vfree(tmp_arr);
+	kfree(tmp_arr);
 
 	return 0;
 }
@@ -771,25 +768,11 @@ static int sbe_do_hwui_scrolling_policy(int tgid, int start, char *specific_name
 		update_fpsgo_hint_param(start, tgid);
 	}
 
-	if (get_sbe_sbe_without_dptv2_enable()) {
-		sbe_get_tree_lock(__func__);
-		sbe_do_dptv2_task_util_policy(tgid, start);
-		sbe_put_tree_lock(__func__);
-		sbe_without_dptv2_status = 1;
-	} else {
-		if (sbe_without_dptv2_status) {
-			sbe_get_tree_lock(__func__);
-			sbe_force_reset_dptv2_task_util_policy();
-			sbe_put_tree_lock(__func__);
-			sbe_without_dptv2_status = 0;
-		}
-	}
-
 	return ret;
 }
 
 static int sbe_do_webview_notify_fpsgo_ctrl(int tgid, char *name, int start, char *specific_name,
-					int num, unsigned long long ts, unsigned long mask)
+					int num, unsigned long long ts)
 {
 	int ret = SBE_SUCCESS;
 	int final_pid_arr_idx = 0;
@@ -865,9 +848,6 @@ static int sbe_do_webview_notify_fpsgo_ctrl(int tgid, char *name, int start, cha
 			attr_iter.gcc_enable_by_pid = 0;
 			attr_iter.qr_enable_by_pid = 0;
 			set_fpsgo_attr(1, scroll_policy_info.final_pid_arr[i], 1, &attr_iter);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_QOS_ARBITER)
-			sbe_set_curr_q2q_jerk_pid(xgf_attr_iter.pid, xgf_attr_iter.bufid);
-#endif
 		} else {
 			memset(&xgf_attr_iter, 0, sizeof(struct xgf_policy_cmd));
 			xgf_attr_iter.mode = 1;
@@ -882,8 +862,7 @@ static int sbe_do_webview_notify_fpsgo_ctrl(int tgid, char *name, int start, cha
 			 * Failure to do so will result in the thread's performance index
 			 *remaining at its last value, preventing it from resetting.
 			 */
-			if (!test_bit(SBE_HWUI, &mask))
-				fpsgo_other2comp_control_pause(scroll_policy_info.final_pid_arr[i],
+			fpsgo_other2comp_control_pause(scroll_policy_info.final_pid_arr[i],
 					scroll_policy_info.final_bufID_arr[i]);
 		}
 
@@ -1021,7 +1000,6 @@ static int sbe_do_clear_scrolling_info(int tgid, char *name, unsigned long long 
 		thr->dep_self_ctrl = 0;
 		thr->latest_use_ts = ts;
 		thr->dep_self_ctrl = 1;
-		thr->dy_compute_rescue = 1;
 
 		clear_ux_info(thr);
 		sbe_put_tree_lock(__func__);
@@ -1149,10 +1127,6 @@ static int sbe_do_hwui_scrolling_status_policy(int tgid, char *name, unsigned lo
 				sbe_set_dptv2_policy(thr, start);
 		}
 
-		thr->user_request_affinity_mask = 0;
-		if (test_bit(SBE_REQUEST_AFFNITY_TASK, &mask))
-			thr->user_request_affinity_mask = 1;
-
 		if (thr->core_ctl_ignore_vip_task)
 			sbe_core_ctl_ignore_vip_task(thr, start);
 		else
@@ -1169,7 +1143,7 @@ static int sbe_do_hwui_scrolling_status_policy(int tgid, char *name, unsigned lo
 
 					if (add_new_scrolling && !last->end_ts) {
 						last->end_ts = ts; // last scroll endtime is current ts
-						sbe_ux_scrolling_end(ts, thr);
+						sbe_ux_scrolling_end(thr);
 					} else if (!add_new_scrolling) {
 						last->type = SBE_FLING;
 					}
@@ -1211,17 +1185,12 @@ static int sbe_do_hwui_scrolling_status_policy(int tgid, char *name, unsigned lo
 		} else {
 			//update scroll_info when scroll end
 			if (get_ux_list_length(&thr->scroll_list) > 0) {
-				type = test_bit(SBE_MOVEING, &mask) ? SBE_MOVEING :
-						(test_bit(SBE_FLING, &mask) ? SBE_FLING : 0);
 				last = list_first_entry(&thr->scroll_list, struct ux_scroll_info, queue_list);
 				if (last) {
 					last->end_ts = ts;
 					if (last->end_ts > last->start_ts)
 						last->dur_ts = last->end_ts - last->start_ts;
-
-					if (last->type != type && type > 0)
-						last->type = type;
-					sbe_ux_scrolling_end(ts, thr);
+					sbe_ux_scrolling_end(thr);
 				}
 			}
 
@@ -1337,7 +1306,7 @@ static int sbe_set_scroll_policy(int tgid, char *name, unsigned long mask,
 	}
 
 	if (IS_BIT_SET(mask, SBE_CPU_CONTROL)) {
-		ret = sbe_do_webview_notify_fpsgo_ctrl(tgid, name, start, specific_name, num, ts, mask);
+		ret = sbe_do_webview_notify_fpsgo_ctrl(tgid, name, start, specific_name, num, ts);
 		sbe_trace("[SBE] %s webview notify fpsgo ctrl start: %d, ret = %d", __func__, start, ret);
 	}
 
@@ -1432,7 +1401,6 @@ int sbe_notify_hwui_frame_hint(int start,
 	int dep_mode, char *dep_name, int dep_num, long long frame_flags)
 {
 	int ret;
-	int enhance;
 	unsigned long long cur_ts;
 	struct SBE_NOTIFIER_PUSH_TAG *vpPush;
 
@@ -1465,9 +1433,7 @@ int sbe_notify_hwui_frame_hint(int start,
 	sbe_queue_work(vpPush);
 
 	ret = sbe_get_perf();
-	enhance = sbe_get_rescue_enhance();
 
-	ret = ((ret & 0xFFFF) << 16) | (enhance & 0xFFFF);
 	return ret;
 }
 
@@ -1487,21 +1453,9 @@ int sbe_notify_webview_policy(int pid, char *name, unsigned long mask,
 	}
 
 	if (test_bit(SBE_RUNNING_QUERY, &mask)) {
-		//low 16bit for running status
-		//high 16bit for render loading
-		int loading;
-		int ret = 0;
 		kfree(vpPush);
 		sbe_query_is_running = sbe_query_spid_loading();
-		if (sbe_query_is_running)
-			ret |= SBE_TASK_RUNNING;
-
-		loading = sbe_get_render_loading();
-		// Shift loading to high 16 bits and combine with running status
-		if (loading)
-			ret |= (loading << 16);
-
-		return ret;
+		return sbe_query_is_running ? 10001 : 0;
 	}
 
 	cur_ts = sbe_get_time();
@@ -1635,6 +1589,7 @@ void sbe_notify_update_fpsgo_jerk_boost_info(int tgid, int pid, int blc, unsigne
 		return;
 	}
 
+	sbe_get_tree_lock(__func__);
 	if (dep_arr_fpsgo) {
 		memset(g_dep_arr, 0, sizeof(struct task_info) * FPSGO_MAX_TASK_NUM);
 		memcpy(g_dep_arr, dep_arr_fpsgo, sizeof(struct task_info) * FPSGO_MAX_TASK_NUM);
@@ -1650,6 +1605,7 @@ void sbe_notify_update_fpsgo_jerk_boost_info(int tgid, int pid, int blc, unsigne
 		vpPush->dep_arr = g_dep_arr;
 
 	sbe_queue_work(vpPush);
+	sbe_put_tree_lock(__func__);
 }
 
 int sbe_get_kthread_tid(void)

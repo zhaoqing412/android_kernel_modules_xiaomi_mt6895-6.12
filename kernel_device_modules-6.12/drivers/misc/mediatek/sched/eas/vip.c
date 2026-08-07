@@ -11,12 +11,6 @@
 #include "vip.h"
 #include "sched_trace.h"
 #include "eas_plus.h"
-#include "util/tsk_util.h"
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-#include <linux/sa_fair.h>
-#include <linux/sa_common.h>
-#endif
 
 unsigned int ls_vip_threshold                   =  DEFAULT_VIP_PRIO_THRESHOLD;
 bool vip_enable;
@@ -417,17 +411,6 @@ void check_vip_num(struct rq *rq)
 	/* end of temp patch*/
 }
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-static void set_ots_vip(struct task_struct *p, int vip)
-{
-	struct oplus_task_struct *ots = get_oplus_task_struct(p);
-	if (IS_ERR_OR_NULL(ots))
-		return;
-
-	atomic_set(&ots->is_vip_mvp, vip);
-}
-#endif
-
 static void insert_vip_task(struct rq *rq, struct vip_task_struct *vts,
 					bool at_front, bool requeue, int vip_prio)
 {
@@ -463,10 +446,6 @@ static void insert_vip_task(struct rq *rq, struct vip_task_struct *vts,
 		}
 	}
 	list_add(entry, pos->prev);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-	set_ots_vip(vts_to_ts(vts), 1);
-#endif
-
 	if (!requeue) {
 		vrq->num_vip_tasks[vts->vip_prio]++;
 		vrq->sum_num_vip_tasks++;
@@ -494,9 +473,6 @@ static void deactivate_vip_task(struct task_struct *p, struct rq *rq)
 		return;
 
 	list_del_init(entry);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-	set_ots_vip(vts_to_ts(vts), 0);
-#endif
 
 	if (vts->vip_prio != NOT_VIP) {
 		vrq->num_vip_tasks[vts->vip_prio]--;
@@ -1175,13 +1151,6 @@ void vip_replace_next_task_fair(void *unused, struct rq *rq, struct task_struct 
 	struct vip_rq *vrq = &per_cpu(vip_rq, cpu_of(rq));
 	struct vip_task_struct *vts;
 	struct task_struct *vip;
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-	bool repick = false;
-
-	android_rvh_replace_next_task_fair_handler(unused, rq, p, &repick, prev);
-	if (repick)
-		return;
-#endif
 
 	if (unlikely(!vip_enable))
 		return;
@@ -1272,7 +1241,6 @@ void vip_new_tasks(void *unused, struct task_struct *new)
 	init_vip_task_struct(new);
 	init_task_gear_hints(new);
 	/* init_dpt_v2_task_struct(new); */
-	init_uest_task_struct(new);
 }
 
 void __init_vip_group(struct cgroup_subsys_state *css)
@@ -1460,7 +1428,6 @@ void vip_init(void)
 		init_vip_task_struct(p);
 		init_task_gear_hints(p);
 		init_dpt_v2_task_struct(p);
-		init_uest_task_struct(p);
 	}
 	read_unlock(&tasklist_lock);
 

@@ -11,7 +11,6 @@
 #include <linux/kref.h>
 #include <linux/types.h>
 #include <linux/wait.h>
-#include <linux/vmalloc.h>
 
 #include "mtk-mml-core.h"
 

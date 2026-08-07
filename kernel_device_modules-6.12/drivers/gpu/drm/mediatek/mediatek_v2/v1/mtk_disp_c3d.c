@@ -406,7 +406,7 @@ void disp_c3d_flip_3dlut_sram(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle
 	sram_apb = (read_value >> 5) & 0x1;
 	sram_int = (read_value >> 6) & 0x1;
 
-	if ((sram_apb == sram_int) && (sram_int == 0)) {
+	if (sram_apb == sram_int) {
 		pr_notice("%s: sram_apb = sram_int = %d, skip flip!\n", __func__, sram_int);
 		return;
 	}
@@ -425,27 +425,6 @@ void disp_c3d_flip_3dlut_sram(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle
 		sram_apb, sram_int, sram_cfg, caller);
 	cmdq_pkt_write(handle, comp->cmdq_base,
 		comp->regs_pa + C3D_SRAM_CFG, sram_cfg, (0x7 << 4));
-}
-
-static bool is_doze_active(struct mtk_drm_crtc *mtk_crtc)
-{
-	struct mtk_crtc_state *mtk_state;
-
-	DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
-	mtk_state = to_mtk_crtc_state(mtk_crtc->base.state);
-	if (!mtk_state) {
-		DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
-		return false;
-	}
-
-	if (mtk_state->prop_val[CRTC_PROP_DOZE_ACTIVE]) {
-		DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
-		return true;
-	}
-
-	DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
-	return false;
-	
 }
 
 static int disp_c3d_set_3dlut(struct mtk_ddp_comp *comp,
@@ -478,11 +457,6 @@ static int disp_c3d_set_3dlut(struct mtk_ddp_comp *comp,
 	if ((c3d->bin_num != 9) && (c3d->bin_num != 17)) {
 		DDPPR_ERR("%s, c3d bin num: %d not support\n", __func__, c3d->bin_num);
 		return -1;
-	}
-
-	if (is_doze_active(mtk_crtc)) {
-		DDPPR_ERR("%s, in doze state\n", __func__);
-		return 0;
 	}
 
 	copysize = c3d->c3dlut_size * sizeof(unsigned int);
@@ -535,16 +509,6 @@ static int disp_c3d_set_3dlut(struct mtk_ddp_comp *comp,
 	ret = disp_c3d_check_sram(comp, true);
 	if(!ret) {
 		if (!pm_ret)
-			mtk_vidle_pq_power_put(__func__);
-		mutex_unlock(&primary_data->clk_lock);
-		return false;
-	}
-
-	if(mtk_crtc->is_dual_pipe && comp_c3d1) {
-		ret = disp_c3d_check_sram(comp_c3d1, true);
-	}
-	if(!ret) {
-		if(!pm_ret)
 			mtk_vidle_pq_power_put(__func__);
 		mutex_unlock(&primary_data->clk_lock);
 		return false;

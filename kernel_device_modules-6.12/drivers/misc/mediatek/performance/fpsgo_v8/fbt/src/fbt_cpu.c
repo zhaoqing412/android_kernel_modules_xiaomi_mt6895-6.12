@@ -1769,7 +1769,7 @@ static void fbt_query_dep_list_loading(struct render_info *thr)
 
 		if (cur_runtime > 0) {
 			thr->dep_arr[i].latest_runtime = cur_runtime;
-			if (prev_runtime > 0 && cur_runtime >= prev_runtime && window > 0)
+			if (prev_runtime > 0 && cur_runtime > prev_runtime && window > 0)
 				thr->dep_arr[i].loading =
 					(int)div64_u64((cur_runtime - prev_runtime) * 100, window);
 		}
@@ -2141,10 +2141,7 @@ static int fbt_group_dep(int group_by_lr, struct fpsgo_loading *dep_arr, int dep
 	for (i = 0; i < dep_size; i++) {
 		struct fpsgo_loading *fl = &dep_arr[i];
 
-		if (fl->action == XGF_ADD_DEP_FORCE_GROUPING_HEAVY)
-			fl->heavyidx = FPSGO_GROUP_HEAVY;
-
-		if (fl->action == XGF_ADD_DEP_FORCE_GROUPING_SECOND)
+		if (fl->heavyidx == FPSGO_GROUP_OTHERS && fl->action == XGF_ADD_DEP_FORCE_GROUPING)
 			fl->heavyidx = FPSGO_GROUP_SECOND;
 	}
 	return ret;
@@ -2333,7 +2330,7 @@ void fbt_cal_min_max_cap(struct render_info *thr,
 
 
 	// separate_pct_b, separate_pct_m
-	if (separate_aa_final &&
+	if (separate_aa_final && boost_affinity_final &&
 		(separate_pct_b_final || separate_pct_m_final) &&
 		jerk != FPSGO_JERK_SECOND) {
 		raw_min_cap_b = min_cap_b;
@@ -3389,7 +3386,6 @@ EXIT:
 static void fbt_do_jerk_locked(struct render_info *thr, struct fbt_jerk *jerk, int jerk_id)
 {
 	unsigned int blc_wt = 0U, blc_wt_b = 0U, blc_wt_m = 0U;
-	unsigned long cb_mask = 0;
 	struct cpu_ctrl_data *pld;
 	int temp_blc = 0, temp_blc_b = 0, temp_blc_m = 0;
 	int do_jerk;
@@ -3485,9 +3481,6 @@ static void fbt_do_jerk_locked(struct render_info *thr, struct fbt_jerk *jerk, i
 		}
 		break;
 	case FPSGO_JERK_NEED:
-		cb_mask = 1 << GET_FPSGO_Q2Q_JERK_START;
-		if (!fpsgo_game2fpsgo_get_game_cb_active())
-			fpsgo_notify_frame_info_callback(thr->pid, cb_mask, thr->buffer_id, NULL);
 		fbt_do_jerk_boost(thr, blc_wt, blc_wt_b, blc_wt_m, 0, FPSGO_JERK_FIRST);
 		thr->boost_info.last_blc = blc_wt;
 		if (separate_aa_final) {
@@ -5066,11 +5059,8 @@ void fbt_update_freq_qos_min(int policy_id, unsigned int freq)
 
 	if (freq == cluster_min_freq)
 		freq_qos_cap = 0;
-	else {
-		if ((freq_qos_cap && freq_qos_cap_temp < freq_qos_cap) ||
-			!freq_qos_cap)
-			freq_qos_cap = freq_qos_cap_temp;
-	}
+	else
+		freq_qos_cap = freq_qos_cap_temp;
 
 	mutex_unlock(&fbt_mlock);
 
@@ -6388,7 +6378,6 @@ void fbt_reset_boost(struct render_info *thr)
 static void fbt_frame_start(struct render_info *thr, unsigned long long ts)
 {
 	struct fbt_boost_info *boost;
-	unsigned long cb_mask = 0;
 	long long runtime;
 	int targettime, targetfps, targetfps_ori, targetfpks, fps_margin, cooler_on;
 	unsigned int limited_cap = 0;
@@ -6431,10 +6420,6 @@ static void fbt_frame_start(struct render_info *thr, unsigned long long ts)
 
 	if (thr->Q2Q_time != 0)
 		thr->avg_freq = loading / nsec_to_100usec(thr->Q2Q_time);
-
-	cb_mask = 1 << GET_FPSGO_Q2Q_JERK_END;
-	if (!fpsgo_game2fpsgo_get_game_cb_active())
-		fpsgo_notify_frame_info_callback(thr->pid, cb_mask, thr->buffer_id, NULL);
 
 	blc_wt = fbt_boost_policy(runtime,
 			targettime, targetfps, targetfps_ori, fps_margin,

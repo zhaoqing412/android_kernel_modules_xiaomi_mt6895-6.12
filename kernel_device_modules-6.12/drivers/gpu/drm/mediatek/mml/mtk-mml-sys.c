@@ -7,7 +7,6 @@
 #include <linux/clk.h>
 #include <linux/component.h>
 #include <linux/delay.h>
-#include <linux/iopoll.h>
 #include <linux/module.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
@@ -56,13 +55,10 @@
 #define SYS_WLA20_RG_WDMA1_0	0x9c8
 #define SYS_WLA20_RG_WDMA1_1	0x9cc
 
-#define SYS_MT6993_CGCON0_SMI	0x00000002
-
 enum sys_register {
 	SYS_SW0_RST_B_REG,
 	SYS_SW1_RST_B_REG,
 	SYS_BYPASS_MUX_SHADOW,
-	SYS_REG_CG_CON0,
 	sys_register_total,
 };
 
@@ -70,14 +66,12 @@ static const u16 sys_mt6989[] = {
 	[SYS_SW0_RST_B_REG] = 0x700,
 	[SYS_SW1_RST_B_REG] = 0x704,
 	[SYS_BYPASS_MUX_SHADOW] = 0xf00,
-	[SYS_REG_CG_CON0] = 0x100,
 };
 
 static const u16 sys_mt6993[] = {
 	[SYS_SW0_RST_B_REG] = 0xac0,
 	[SYS_SW1_RST_B_REG] = 0xac4,
 	[SYS_BYPASS_MUX_SHADOW] = 0x998,
-	[SYS_REG_CG_CON0] = 0xa78,
 };
 
 #define MML_MAX_SYS_COMPONENTS	32
@@ -210,8 +204,8 @@ struct mml_sys {
 	u32 comp_cnt;
 	/* MML component bound count */
 	u32 comp_bound;
+
 	u8 sub_comp_type[MML_MAX_SYS_COMPONENTS];
-	struct mml_dev *mml;
 
 	/* clock for dpc */
 	struct clk *clk_sys_26m;
@@ -427,11 +421,12 @@ static s32 sys_init(struct mml_comp *comp, struct mml_task *task,
 			ultra_mask |= BIT(comp->larb_port) | BIT(comp->larb_port_stash);
 	}
 
-	if (cfg->dpc && (mml_dl_dpc & MML_DPC_PKT_VOTE) &&
-		cfg->info.mode != MML_MODE_DDP_ADDON &&
-		comp->sysid == path->mmlsys->sysid) {
-		mml_dpc_power_keep_gce(cfg->info.mode, pkt,
-			sys->data->gpr[ccfg->pipe], task->reuse_dpc);
+	if (cfg->dpc) {
+		if (mml_dl_dpc & MML_DPC_PKT_VOTE &&
+			cfg->info.mode != MML_MODE_DDP_ADDON &&
+			comp->sysid == path->mmlsys->sysid)
+			mml_dpc_power_keep_gce(comp->sysid, pkt, sys->data->gpr[ccfg->pipe],
+				task->reuse_dpc);
 	}
 
 	if (cfg->dbgtp)
@@ -1181,7 +1176,7 @@ static s32 sys_done(struct mml_comp *comp, struct mml_task *task,
 	    cfg->info.mode != MML_MODE_DDP_ADDON &&
 	    comp->sysid == path->mmlsys->sysid) {
 #ifndef MML_FPGA
-		mml_dpc_power_release_gce(cfg->info.mode, pkt, task->reuse_dpc);
+		mml_dpc_power_release_gce(comp->sysid, pkt, task->reuse_dpc);
 #endif
 	}
 
@@ -1493,6 +1488,7 @@ s32 mml_sys_pw_enable(struct mml_comp *comp, const s8 mode, bool pw_by_mminfra)
 {
 	int ret;
 	struct mml_sys *sys = comp_to_sys(comp);
+	bool pwon = comp->pw_cnt == 0;
 
 	ret = mml_comp_pw_enable(comp, mode, sys->pwr_control_by_mminfra);
 
@@ -1503,6 +1499,12 @@ s32 mml_sys_pw_enable(struct mml_comp *comp, const s8 mode, bool pw_by_mminfra)
 			mml_err("enable sys comp %u auto cnt %d", comp->id, sys->dpc_auto_cnt);
 	}
 
+	if (!ret && pwon) {
+		ret = clk_prepare_enable(sys->clk_sys_26m);
+		if (ret)
+			mml_err("%s clk_sys_26m fail %d", __func__, ret);
+	}
+
 	return ret;
 }
 
@@ -1510,6 +1512,10 @@ s32 mml_sys_pw_disable(struct mml_comp *comp, const s8 mode, bool pw_by_mminfra)
 {
 	int ret;
 	struct mml_sys *sys = comp_to_sys(comp);
+	bool pwoff = comp->pw_cnt == 1;
+
+	if (pwoff)
+		clk_disable_unprepare(sys->clk_sys_26m);
 
 	if (mml_iscouple(mode)) {
 		if (--sys->dpc_auto_cnt == 0)
@@ -1519,43 +1525,6 @@ s32 mml_sys_pw_disable(struct mml_comp *comp, const s8 mode, bool pw_by_mminfra)
 	}
 
 	ret = mml_comp_pw_disable(comp, mode, sys->pwr_control_by_mminfra);
-
-	return ret;
-}
-
-s32 mml_sys_pw_enable_mt6993(struct mml_comp *comp, const s8 mode, bool pw_by_mminfra)
-{
-	struct mml_sys *sys = comp_to_sys(comp);
-	int ret;
-
-	/* enable all sys power (larbs) once */
-	ret = mml_drv_sys_pw_enable(sys->mml, mode, sys->pwr_control_by_mminfra,
-		mml_comp_pw_enable);
-
-	if (mml_iscouple(mode)) {
-		if (++sys->dpc_auto_cnt == 1)
-			mml_dpc_mtcmos_auto(comp->sysid, true, mode);
-		if (sys->dpc_auto_cnt <= 0)
-			mml_err("enable sys comp %u auto cnt %d", comp->id, sys->dpc_auto_cnt);
-	}
-
-	return ret;
-}
-
-s32 mml_sys_pw_disable_mt6993(struct mml_comp *comp, const s8 mode, bool pw_by_mminfra)
-{
-	struct mml_sys *sys = comp_to_sys(comp);
-	int ret;
-
-	if (mml_iscouple(mode)) {
-		if (--sys->dpc_auto_cnt == 0)
-			mml_dpc_mtcmos_auto(comp->sysid, false, mode);
-		if (sys->dpc_auto_cnt < 0)
-			mml_err("disable sys comp %u auto cnt %d", comp->id, sys->dpc_auto_cnt);
-	}
-
-	ret = mml_drv_sys_pw_disable(sys->mml, mode, sys->pwr_control_by_mminfra,
-		mml_comp_pw_disable);
 
 	return ret;
 }
@@ -1660,20 +1629,12 @@ static s32 mml_comp_clk_aid_enable(struct mml_comp *comp)
 
 static s32 mml_sys_comp_clk_enable(struct mml_comp *comp)
 {
-	struct mml_sys *sys = comp_to_sys(comp);
-	bool clkon = comp->clk_cnt == 0;
 	int ret;
 
 	/* original clk enable */
 	ret = mml_comp_clk_aid_enable(comp);
 	if (ret < 0)
 		return ret;
-
-	if (clkon) {
-		ret = clk_prepare_enable(sys->clk_sys_26m);
-		if (ret)
-			mml_err("%s clk_sys_26m fail %d", __func__, ret);
-	}
 
 	mml_mmp(clk_enable, MMPROFILE_FLAG_PULSE, comp->id, 0);
 
@@ -1684,7 +1645,6 @@ static s32 mml_sys_comp_clk_disable(struct mml_comp *comp,
 				    bool dpc)
 {
 	struct mml_sys *sys = comp_to_sys(comp);
-	bool clkoff = comp->clk_cnt == 1;
 	u32 i;
 
 	comp->clk_cnt--;
@@ -1701,52 +1661,12 @@ static s32 mml_sys_comp_clk_disable(struct mml_comp *comp,
 		writel(0, comp->base + SYS_MDP_IRQ);
 	}
 
-	if (clkoff)
-		clk_disable_unprepare(sys->clk_sys_26m);
-
 	mml_mmp(clk_disable, MMPROFILE_FLAG_START, comp->id, 0);
 	for (i = 0; i < ARRAY_SIZE(comp->clks); i++) {
 		if (IS_ERR_OR_NULL(comp->clks[i]))
 			break;
 		clk_disable_unprepare(comp->clks[i]);
 	}
-	mml_mmp(clk_disable, MMPROFILE_FLAG_END, comp->id, 0);
-
-	return 0;
-}
-
-static s32 mml_sys_comp_clk_disable_poll(struct mml_comp *comp, bool dpc)
-{
-	struct mml_sys *sys = comp_to_sys(comp);
-	u32 value = 0, i;
-	int ret;
-
-	comp->clk_cnt--;
-	if (comp->clk_cnt > 0)
-		return 0;
-	if (comp->clk_cnt < 0) {
-		mml_err("%s comp %u %s cnt %d",
-			__func__, comp->id, comp->name, comp->clk_cnt);
-		return -EINVAL;
-	}
-
-	if (sys->data->irq) {
-		/* clear sys irq en to make sure mml hw does not burst after clock off */
-		writel(0, comp->base + SYS_MDP_IRQ);
-	}
-
-	mml_mmp(clk_disable, MMPROFILE_FLAG_START, comp->id, 0);
-	for (i = 0; i < ARRAY_SIZE(comp->clks); i++) {
-		if (IS_ERR_OR_NULL(comp->clks[i]))
-			break;
-		clk_disable_unprepare(comp->clks[i]);
-	}
-
-	ret = readl_poll_timeout_atomic(comp->base + sys->data->reg[SYS_REG_CG_CON0],
-		value, value == ~SYS_MT6993_CGCON0_SMI, 1, 500);
-	if (ret < 0)
-		mml_err("%s comp %u %s poll fail", __func__, comp->id, comp->name);
-
 	mml_mmp(clk_disable, MMPROFILE_FLAG_END, comp->id, 0);
 
 	return 0;
@@ -1800,16 +1720,6 @@ static const struct mml_comp_hw_ops sys_hw_ops_mminfra = {
 	.mminfra_pw_disable = mml_mminfra_pw_disable,
 	.clk_enable = &mml_sys_comp_clk_enable,
 	.clk_disable = &mml_sys_comp_clk_disable,
-	.task_done = &mml_sys_taskdone,
-};
-
-static const struct mml_comp_hw_ops sys_hw_ops_mminfra_mt6993 = {
-	.pw_enable = mml_sys_pw_enable_mt6993,
-	.pw_disable = mml_sys_pw_disable_mt6993,
-	.mminfra_pw_enable = mml_mminfra_pw_enable,
-	.mminfra_pw_disable = mml_mminfra_pw_disable,
-	.clk_enable = &mml_sys_comp_clk_enable,
-	.clk_disable = &mml_sys_comp_clk_disable_poll,
 	.task_done = &mml_sys_taskdone,
 };
 
@@ -3086,7 +2996,6 @@ struct mml_sys *mml_sys_create(struct platform_device *pdev,
 	if (!sys)
 		return ERR_PTR(-ENOMEM);
 
-	sys->mml = mml;	/* store driver instance for later use driver common api */
 	ret = mml_sys_init(pdev, sys, comp_ops);
 	if (ret) {
 		dev_err(dev, "failed to init mml sys: %d\n", ret);
@@ -3503,7 +3412,7 @@ static const struct mml_data mt6993_mmlt_data = {
 		[MML_CT_SYS_OUT] = &dl_ddp_funcs,
 	},
 	.aid_sel = sys_config_aid_sel_bits_sys,
-	.hw_ops = &sys_hw_ops_mminfra_mt6993,
+	.hw_ops = &sys_hw_ops_mminfra,
 	.debug_ops = &sys_debug_ops_mt6991,
 	.gpr = {CMDQ_GPR_R12, CMDQ_GPR_R14},
 	.px_per_tick = 2,
@@ -3533,7 +3442,7 @@ static const struct mml_data mt6993_mmlf_data = {
 		[MML_CT_SYS_OUT] = &dl_ddp_funcs,
 	},
 	.aid_sel = sys_config_aid_sel_bits_sys,
-	.hw_ops = &sys_hw_ops_mminfra_mt6993,
+	.hw_ops = &sys_hw_ops_mminfra,
 	.debug_ops = &sys_debug_ops_mt6991,
 	.gpr = {CMDQ_GPR_R08, CMDQ_GPR_R10},
 	.px_per_tick = 2,
@@ -3563,7 +3472,7 @@ static const struct mml_data mt6993_mmld_data = {
 		[MML_CT_SYS_OUT] = &dl_ddp_funcs,
 	},
 	.aid_sel = sys_config_aid_sel_bits_sys,
-	.hw_ops = &sys_hw_ops_mminfra_mt6993,
+	.hw_ops = &sys_hw_ops_mminfra,
 	.debug_ops = &sys_debug_ops_mt6993,
 	.gpr = {CMDQ_GPR_R08, CMDQ_GPR_R10},
 	.px_per_tick = 2,

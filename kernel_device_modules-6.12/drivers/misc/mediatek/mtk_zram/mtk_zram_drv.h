@@ -70,12 +70,7 @@ enum zram_pageflags {
 
 	ZRAM_IN_HW_PROCESSING,	/* Under HW processing(especially for HW decompression).
 				   Never allow SW flow to touch it. */
-#ifdef CONFIG_HYBRIDSWAP_CORE
-	ZRAM_BATCHING_OUT,
-	ZRAM_FROM_HYBRIDSWAP,
-	ZRAM_MCGID_CLEAR,
-	ZRAM_IN_BD, /* zram stored in back device */
-#endif
+
 	__NR_ZRAM_PAGEFLAGS,
 };
 
@@ -177,7 +172,7 @@ struct zram {
 	 * zram is claimed so open request will be failed
 	 */
 	bool claim; /* Protected by disk->open_mutex */
-#if (defined CONFIG_ZRAM_WRITEBACK) || (defined CONFIG_HYBRIDSWAP_CORE)
+#ifdef CONFIG_ZRAM_WRITEBACK
 	struct file *backing_dev;
 	spinlock_t wb_limit_lock;
 	bool wb_limit_enable;
@@ -190,10 +185,6 @@ struct zram {
 	struct dentry *debugfs_dir;
 #endif
 	wait_queue_head_t hw_wait;
-#ifdef CONFIG_HYBRIDSWAP_CORE
-	struct hybridswap *hs_swap;
-	unsigned long increase_nr_pages;
-#endif /* CONFIG_HYBRIDSWAP_CORE */
 };
 
 #endif

@@ -44,7 +44,6 @@ static int recycle_active = 1;
 static int total_fpsgo_com_policy_cmd_num;
 static int fpsgo_is_boosting;
 static int jank_detection_is_ready;
-static int game_cb_active;
 
 // touch latency
 static int fpsgo_touch_latency_ko_ready;
@@ -58,7 +57,6 @@ static DEFINE_MUTEX(user_hint_lock);
 static DEFINE_MUTEX(fpsgo_frame_info_cb_lock);
 static DEFINE_MUTEX(wait_enable_lock);
 static DEFINE_MUTEX(cur_l2q_info_lock);
-static DEFINE_MUTEX(game_cb_active_lock);
 
 static struct render_frame_info_cb fpsgo_frame_info_cb_list[FPSGO_MAX_CALLBACK_NUM];
 static struct FSTB_FRAME_L2Q_INFO cur_l2q_info[MAX_SF_BUFFER_SIZE];
@@ -117,26 +115,6 @@ void fpsgo_com_notify_fpsgo_is_boost(int enable)
 	}
 	mutex_unlock(&fpsgo_boost_lock);
 }
-
-void fpsgo_game2fpsgo_set_game_cb_active(int val)
-{
-	mutex_lock(&game_cb_active_lock);
-	game_cb_active = val;
-	mutex_unlock(&game_cb_active_lock);
-
-}
-EXPORT_SYMBOL(fpsgo_game2fpsgo_set_game_cb_active);
-
-int fpsgo_game2fpsgo_get_game_cb_active(void)
-{
-	int val = 0;
-	mutex_lock(&game_cb_active_lock);
-	val = game_cb_active;
-	mutex_unlock(&game_cb_active_lock);
-
-	return val;
-}
-EXPORT_SYMBOL(fpsgo_game2fpsgo_get_game_cb_active);
 
 int register_fpsgo_frame_info_callback(unsigned long mask, fpsgo_frame_info_callback cb)
 {

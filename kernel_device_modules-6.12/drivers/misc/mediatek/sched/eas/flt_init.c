@@ -36,10 +36,6 @@
 #include "mtk_energy_model/v1/energy_model.h"
 #endif
 
-#ifdef CONFIG_HMBIRD_SCHED_BPF
-#include <hmbird_II/hmbird_II_export.h>
-#endif
-
 #ifdef FLT_INIT_DEBUG
 #define FLT_LOGI(...)	pr_info("FLT:" __VA_ARGS__)
 #else
@@ -115,11 +111,6 @@ EXPORT_SYMBOL(flt_set_mode);
 
 u32 flt_get_mode(void)
 {
-#ifdef CONFIG_HMBIRD_SCHED_BPF
-	if (hmbird_bypass_hooks()) {
-		return hmbird_flt_get_mode();
-	}
-#endif
 	return flt_mode;
 }
 EXPORT_SYMBOL(flt_get_mode);

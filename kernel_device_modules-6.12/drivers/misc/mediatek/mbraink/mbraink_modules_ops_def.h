@@ -15,7 +15,6 @@ struct mbraink_memory_ops {
 	int (*getEmiInfo)(struct mbraink_memory_emiInfo *pMemoryEmiInfo);
 	int (*getCmProfileInfo)(struct mbraink_memory_cmProfileInfo *pCmProfileInfo);
 	int (*getVsmrInfo)(struct mbraink_memory_vsmrInfo *pMemoryVsmr);
-	int (*getCmVoteInfo)(struct mbraink_memory_cmVoteInfo *pCmVoteInfo);
 };
 int register_mbraink_memory_ops(struct mbraink_memory_ops *ops);
 int unregister_mbraink_memory_ops(void);
@@ -124,10 +123,4 @@ struct mbraink_touch_ops {
 int register_mbraink_touch_ops(struct mbraink_touch_ops *ops);
 int unregister_mbraink_touch_ops(void);
 
-/*System Info*/
-struct mbraink_systeminfo_ops {
-	int (*get_chipid_info)(struct mbraink_chipid_info *chipid_info);
-};
-int register_mbraink_systeminfo_ops(struct mbraink_systeminfo_ops *ops);
-int unregister_mbraink_systeminfo_ops(void);
 #endif //MBRAINK_MODULES_OPS_STRUCT_H

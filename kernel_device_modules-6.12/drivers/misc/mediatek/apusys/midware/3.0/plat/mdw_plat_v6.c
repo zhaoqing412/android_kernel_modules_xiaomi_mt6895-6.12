@@ -249,8 +249,7 @@ static void mdw_plat_v6_appendix_process(struct mdw_cmd *c, enum apu_appendix_cb
 	uint64_t oft = 0;
 
 	/* assign cmd info */
-	cmd_info.session = (uint64_t)c->mpriv;
-	cmd_info.session_id = c->mpriv->id;
+	cmd_info.session_id = (uint64_t)c->mpriv;
 	cmd_info.cmd_uid = c->uid;
 	cmd_info.num_subcmds = c->num_subcmds;
 	cmd_info.power_plcy = c->power_plcy;
@@ -361,7 +360,7 @@ static struct mdw_mem_map *mdw_plat_v6_create_msg(struct mdw_cmd *c)
 
 	/* assign cmd info */
 	rmc = (struct mdw_rv_msg_cmd *)rv_cmdbuf->vaddr;
-	rmc->session_id = c->mpriv->id;
+	rmc->session_id = (uint64_t)c->mpriv;
 	rmc->cmd_id = c->kid;
 	rmc->pid = (uint32_t)c->pid;
 	rmc->tgid = (uint32_t)c->tgid;
@@ -446,8 +445,7 @@ static struct mdw_mem_map *mdw_plat_v6_create_msg(struct mdw_cmd *c)
 		c->end_vertices_size);
 
 	/* assign cmd info */
-	cmd_info.session = (uint64_t)c->mpriv;
-	cmd_info.session_id = c->mpriv->id;
+	cmd_info.session_id = (uint64_t)c->mpriv;
 	cmd_info.cmd_uid = c->uid;
 	cmd_info.num_subcmds = c->num_subcmds;
 	cmd_info.power_plcy = c->power_plcy;
@@ -639,7 +637,7 @@ static void mdw_plat_v6_reset_info(struct mdw_rv_msg_cmd *rmc, struct mdw_cmd *c
 
 	if (mdw_mem_flush(c->mpriv, rc->cb))
 		mdw_drv_warn("s(0x%llx) c(0x%llx/0x%llx) flush rv cbs(%llu) fail\n",
-			c->mpriv->id, c->kid, c->inference_id, rc->cb->size);
+			(uint64_t)c->mpriv, c->kid, c->inference_id, rc->cb->size);
 }
 
 /**
@@ -714,7 +712,7 @@ static int mdw_plat_v6_postprocess_cmd(struct mdw_cmd *c)
 	/* invalidate */
 	if (mdw_mem_invalidate(c->mpriv, rc->cb))
 		mdw_drv_warn("s(0x%llx) c(0x%llx/0x%llx/0x%llx) invalidate rcbs(%llu) fail\n",
-			c->mpriv->id, c->uid, c->kid,
+			(uint64_t)c->mpriv, c->uid, c->kid,
 			c->inference_id, rc->cb->size);
 
 	/* copy exec infos */
@@ -843,7 +841,7 @@ static int mdw_plat_v6_cmd_sanity_check(struct mdw_cmd *c)
 		c->num_links > c->num_subcmds ||
 		c->end_vertices_num > c->num_subcmds) {
 		mdw_drv_err("s(0x%llx)cmd invalid(0x%llx/0x%llx)(%u/%u/%u/%u)\n",
-			c->mpriv->id, c->uid, c->kid,
+			(uint64_t)c->mpriv, c->uid, c->kid,
 			c->priority, c->num_subcmds, c->num_links,
 			c->end_vertices_num);
 		goto out;

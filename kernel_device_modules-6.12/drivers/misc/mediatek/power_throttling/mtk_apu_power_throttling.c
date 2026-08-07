@@ -3,7 +3,6 @@
  * Copyright (c) 2024 MediaTek Inc.
  * Author: Victor Lin <Victor-wc.lin@mediatek.com>
  */
-#include <linux/nvmem-consumer.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include "mtk_apu_power_throttling.h"
@@ -13,36 +12,14 @@
 
 #define APU_LIMIT_OPP0 0
 
-static DEFINE_MUTEX(apu_freq_lock);
-
 static bool pt_apu_drv_inited = 0;
-static const char *efuse_field = "fab_info";
-static bool switch_pt;
-static int lbat_tb_num;
-static int apu_pt_table_idx;
-
-enum apu_pt_table_num {
-	APU_PT_TABLE0,
-	APU_PT_TABLE1,
-	APU_PT_TABLE2,
-	APU_PT_TABLE3,
-	APU_PT_TABLE4,
-	APU_PT_TABLE5,
-	APU_PT_TABLE_MAX
-};
 
 struct apu_pt_priv {
 	char max_lv_name[32];
 	char limit_name[32];
 	u32 max_lv;
 	u32 *opp_limit;
-	u32 cur_lv;
 	apu_throttle_callback cb;
-};
-
-struct apu_pt_table {
-	char limit_name[32];
-	u32 *opp_limit;
 };
 
 static struct apu_pt_priv apu_pt_info[POWER_THROTTLING_TYPE_MAX] = {
@@ -63,34 +40,12 @@ static struct apu_pt_priv apu_pt_info[POWER_THROTTLING_TYPE_MAX] = {
 	}
 };
 
-static struct apu_pt_table apu_pt_tb[APU_PT_TABLE_MAX]= {
-	[APU_PT_TABLE0] = {
-		.limit_name = "lbat-limit-opp-lv",
-	},
-	[APU_PT_TABLE1] = {
-		.limit_name = "lbat-limit-opp-tb1-lv",
-	},
-	[APU_PT_TABLE2] = {
-		.limit_name = "lbat-limit-opp-tb2-lv",
-	},
-	[APU_PT_TABLE3] = {
-		.limit_name = "lbat-limit-opp-tb3-lv",
-	},
-	[APU_PT_TABLE4] = {
-		.limit_name = "lbat-limit-opp-tb4-lv",
-	},
-	[APU_PT_TABLE5] = {
-		.limit_name = "lbat-limit-opp-tb5-lv",
-	},
-};
-
 #if IS_ENABLED(CONFIG_MTK_LOW_BATTERY_POWER_THROTTLING)
 static void apu_pt_low_battery_cb(enum LOW_BATTERY_LEVEL_TAG level, void *data)
 {
 	int ret = 0, id = 1;
 	int opp_limit;
 
-	apu_pt_info[LBAT_POWER_THROTTLING].cur_lv = level;
 	if (!pt_apu_drv_inited)
 		return;
 
@@ -269,39 +224,6 @@ static int __used apu_limit_default_setting(struct device *dev, enum apu_pt_type
 	return 0;
 }
 
-static bool parse_switchpt_table(struct platform_device *pdev)
-{
-	struct device_node *np = pdev->dev.of_node;
-	int i, j, ret = 0;
-	struct apu_pt_table *apu_pt_table;
-	char buf[32];
-
-	for (i = 0; i < lbat_tb_num; i++) {
-		apu_pt_table = &apu_pt_tb[i];
-
-		apu_pt_table->opp_limit = kcalloc(apu_pt_info[LBAT_POWER_THROTTLING].max_lv, sizeof(u32), GFP_KERNEL);
-		if (!apu_pt_table->opp_limit)
-			return false;
-
-		for (j = 0; j < apu_pt_info[LBAT_POWER_THROTTLING].max_lv; j++) {
-			memset(buf, 0, sizeof(buf));
-			ret = snprintf(buf, sizeof(buf), "%s%d", apu_pt_table->limit_name, j+1);
-			if (ret < 0){
-				pr_notice("can't merge %s %d\n", apu_pt_table->limit_name, j+1);
-				kfree(apu_pt_table->opp_limit);
-				return false;
-			}
-			ret |= of_property_read_u32(np, buf, &apu_pt_table->opp_limit[j]);
-			if (ret < 0){
-				pr_notice("%s: get lbat apu limit fail %d\n", __func__, ret);
-				kfree(apu_pt_table->opp_limit);
-				return false;
-			}
-		}
-	}
-	return true;
-}
-
 static int parse_dts(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
@@ -348,81 +270,10 @@ static int parse_dts(struct platform_device *pdev)
 	return 0;
 }
 
-static ssize_t apu_pt_table_idx_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	int len = 0;
-
-	if (switch_pt == false){
-		dev_info(dev, "not support switch_pt\n");
-		return -EINVAL;
-	}
-	len += snprintf(buf + len, PAGE_SIZE - len, "apu_pt_table_idx: %d\n", apu_pt_table_idx);
-
-	return len;
-}
-
-static ssize_t apu_pt_table_idx_store(struct device *dev,
-		struct device_attribute *attr,
-		const char *buf, size_t size)
-{
-	char cmd[20];
-	int j;
-
-	if (switch_pt == false){
-		dev_info(dev, "not support switch_pt\n");
-		return -EINVAL;
-	}
-	if ((sscanf(buf, "%9s %u\n", cmd, &apu_pt_table_idx) != 2) || (strncmp(cmd, "table_idx", 9) != 0)) {
-		dev_info(dev, "parameter number not correct\n");
-		return -EINVAL;
-	}
-	if (apu_pt_table_idx < 0 || apu_pt_table_idx >= lbat_tb_num) {
-		pr_info("Invalid voltage table index.\n");
-		return -EINVAL;
-	}
-	mutex_lock(&apu_freq_lock);
-
-	for (j = 0; j < apu_pt_info[LBAT_POWER_THROTTLING].max_lv; j++) {
-		apu_pt_info[LBAT_POWER_THROTTLING].opp_limit[j] = apu_pt_tb[apu_pt_table_idx].opp_limit[j];
-		pr_notice("%s: opp_limit=%d, apu_pt_table_idx=%d\n", __func__,
-			apu_pt_info[LBAT_POWER_THROTTLING].opp_limit[j],
-			apu_pt_table_idx);
-	}
-	mutex_unlock(&apu_freq_lock);
-
-	apu_pt_low_battery_cb(apu_pt_info[LBAT_POWER_THROTTLING].cur_lv, NULL);
-
-	return size;
-}
-static DEVICE_ATTR_RW(apu_pt_table_idx);
 
 static int mtk_apu_power_throttling_probe(struct platform_device *pdev)
 {
 	int ret = 0;
-	size_t len;
-	struct device_node *es_np;
-	struct nvmem_cell *cell;
-	u32 *nvmem_buf, value;
-
-	cell = nvmem_cell_get(&pdev->dev, efuse_field);
-	if (!IS_ERR(cell)) {
-		nvmem_buf = (u32 *)nvmem_cell_read(cell, &len);
-		nvmem_cell_put(cell);
-		if (!IS_ERR(nvmem_buf)) {
-			value = *nvmem_buf;
-			pr_info("[%s]:fab_value = %u", __func__, value);
-			if (value == 0) {
-				es_np = of_find_compatible_node(NULL, NULL, "mediatek,es-apu-power-throttling");
-				if (es_np != NULL)
-					pdev->dev.of_node = es_np;
-				else
-					pr_info("[%s]:es_np is NULL", __func__);
-			}
-			kfree(nvmem_buf);
-		} else
-			pr_info ("[%s]:get fab_info failed", __func__);
-	}
 
 	ret = parse_dts(pdev);
 	if (ret) {
@@ -430,24 +281,6 @@ static int mtk_apu_power_throttling_probe(struct platform_device *pdev)
 		return ret;
 	}
 	pt_apu_drv_inited = 1;
-
-	// apu pt table switch
-	ret = of_property_read_u32(pdev->dev.of_node, "lbat-max-tb-num", &lbat_tb_num);
-	if (ret || lbat_tb_num < 0 || lbat_tb_num > APU_PT_TABLE_MAX) {
-		pr_notice("%s: get lbat_tb_num %d fail set to default %d\n", __func__, lbat_tb_num, ret);
-		lbat_tb_num = 1;
-		switch_pt = false;
-	} else {
-		switch_pt = parse_switchpt_table(pdev);
-	}
-
-	ret = device_create_file(&(pdev->dev),
-		&dev_attr_apu_pt_table_idx);
-	if (ret) {
-		dev_notice(&pdev->dev, "create file error ret=%d\n", ret);
-		return ret;
-	}
-
 	return 0;
 }
 

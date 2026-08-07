@@ -28,12 +28,6 @@ static struct scmi_tinysys_info_st *_tinfo;
 static unsigned int scmi_id;
 #endif /* CONFIG_MTK_TINYSYS_SCMI */
 static struct slbc_ipi_ops *ipi_ops;
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SLC)
-struct slbc_ipi_ops *ipi_ops_ref;
-EXPORT_SYMBOL(ipi_ops_ref);
-#endif
-
 static DEFINE_MUTEX(slbc_scmi_lock);
 
 int slbc_sspm_slb_disable(int disable)
@@ -157,19 +151,6 @@ int slbc_outer_cmd(unsigned int outer)
 #endif /* CONFIG_MTK_TINYSYS_SCMI */
 }
 EXPORT_SYMBOL_GPL(slbc_outer_cmd);
-
-int slbc_dis_sf_cmd(unsigned int dis_sf)
-{
-	struct slbc_ipi_data slbc_ipi_d;
-	struct scmi_tinysys_slbc_ctrl_status rvalue = {0};
-
-	memset(&slbc_ipi_d, 0, sizeof(slbc_ipi_d));
-	slbc_ipi_d.cmd = IPI_SLBC_DIS_SF;
-	slbc_ipi_d.arg1 = dis_sf;
-
-	return slbc_scmi_ctrl(&slbc_ipi_d, &rvalue);
-}
-EXPORT_SYMBOL_GPL(slbc_dis_sf_cmd);
 
 int slbc_suspend_resume_notify(int suspend)
 {
@@ -986,20 +967,12 @@ EXPORT_SYMBOL_GPL(slbc_scmi_init);
 void slbc_register_ipi_ops(struct slbc_ipi_ops *ops)
 {
 	ipi_ops = ops;
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SLC)
-	ipi_ops_ref = ops;
-#endif
 }
 EXPORT_SYMBOL_GPL(slbc_register_ipi_ops);
 
 void slbc_unregister_ipi_ops(struct slbc_ipi_ops *ops)
 {
 	ipi_ops = NULL;
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SLC)
-	ipi_ops_ref = NULL;
-#endif
 }
 EXPORT_SYMBOL_GPL(slbc_unregister_ipi_ops);
 

@@ -11,15 +11,6 @@
 #include "mt6993-afe-common.h"
 #include "mt6993-interconnection.h"
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-#include <linux/proc_fs.h>
-#include "../feedback/oplus_audio_kernel_fb.h"
-#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
-
-#ifndef OPLUS_ARCH_EXTENDS
-#define OPLUS_ARCH_EXTENDS
-#endif
-
 enum AUD_TX_LCH_RPT {
 	AUD_TX_LCH_RPT_NO_REPEAT = 0,
 	AUD_TX_LCH_RPT_REPEAT = 1
@@ -492,94 +483,6 @@ static struct snd_soc_dai_driver mtk_dai_pcm_driver[] = {
 	},
 };
 
-#ifdef OPLUS_ARCH_EXTENDS
-//MD call noise workaround
-static int mt6993_pcm1_status_get(struct snd_kcontrol *kcontrol,
-			     struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_component *cmpnt = snd_soc_kcontrol_component(kcontrol);
-	struct mtk_base_afe *afe = snd_soc_component_get_drvdata(cmpnt);
-	unsigned int val = 0;
-	int i = 0;
-
-	for (i = 0; i < 5; i++) {
-		regmap_read(afe->regmap, AFE_PCM_INTF_MON,
-			    &val);
-		dev_info(afe->dev, "%s(), AFE_PCM_INTF_MON(%d) = 0x%x\n",
-		 __func__, i, val);
-		udelay(10);
-	}
-
-
-	if ((val & 0xc)  == 0xc)
-		ucontrol->value.integer.value[0] = 0;
-	else
-		ucontrol->value.integer.value[0] = 1;
-
-	return 0;
-}
-
-static int mt6993_pcm1_status_set(struct snd_kcontrol *kcontrol,
-			     struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_component *cmpnt = snd_soc_kcontrol_component(kcontrol);
-	struct mtk_base_afe *afe = snd_soc_component_get_drvdata(cmpnt);
-	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
-	int enable = 0;
-	int i = 0;
-	unsigned int val = 0;
-        bool reset_pcm = false;
-
-	if (ucontrol->value.enumerated.item[0] >= e->items)
-		return -EINVAL;
-
-	enable = ucontrol->value.integer.value[0];
-
-	dev_info(afe->dev, "%s(), kcontrol name %s, enable %d\n",
-		 __func__, kcontrol->id.name, enable);
-
-	if(enable) {
-		for (i = 0; i < 10; i++) {
-			regmap_read(afe->regmap, AFE_PCM_INTF_MON,
-				    &val);
-			if (val != 0x0) {
-				/* do reset */
-				regmap_update_bits(afe->regmap, AFE_PCM1_INTF_CON0,
-				   0x1, 0x0);
-				regmap_update_bits(afe->regmap, AFE_PCM1_INTF_CON0,
-				   0x1, 0x1);
-                                reset_pcm = true;
-				dev_info(afe->dev, "%s(), retry %d AFE_PCM_INTF_MON = 0x%x reset_pcm = %d\n",
-				 	__func__, i, val, reset_pcm);
-			} else
-				 break;
-		}
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-		if (reset_pcm) {
-			pr_err_fb("%s(), reset pcm, i = %d, val = 0x%x", __func__, i, val);
-		}
-#endif
-	}
-	return 0;
-}
-
-
-/* on/off control */
-static const char *const mt6993_pcm_str[] = {
-	"Off", "On"
-};
-
-static const struct soc_enum mt6993_i2s_enum[] = {
-	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(mt6993_pcm_str),
-			    mt6993_pcm_str),
-};
-
-static const struct snd_kcontrol_new mtk_dai_pcm_controls[] = {
-	SOC_ENUM_EXT("Pcm1_status_check", mt6993_i2s_enum[0],
-		     mt6993_pcm1_status_get, mt6993_pcm1_status_set),
-};
-#endif
-
 int mt6993_dai_pcm_register(struct mtk_base_afe *afe)
 {
 	struct mtk_base_afe_dai *dai;
@@ -599,12 +502,6 @@ int mt6993_dai_pcm_register(struct mtk_base_afe *afe)
 	dai->num_dapm_widgets = ARRAY_SIZE(mtk_dai_pcm_widgets);
 	dai->dapm_routes = mtk_dai_pcm_routes;
 	dai->num_dapm_routes = ARRAY_SIZE(mtk_dai_pcm_routes);
-
-#ifdef OPLUS_ARCH_EXTENDS
-//MD call noise workaround
-	dai->controls = mtk_dai_pcm_controls;
-	dai->num_controls = ARRAY_SIZE(mtk_dai_pcm_controls);
-#endif
 	return 0;
 }
 

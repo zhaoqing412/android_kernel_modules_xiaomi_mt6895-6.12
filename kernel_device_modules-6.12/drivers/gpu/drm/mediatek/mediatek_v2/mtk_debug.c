@@ -125,23 +125,6 @@ EXPORT_SYMBOL(g_dbgtp_log);
 bool g_profile_log;
 bool g_qos_log;
 bool g_irq_log;
-bool g_dsi_chksum_start;
-EXPORT_SYMBOL(g_dsi_chksum_start);
-bool g_dsi_chksum_stop;
-EXPORT_SYMBOL(g_dsi_chksum_stop);
-bool g_dsi_self_pat_en;
-EXPORT_SYMBOL(g_dsi_self_pat_en);
-bool g_dsi_self_pat_dis;
-EXPORT_SYMBOL(g_dsi_self_pat_dis);
-bool g_dsc_chksum_start;
-EXPORT_SYMBOL(g_dsc_chksum_start);
-bool g_dsc_chksum_stop;
-EXPORT_SYMBOL(g_dsc_chksum_stop);
-bool g_dsc_mute_enable;
-EXPORT_SYMBOL(g_dsc_mute_enable);
-bool g_dsc_mute_disable;
-EXPORT_SYMBOL(g_dsc_mute_disable);
-
 
 unsigned int mipi_volt;
 unsigned int disp_met_en;
@@ -216,26 +199,12 @@ static struct logger_buffer dprec_logger_buffer[DPREC_LOGGER_PR_NUM] = {
 };
 static atomic_t is_buffer_init = ATOMIC_INIT(0);
 static char *debug_buffer;
-#ifdef OPLUS_FEATURE_DISPLAY
-	static char *oplus_debug_buffer;
-	int oplus_dump_mtkfb_cnt = 0;
-	int new_oplus_logger_cnt[DPREC_LOGGER_PR_NUM] = {0};
-	int last_oplus_logger_cnt[DPREC_LOGGER_PR_NUM] = {0};
-	#if IS_ENABLED(CONFIG_MTK_DISP_LOGGER)
-	bool logger_enable = 1;
-	unsigned int g_trace_log = 1;
-	#else
-	bool logger_enable = 1;
-	unsigned int g_trace_log = 1 ;
-	#endif
+#if IS_ENABLED(CONFIG_MTK_DISP_LOGGER)
+static bool logger_enable = 1;
+unsigned int g_trace_log = 1;
 #else
-	#if IS_ENABLED(CONFIG_MTK_DISP_LOGGER)
-	static bool logger_enable = 1;
-	unsigned int g_trace_log = 1;
-	#else
-	static bool logger_enable;
-	unsigned int g_trace_log;
-	#endif
+static bool logger_enable;
+unsigned int g_trace_log;
 #endif
 
 struct DISP_PANEL_BASE_VOLTAGE base_volageg;
@@ -449,11 +418,7 @@ static char *_logger_pr_type_spy(enum DPREC_LOGGER_PR_TYPE type)
 	}
 }
 
-#ifdef OPLUS_FEATURE_DISPLAY
-void init_log_buffer(void)
-#else
 static void init_log_buffer(void)
-#endif
 {
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	unsigned long va;
@@ -590,9 +555,6 @@ int mtk_dprec_logger_pr(unsigned int type, char *fmt, ...)
 	spin_lock_irqsave(dprec_logger_lock(type), flags);
 	if (dprec_logger_buffer[type].len < 128) {
 		dprec_logger_buffer[type].id++;
-#ifdef OPLUS_FEATURE_DISPLAY
-		new_oplus_logger_cnt[type]++;
-#endif
 		dprec_logger_buffer[type].id = dprec_logger_buffer[type].id %
 					       dprec_logger_buffer[type].cnt;
 		dprec_logger_buffer[type].len = dprec_logger_buffer[type].size;
@@ -1149,88 +1111,7 @@ unsigned int mtk_disp_get_dsi_data_rate(unsigned int info_idx)
 	return 0;
 }
 EXPORT_SYMBOL(mtk_disp_get_dsi_data_rate);
-#ifdef OPLUS_FEATURE_DISPLAY
-static int oplus_dprec_logger_get_buf(enum DPREC_LOGGER_PR_TYPE type, char *stringbuf,
-			     int len)
-{
-	int n = 0;
-	int i;
-	char **buf_arr;
-	int cur_cnt, diff_cnt, buffer_idx;
 
-	if (type < 0) {
-		DDPPR_ERR("%s invalid DPREC_LOGGER_PR_TYPE\n", __func__);
-		return -1;
-	}
-	cur_cnt = new_oplus_logger_cnt[type];
-	diff_cnt = cur_cnt - last_oplus_logger_cnt[type];
-	DDPMSG("%s type = %d, cur_id = %d, diff_cnt = %d, last_oplus_logger_cnt = %d, new_oplus_logger_cnt = %d\n",
-		__func__, type, cur_cnt, diff_cnt, last_oplus_logger_cnt[type], new_oplus_logger_cnt[type]);
-
-	if (type >= DPREC_LOGGER_PR_NUM || len < 0)
-		return 0;
-
-	if (atomic_read(&is_buffer_init) != 1)
-		return 0;
-
-	buf_arr = dprec_logger_buffer[type].buffer_ptr;
-
-	for (i = 0; i <= diff_cnt; i++) {
-		buffer_idx = last_oplus_logger_cnt[type] % dprec_logger_buffer[type].cnt;
-
-		if (len - n <= 0) {
-			break; // buffer full break
-		}
-		n += scnprintf(stringbuf + n, len - n,
-			       "dprec log buffer[%s][%d]\n",
-			       _logger_pr_type_spy(type), buffer_idx);
-		n += scnprintf(stringbuf + n, len - n, "%s\n", buf_arr[buffer_idx]);
-		last_oplus_logger_cnt[type]++;
-	}
-	last_oplus_logger_cnt[type] = cur_cnt;
-
-	return n;
-}
-static int oplus_debug_get_info(unsigned char *stringbuf, int buf_len)
-{
-	int n = 0;
-	struct mtk_drm_private *private;
-
-	if (IS_ERR_OR_NULL(drm_dev)) {
-		DDPPR_ERR("%s:%d, drm_dev is NULL\n",
-			__func__, __LINE__);
-		return -EINVAL;
-	}
-	if (IS_ERR_OR_NULL(drm_dev->dev_private)) {
-		DDPPR_ERR("%s:%d, drm_dev->dev_private is NULL\n",
-			__func__, __LINE__);
-		return -EINVAL;
-	}
-
-	private = drm_dev->dev_private;
-
-	n += scnprintf(stringbuf + n, buf_len - n, "OPLUS dump mtkfb cnt: %d\n", oplus_dump_mtkfb_cnt++);
-
-	n += oplus_dprec_logger_get_buf(DPREC_LOGGER_ERROR, stringbuf + n,
-				      buf_len - n);
-
-	n += oplus_dprec_logger_get_buf(DPREC_LOGGER_FENCE, stringbuf + n,
-				      buf_len - n);
-
-	n += oplus_dprec_logger_get_buf(DPREC_LOGGER_DEBUG, stringbuf + n,
-				      buf_len - n);
-
-	n += oplus_dprec_logger_get_buf(DPREC_LOGGER_DUMP, stringbuf + n,
-				      buf_len - n);
-	if (n < buf_len) {
-		stringbuf[n++] = 0;
-	} else if (buf_len > 0) {
-		// 缓冲区已满，确保最后一个字符为终止符
-		stringbuf[buf_len - 1] = 0;
-	}
-	return n;
-}
-#endif
 /*
  * this function return whether panel need dsc
  */
@@ -2734,7 +2615,7 @@ void mtk_wakeup_pf_wq(unsigned int m_id)
 	unsigned int crtc_idx = 0;
 	struct mtk_drm_private *drm_priv = NULL;
 	ktime_t sof_time = 0;
-	unsigned long long sof_ts = 0;
+	long long sof_ts = 0;
 	struct mtk_ddp_comp *lpc_comp = NULL;
 	bool lpc_en = false;
 
@@ -2777,16 +2658,14 @@ void mtk_wakeup_pf_wq(unsigned int m_id)
 
 	drm_priv = mtk_crtc->base.dev->dev_private;
 
-	if (drm_priv) {
+	if (drm_priv &&
+		mtk_crtc_is_frame_trigger_mode(&mtk_crtc->base)) {
 		pf_idx = readl(mtk_get_gce_backup_slot_va(mtk_crtc,
 			DISP_SLOT_PRESENT_FENCE(crtc_idx)));
 		atomic_set(&drm_priv->crtc_rel_present[crtc_idx], pf_idx);
-		drm_trace_tag_value("update_rel_present_fence", pf_idx);
 
-		if (mtk_crtc_is_frame_trigger_mode(&mtk_crtc->base)) {
-			atomic_set(&mtk_crtc->pf_event, 1);
-			wake_up_interruptible(&mtk_crtc->present_fence_wq);
-		}
+		atomic_set(&mtk_crtc->pf_event, 1);
+		wake_up_interruptible(&mtk_crtc->present_fence_wq);
 	}
 }
 
@@ -3264,8 +3143,6 @@ int mtk_drm_add_cb_data(struct cb_data_store *cb_data, unsigned int crtc_id)
 		}
 	}
 	if (search) {
-		DDPINFO("%s id %d data0x%08lx exist\n",
-			__func__, crtc_id, (unsigned long)cb_data->data.data);
 		spin_unlock_irqrestore(&cb_data_clock_lock, flags);
 		return -1;
 	}
@@ -3290,11 +3167,6 @@ struct cb_data_store *mtk_drm_get_cb_data(unsigned int crtc_id)
 		(!list_empty(&cb_data_list[crtc_id])))
 		tmp_cb_data = list_first_entry(&cb_data_list[crtc_id],
 			struct cb_data_store, link);
-
-	if (tmp_cb_data)
-		DDPINFO("%s id %d data0x%08lx\n",
-			__func__, crtc_id, (unsigned long)tmp_cb_data->data.data);
-
 	spin_unlock_irqrestore(&cb_data_clock_lock, flags);
 	DDPINFO("%s -\n", __func__);
 
@@ -3331,8 +3203,7 @@ void mtk_drm_del_cb_data(struct cmdq_cb_data data, unsigned int crtc_id)
 	}
 	kfree(tmp_cb_data);
 	spin_unlock_irqrestore(&cb_data_clock_lock, flags);
-	DDPINFO("%s id %d data0x%08lx -\n",
-		__func__, crtc_id, (unsigned long)data.data);
+	DDPINFO("%s -\n", __func__);
 }
 
 static hrt_notify_callback hrt_notify_cb;
@@ -3611,60 +3482,6 @@ static void process_dbg_opt(const char *opt)
 
 		if (helper_opt == MTK_DRM_OPT_MML_PQ)
 			mtk_crtc->is_force_mml_scen = !!value;
-	} else if (strncmp(opt, "bld_set:", 8) == 0) {
-		/*echo bld_set:user_crtc_id,bld_id,color_code*/
-		/*We need to input echo bld_set:user_crtc_id,-1 to disable*/
-
-		int ret = 0;
-		int user_crtc_id = -1;
-		int bld_id = -1;
-		unsigned int color_code = 0;
-		int crtc_idx = -1;
-		struct mtk_drm_crtc *temp_mtk_crtc = NULL;
-
-		ret = sscanf(opt + 8, "%d,%d,0x%x\n",
-			&user_crtc_id, &bld_id,
-			&color_code);
-
-		if (ret <= 0) {
-			DDPMSG("%d error to parse bld_set cmd %s\n", __LINE__, opt);
-			return;
-		}
-
-		DDPMSG("%s bld_set: sysid[%d] bld_id[%d] color[%08x]\n", __func__,
-			user_crtc_id, bld_id, color_code);
-
-
-		drm_for_each_crtc(crtc, drm_dev) {
-			if (IS_ERR_OR_NULL(crtc)) {
-				DDPPR_ERR("[pq_dump] find crtc fail\n");
-				continue;
-			}
-
-			crtc_idx = drm_crtc_index(crtc);
-
-			if (user_crtc_id == crtc_idx) {
-				temp_mtk_crtc = to_mtk_crtc(crtc);
-				break;
-			} else if (user_crtc_id < 0) {
-				temp_mtk_crtc = to_mtk_crtc(crtc);
-				temp_mtk_crtc->bg_bld_id = -1;
-			}
-		}
-
-		if (!temp_mtk_crtc) {
-			DDPMSG("%d bld_set cmd crtc is null\n", __LINE__);
-			return;
-		}
-
-		if (bld_id < 0) {
-			temp_mtk_crtc->bg_bld_id = -1;
-			return;
-		}
-
-		temp_mtk_crtc->bg_bld_id = bld_id;
-		temp_mtk_crtc->bg_code = color_code;
-
 	} else if (strncmp(opt, "mobile:", 7) == 0) {
 		if (strncmp(opt + 7, "on", 2) == 0)
 			g_mobile_log = 1;
@@ -3881,16 +3698,6 @@ static void process_dbg_opt(const char *opt)
 		mtk_drm_set_idle_check_interval(crtc, idle_check_interval);
 		DDPMSG("change idle interval to %llu ms\n",
 		       idle_check_interval);
-	} else if (strncmp(opt, "pm_async:", 9) == 0) {
-		int ret, value;
-
-		ret = sscanf(opt + 9, "%d\n", &value);
-		if (ret <= 0) {
-			DDPMSG("%d error to parse cmd %s\n", __LINE__, opt);
-			return;
-		}
-
-		mtk_drm_pm_ctrl_async_debug(value);
 #if IS_ENABLED(CONFIG_MTK_DISP_DEBUG)
 	} else if (strncmp(opt, "idle_perf:", 10) == 0) {
 		/* on     -- enable idle performance monitor
@@ -6216,84 +6023,6 @@ test_2c_done:
 
 		DDPMSG("lpc_te_en:%d", value);
 		mtk_dsi_lpc_set_te_en(mtk_crtc, value);
-	} else if (strncmp(opt, "dsi_chksum_start", 16) == 0) {
-		struct drm_crtc *crtc;
-
-		crtc = list_first_entry(&(drm_dev)->mode_config.crtc_list,
-					typeof(*crtc), head);
-
-		if (IS_ERR_OR_NULL(crtc)) {
-			DDPMSG("find crtc fail\n");
-			return;
-		}
-		g_dsi_chksum_start = true;
-		g_dsi_chksum_stop = false;
-	} else if (strncmp(opt, "dsi_chksum_stop", 15) == 0) {
-		struct drm_crtc *crtc;
-
-		crtc = list_first_entry(&(drm_dev)->mode_config.crtc_list,
-					typeof(*crtc), head);
-
-		if (IS_ERR_OR_NULL(crtc)) {
-			DDPMSG("find crtc fail\n");
-			return;
-		}
-		g_dsi_chksum_start = false;
-		g_dsi_chksum_stop = true;
-	} else if (strncmp(opt, "dsc_chksum_start", 16) == 0) {
-		struct drm_crtc *crtc;
-
-		crtc = list_first_entry(&(drm_dev)->mode_config.crtc_list,
-					typeof(*crtc), head);
-
-		if (IS_ERR_OR_NULL(crtc)) {
-			DDPMSG("find crtc fail\n");
-			return;
-		}
-		g_dsc_chksum_start = true;
-		g_dsc_chksum_stop = false;
-	} else if (strncmp(opt, "dsc_chksum_stop", 15) == 0) {
-		struct drm_crtc *crtc;
-
-		crtc = list_first_entry(&(drm_dev)->mode_config.crtc_list,
-					typeof(*crtc), head);
-
-		if (IS_ERR_OR_NULL(crtc)) {
-			DDPMSG("find crtc fail\n");
-			return;
-		}
-		g_dsc_chksum_start = false;
-		g_dsc_chksum_stop = true;
-	} else if (strncmp(opt, "dsc_mute_enable", 15) == 0) {
-		struct drm_crtc *crtc;
-
-		crtc = list_first_entry(&(drm_dev)->mode_config.crtc_list,
-					typeof(*crtc), head);
-
-		if (IS_ERR_OR_NULL(crtc)) {
-			DDPMSG("find crtc fail\n");
-			return;
-		}
-		g_dsc_mute_enable = true;
-		g_dsc_mute_disable = false;
-	} else if (strncmp(opt, "dsc_mute_disable", 16) == 0) {
-		struct drm_crtc *crtc;
-
-		crtc = list_first_entry(&(drm_dev)->mode_config.crtc_list,
-					typeof(*crtc), head);
-
-		if (IS_ERR_OR_NULL(crtc)) {
-			DDPMSG("find crtc fail\n");
-			return;
-		}
-		g_dsc_mute_enable = false;
-		g_dsc_mute_disable = true;
-	} else if (strncmp(opt, "dsi_self_pat_en", 15) == 0) {
-		g_dsi_self_pat_en = true;
-		g_dsi_self_pat_dis = false;
-	} else if (strncmp(opt, "dsi_self_pat_dis", 16) == 0) {
-		g_dsi_self_pat_en = false;
-		g_dsi_self_pat_dis = true;
 	}
 }
 
@@ -6313,39 +6042,6 @@ static int debug_open(struct inode *inode, struct file *file)
 
 	return 0;
 }
-
-#ifdef OPLUS_FEATURE_DISPLAY
-ssize_t oplus_debug_read(struct file *file, char __user *ubuf, size_t count,
-			  loff_t *ppos)
-{
-	int debug_bufmax;
-	static int n;
-
-	if (*ppos != 0 || atomic_read(&is_buffer_init) != 1)
-		goto out;
-
-	if (!oplus_debug_buffer) {
-		oplus_debug_buffer = vmalloc(sizeof(char) * DEBUG_BUFFER_SIZE);
-		if (!oplus_debug_buffer)
-			return -ENOMEM;
-
-		memset(oplus_debug_buffer, 0, sizeof(char) * DEBUG_BUFFER_SIZE);
-	}
-
-	debug_bufmax = DEBUG_BUFFER_SIZE - 1;
-	n = oplus_debug_get_info(oplus_debug_buffer, debug_bufmax);
-	if (n > debug_bufmax) {
-		n = debug_bufmax;
-	}
-out:
-	if (n < 0)
-		return -EINVAL;
-
-	return simple_read_from_buffer(ubuf, count, ppos, oplus_debug_buffer, n);
-}
-EXPORT_SYMBOL(oplus_debug_read);
-#endif
-
 static ssize_t debug_read(struct file *file, char __user *ubuf, size_t count,
 			  loff_t *ppos)
 {
@@ -6940,55 +6636,6 @@ static int hrt_lp_proc_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-#ifdef OPLUS_FEATURE_DISPLAY
-void pq_dump_all(unsigned int dump_flag)
-{
-	struct drm_crtc *crtc;
-	struct mtk_drm_crtc *mtk_crtc;
-
-	DDPMSG("pq dump idle off flag:0x%x\n", dump_flag);
-	/* this debug cmd only for crtc0 */
-
-	DDPMSG("pq set diagnose dump flag:0x%x\n", dump_flag);
-	drm_for_each_crtc(crtc, drm_dev) {
-		if (IS_ERR_OR_NULL(crtc)) {
-			DDPPR_ERR("find crtc fail\n");
-			continue;
-		}
-
-		if (drm_crtc_index(crtc) != 0) {
-			DDPPR_ERR("find crtc fail\n");
-			continue;
-		}
-
-		mtk_crtc = to_mtk_crtc(crtc);
-		if (!mtk_crtc->enabled
-			|| mtk_crtc->ddp_mode == DDP_NO_USE)
-			continue;
-
-		mtk_drm_set_idlemgr(crtc, 0, 1);
-		if (mtk_crtc) {
-			DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
-		}
-
-		if (mtk_crtc->enabled && mtk_crtc->ddp_mode != DDP_NO_USE ) {
-			mtk_drm_crtc_analysis(crtc);
-			mtk_drm_crtc_dump(crtc);
-			process_dbg_opt("pq_dump:0,0xff");
-		} else {
-			DDPMSG("drm_crtc_index(crtc):%d,crtc->enabled:%d,mtk_crtc->ddp_mode:%d",drm_crtc_index(crtc),crtc->enabled,mtk_crtc->ddp_mode);
-		}
-		if (mtk_crtc) {
-			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
-		}
-
-		DDPMSG("CRTC%d: pq set diagnose dump flag:0x%x\n", drm_crtc_index(crtc),  dump_flag);
-		mtk_drm_set_idlemgr(crtc, 1, 1);
-	}
-}
-EXPORT_SYMBOL(pq_dump_all);
-#endif
-
 static ssize_t hrt_lp_proc_set(struct file *file, const char __user *ubuf,
 			   size_t count, loff_t *ppos)
 {
@@ -7215,11 +6862,6 @@ void disp_dbg_deinit(void)
 	if (debug_buffer)
 		vfree(debug_buffer);
 	mutex_destroy(&mbrain_lock);
-
-#ifdef OPLUS_FEATURE_DISPLAY
-	if (oplus_debug_buffer)
-		vfree(oplus_debug_buffer);
-#endif
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	debugfs_remove(mtkfb_dbgfs);
 #endif
@@ -7254,13 +6896,6 @@ void get_disp_dbg_buffer(unsigned long *addr, unsigned long *size,
 		*start = 0;
 	}
 }
-
-#ifdef OPLUS_FEATURE_DISPLAY
-struct drm_device *get_drm_device(void){
-		return drm_dev;
-}
-EXPORT_SYMBOL(get_drm_device);
-#endif
 
 void mtk_ovl_set_aod_scp_hrt(void)
 {

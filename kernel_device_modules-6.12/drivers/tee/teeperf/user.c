@@ -11,49 +11,14 @@
 
 #include "user.h"
 
-static const int super_group_431[] = {7};
-static const int big_group_431[] = {4, 5, 6};
-static const int little_group_431[] = {0, 1, 2, 3};
-static const int big_group_62[] = {6, 7};
-static const int little_group_62[] = {0, 1, 2, 3, 4, 5};
-static const int big_group_44[] = {4, 5, 6, 7};
-static const int little_group_44[] = {0, 1, 2, 3};
-
-
-static const int all_group[] = {0, 1, 2, 3, 4, 5, 6, 7};
-
-struct cpu_group_map {
-	const int *cpu;
-	int count;
-};
-
-static const struct cpu_group_map cpu_group_maps[CPU_MAP_MAX][CPU_GROUP_MAX] = {
-	[CPU_4_3_1_MAP] = {
-		[CPU_SUPER_GROUP] = {super_group_431, ARRAY_SIZE(super_group_431)},
-		[CPU_BIG_GROUP] = {big_group_431, ARRAY_SIZE(big_group_431)},
-		[CPU_LITTLE_GROUP] = {little_group_431, ARRAY_SIZE(little_group_431)},
-	},
-	[CPU_6_2_MAP] = {
-		[CPU_SUPER_GROUP] = {all_group, 1},
-		[CPU_BIG_GROUP] = {big_group_62, ARRAY_SIZE(big_group_62)},
-		[CPU_LITTLE_GROUP] = {little_group_62, ARRAY_SIZE(little_group_62)},
-	},
-	[CPU_4_4_MAP] = {
-		[CPU_SUPER_GROUP] = {all_group, 1},
-		[CPU_BIG_GROUP] = {big_group_44, ARRAY_SIZE(big_group_44)},
-		[CPU_LITTLE_GROUP] = {little_group_44, ARRAY_SIZE(little_group_44)},
-	},
-};
-
-static struct freq_qos_request teeperf_min_freq_req[NR_CPUS];
-
-static void teeperf_set_cpu_to_high_freq(int target_cpu, u32 high_freq, u32 freq_index_level)
+static void teeperf_set_cpu_to_high_freq(int target_cpu, u32 high_freq,
+	unsigned int freq_level_index)
 {
 	struct cpufreq_policy *policy;
-	int index = -1, min_index = -1;
+	unsigned int index, max_index, min_index;
 
-	if (target_cpu >= num_possible_cpus()) {
-		pr_info(PFX "invalid target CPU %d\n", target_cpu);
+	if (target_cpu >= 8) {
+		pr_info(PFX "invalid target cpu (%d)\n", target_cpu);
 		return;
 	}
 
@@ -64,69 +29,80 @@ static void teeperf_set_cpu_to_high_freq(int target_cpu, u32 high_freq, u32 freq
 	}
 
 	down_write(&policy->rwsem);
+	max_index = 0;
 	min_index = cpufreq_table_find_index_dl(policy, 0, false);
 	if (high_freq) {
-		if (freq_index_level > min_index)
+		/* set min_freq to selected freq */
+		index = max_index + freq_level_index;
+		if (index > min_index)
 			index = min_index;
-		else
-			index = freq_index_level;
-	} else
-		index = min_index;
-	up_write(&policy->rwsem);
-
-	if (high_freq) {
-		if (!freq_qos_request_active(&teeperf_min_freq_req[target_cpu]))
-			freq_qos_add_request(&policy->constraints,
-				&teeperf_min_freq_req[target_cpu], FREQ_QOS_MIN,
-				policy->freq_table[index].frequency);
-
-		freq_qos_update_request(&teeperf_min_freq_req[target_cpu],
-					policy->freq_table[index].frequency);
-		pr_debug(PFX "CPU%d set min_freq=%u (index=%d)\n", target_cpu,
-			 policy->freq_table[index].frequency, index);
 	} else {
-		if (freq_qos_request_active(&teeperf_min_freq_req[target_cpu]))
-			freq_qos_remove_request(&teeperf_min_freq_req[target_cpu]);
+		/* set min_freq to min freq */
+		index = min_index;
 	}
+	policy->cpuinfo.min_freq = policy->freq_table[index].frequency;
+	up_write(&policy->rwsem);
 	cpufreq_cpu_put(policy);
+	cpufreq_update_limits(target_cpu);
 }
 
-static void teeperf_set_cpu_group_to_high_freq(enum teeperf_cpu_group group, u32 high_freq)
+static void teeperf_set_cpu_group_to_high_freq(enum teeperf_cpu_group group,
+	u32 high_freq)
 {
-	unsigned int freq_index_level = 19;
-	int i;
-	int group_idx;
-	const struct cpu_group_map *group_map;
-	if (cpu_index >= 0)
-		freq_index_level = cpu_index;
-	switch(group) {
-	case CPU_SUPER_GROUP:
-		group_idx = 0;
-		break;
-	case CPU_BIG_GROUP:
-		group_idx = 1;
-		break;
-	case CPU_LITTLE_GROUP:
-		group_idx = 2;
-		break;
-	default:
-		group_idx = -1;
-		break;
-	}
-	if(group_idx < 0) {
-		for (i = 0; i < num_possible_cpus(); i++)
-			teeperf_set_cpu_to_high_freq(i, high_freq, 0);
-		return;
- 	}
+	enum teeperf_cpu_map map = cpu_map;
+	unsigned int freq_level_index = 0;
+	int cpu;
 
-	group_map = &cpu_group_maps[cpu_map][group_idx];
-	pr_debug(PFX"type=%d %d\n", cpu_map, group_idx);
-	for (i = 0; i < group_map->count; i++)
-		teeperf_set_cpu_to_high_freq(group_map->cpu[i], high_freq, freq_index_level);
+	if (group == CPU_SUPER_GROUP) {
+		freq_level_index = SUPER_CPU_FREQ_LEVEL_INDEX;
+		if (map == CPU_4_3_1_MAP) {
+			teeperf_set_cpu_to_high_freq(7, high_freq, freq_level_index);
+		} else {
+			for (cpu = 0; cpu < 8; cpu++)
+				teeperf_set_cpu_to_high_freq(cpu, high_freq, 0);
+		}
+	} else if (group == CPU_BIG_GROUP) {
+		freq_level_index = BIG_CPU_FREQ_LEVEL_INDEX;
+		if (map == CPU_4_3_1_MAP) {
+			teeperf_set_cpu_to_high_freq(4, high_freq, freq_level_index);
+			teeperf_set_cpu_to_high_freq(5, high_freq, freq_level_index);
+			teeperf_set_cpu_to_high_freq(6, high_freq, freq_level_index);
+		} else if (map == CPU_6_2_MAP) {
+			teeperf_set_cpu_to_high_freq(6, high_freq, freq_level_index);
+			teeperf_set_cpu_to_high_freq(7, high_freq, freq_level_index);
+		} else {
+			for (cpu = 0; cpu < 8; cpu++)
+				teeperf_set_cpu_to_high_freq(cpu, high_freq, 0);
+		}
+	} else if (group == CPU_LITTLE_GROUP) {
+		freq_level_index = LITTLE_CPU_FREQ_LEVEL_INDEX;
+		if (map == CPU_4_3_1_MAP) {
+			teeperf_set_cpu_to_high_freq(0, high_freq, freq_level_index);
+			teeperf_set_cpu_to_high_freq(1, high_freq, freq_level_index);
+			teeperf_set_cpu_to_high_freq(2, high_freq, freq_level_index);
+			teeperf_set_cpu_to_high_freq(3, high_freq, freq_level_index);
+		} else if (map == CPU_6_2_MAP) {
+			teeperf_set_cpu_to_high_freq(0, high_freq, freq_level_index);
+			teeperf_set_cpu_to_high_freq(1, high_freq, freq_level_index);
+			teeperf_set_cpu_to_high_freq(2, high_freq, freq_level_index);
+			teeperf_set_cpu_to_high_freq(3, high_freq, freq_level_index);
+			teeperf_set_cpu_to_high_freq(4, high_freq, freq_level_index);
+			teeperf_set_cpu_to_high_freq(5, high_freq, freq_level_index);
+		} else {
+			for (cpu = 0; cpu < 8; cpu++)
+				teeperf_set_cpu_to_high_freq(cpu, high_freq, 0);
+		}
+	} else {
+		for (cpu = 0; cpu < 8; cpu++)
+			teeperf_set_cpu_to_high_freq(cpu, high_freq, 0);
+	}
 }
 
 static void teeperf_high_freq(enum teeperf_cpu_type type, u32 high_freq)
 {
+	teeperf_set_cpu_to_high_freq(TEE_CPU, high_freq, BIG_CPU_FREQ_LEVEL_INDEX);
+	teeperf_set_cpu_group_to_high_freq(CPU_LITTLE_GROUP, high_freq);
+
 	if (type == CPU_V9_TYPE)
 		teeperf_set_cpu_group_to_high_freq(CPU_BIG_GROUP, high_freq);
 	else if (type == CPU_V8_TYPE)

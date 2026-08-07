@@ -13,7 +13,6 @@
 #include <linux/seq_file.h>
 #include <linux/energy_model.h>
 #include <linux/jump_label.h>
-#include <linux/sched_assist.h>
 #include <trace/events/sched.h>
 #include <trace/events/task.h>
 #include <trace/hooks/sched.h>
@@ -29,9 +28,6 @@
 #include "util/cpu_util.h"
 #include "sugov/cpufreq.h"
 #include "eas_adpf.h"
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-#include <linux/sa_common.h>
-#endif
 #if IS_ENABLED(CONFIG_MTK_GEARLESS_SUPPORT)
 #include "mtk_energy_model/v3/energy_model.h"
 #else
@@ -207,21 +203,6 @@ static void sched_queue_task_hook(void *data, struct rq *rq, struct task_struct 
 	int cpu = rq->cpu;
 	int type = *(int *)data;
 	struct sugov_rq_data *sugov_data_ptr;
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-		/*move the hook from end of the function to begin of the function
-		during the mtk scheduler.ko init,here exist a cfs(ux) task,
-		android_rvh_enqueue_task_handler is before the get_eas_hook()==false:
-		1.cfs enqueue
-		2.ux enqueue
-		3.cfs dequeue(no ux dequeue)
-		4.pick_next->replace_next->task running
-		5.cfs dequeue(no ux dequeue)
-		nr_running-- but task is still on rq without enqueue
-		 */
-	if (type == dequeue)
-		android_rvh_dequeue_task_handler(data, rq, p, flags);
-#endif
 
 	if (!get_eas_hook())
 		return;
@@ -434,7 +415,6 @@ static void mtk_sched_trace_init(void)
 	ret = register_trace_android_rvh_dequeue_task(sched_queue_task_hook, &dequeue);
 	if (ret)
 		pr_info("register android_rvh_dequeue_task failed!\n");
-	enable_sched_assist(OPLUS_UX_HOOK_DEQUEUE);
 
 	ret = register_trace_android_rvh_enqueue_task_fair(hook_enqueue_task_fair, NULL);
 	if (ret)
@@ -1378,8 +1358,6 @@ static int __init mtk_scheduler_init(void)
 	if (ret)
 		pr_info("register android_rvh_after_enqueue_task failed, returned %d\n", ret);
 
-	enable_sched_assist(OPLUS_UX_HOOK_ENQUEUE);
-
 	ret = register_trace_android_rvh_after_dequeue_task(mtk_hook_after_dequeue_task, NULL);
 	if (ret)
 		pr_info("register android_rvh_after_dequeue_task failed, returned %d\n", ret);
@@ -1451,11 +1429,6 @@ static int __init mtk_scheduler_init(void)
 	ret = register_trace_android_rvh_remove_entity_load_avg(mtk_remove_entity_load_avg, NULL);
 	if (ret)
 		pr_info("register mtk_remove_entity_load_avg hooks failed, returned %d\n", ret);
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-	dsu_power_optimization_init();
-#endif
-
 out_wq:
 	return ret;
 

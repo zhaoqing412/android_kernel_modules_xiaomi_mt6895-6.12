@@ -58,9 +58,6 @@ define_mgk_ddk_ko(
         "-I$(DEVICE_MODULES_PATH)/drivers/clk/mediatek/",
         "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/",
     ],
-    local_defines = [
-        "CONFIG_OPLUS_FEATURE_MM_FEEDBACK",
-    ],
     ko_deps = [
         "//kernel_device_modules-{}/drivers/clk/mediatek:clk-common".format(kernel_version),
         "//kernel_device_modules-{}/drivers/memory/mediatek:emi".format(kernel_version),
@@ -72,6 +69,5 @@ define_mgk_ddk_ko(
         "//kernel_device_modules-{}/drivers/misc/mediatek/slbc:mtk_slbc".format(kernel_version),
         "//kernel_device_modules-{}/drivers/soc/mediatek:mtk-mbox".format(kernel_version),
         "//kernel_device_modules-{}/drivers/soc/mediatek/devapc:device-apc-common".format(kernel_version),
-        "//kernel_device_modules-{}/sound/soc/codecs/multimedia/feedback/bazel:oplus_mm_kevent_fb".format(kernel_version),
     ],
 )

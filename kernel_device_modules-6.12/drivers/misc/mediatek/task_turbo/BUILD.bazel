@@ -28,25 +28,17 @@ filegroup(
 define_mgk_ddk_ko(
     name = "task_turbo",
     srcs = [
-        "task_turbo_common.c",
-        "task_turbo_ext.c",
+        "task_turbo.c",
         "task_turbo.h",
         "trace_task_turbo.h",
     ],
     includes = ["."],
     copts = [
         "-I$(srctree)",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/sda/",
-    ],
-    header_deps = [
-        "//kernel_device_modules-{}/drivers/misc/mediatek/sda:headers".format(kernel_version),
     ],
     ko_deps = [
         "//kernel_device_modules-{}/drivers/misc/mediatek/sched:cpufreq_sugov_ext".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/sched:scheduler".format(kernel_version),
-        # ifdef CONFIG_OPLUS_LOCKING_STRATEGY
-        "//vendor/oplus/kernel/cpu:oplus_bsp_sched_assist",
-        # endif
     ],
     out = "task_turbo.ko",
 )
@@ -76,10 +68,6 @@ define_mgk_ddk_ko(
         "//kernel_device_modules-{}/drivers/misc/mediatek/task_turbo:task_turbo".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/performance/fpsgo_v8:mtk_fpsgo_v8".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/performance/sbe:mtk_sbe".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/sched:mtk_core_ctl".format(kernel_version),
-        # ifdef CONFIG_OPLUS_LOCKING_STRATEGY
-        "//vendor/oplus/kernel/cpu:oplus_bsp_sched_assist",
-        # endif
     ],
     out = "vip_engine.ko",
 )

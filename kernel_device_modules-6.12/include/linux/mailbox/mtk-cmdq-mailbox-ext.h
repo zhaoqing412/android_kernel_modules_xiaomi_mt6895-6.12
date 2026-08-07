@@ -62,11 +62,6 @@ void cmdq_controller_set_fp(struct cmdq_util_controller_fp *cust_cmdq_util);
 #define CMDQ_OPCODE_MATCH_FAIL		(0xFFFFFFFE)
 #define CMDQ_CONFIG_NODE_NAME		"cmdq-config"
 
-// #ifdef OPLUS_FEATURE_CAMERA_COMMON
-#define CMDQ_FLUSH_RETRY_MAX		5
-// #endif /* OPLUS_FEATURE_CAMERA_COMMON */
-
-
 enum CMDQ_PKT_ID_ARR_IDX {
 	CMDQ_PKT_ID_CNT,
 	CMDQ_PKT_BUFFER_CNT,
@@ -266,9 +261,6 @@ struct cmdq_pkt {
 	u16			cookie;
 	u16			cookie_diff;
 	cmdq_skip_timeout_cb skip_timeout_cb;
-// #ifdef OPLUS_FEATURE_CAMERA_COMMON
-	u8			retry_cnt;
-// #endif /* OPLUS_FEATURE_CAMERA_COMMON */
 };
 
 struct cmdq_thread {
@@ -487,7 +479,6 @@ void cmdq_dump_usage(void);
 bool cmdq_get_support_vm(u8 hwid);
 bool cmdq_get_hw_trace_vm(u8 hwid);
 void cmdq_check_thread_complete(struct mbox_chan *chan);
-void cmdq_mbox_thread_check_empty(struct mbox_chan *chan);
 u8 cmdq_get_irq_long_times(void *chan);
 #if IS_ENABLED(CONFIG_MTK_CMDQ_DEBUG)
 u32 cmdq_get_tf_high_addr(void *chan);

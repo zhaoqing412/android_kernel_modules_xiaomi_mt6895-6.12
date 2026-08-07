@@ -25,9 +25,6 @@
 #include "mtk-mml-sys.h"
 #include "mtk-mml-mmp.h"
 #include "mtk-mml-pq-core.h"
-#ifdef OPLUS_TRACKPOINT_REPORT
-#include "oplus_display_trackpoint_report.h"
-#endif /* OPLUS_TRACKPOINT_REPORT */
 
 #define MML_MAX_DUR	3300000
 #define MML_MAX_W	4096
@@ -327,6 +324,7 @@ enum mml_mode mml_drm_query_frame(struct mml_drm_ctx *dctx, struct mml_frame_inf
 			mml_err("Unknown mode");
 		}
 		mml_msg("[drm]query mode caps 0x%x", info_cache->mode_caps);
+		goto support;
 	} else if (tp->op->query_mode2) {
 		mode = tp->op->query_mode2(dctx->ctx.mml, info, &reason,
 			dctx->panel_width, dctx->panel_height, info_cache);
@@ -345,35 +343,24 @@ enum mml_mode mml_drm_query_frame(struct mml_drm_ctx *dctx, struct mml_frame_inf
 		 */
 		mml_msg("[drm]%s mode %u to mdp dc or mml dc2 couple %d",
 			__func__, mode, mml_dev_get_couple_cnt(dctx->ctx.mml));
-		if (tp->op->support_dc2) {
-			if (tp->op->support_dc2(info)) {
-				info_cache->mode_caps = BIT(MML_MODE_MML_DECOUPLE2);
-				mode = MML_MODE_MML_DECOUPLE2;
-			} else {
-				info_cache->mode_caps = 0;
-				mode = MML_MODE_NOT_SUPPORT;
-			}
-		} else {
-			info_cache->mode_caps = BIT(MML_MODE_MML_DECOUPLE);
+		if (tp->op->support_dc2 && tp->op->support_dc2())
+			mode = MML_MODE_MML_DECOUPLE2;
+		else
 			mode = MML_MODE_MDP_DECOUPLE;
-		}
 	}
 
 	if (mode == MML_MODE_MML_DECOUPLE && !(mml_dc & 0x1)) {
-		mode = tp->op->support_dc2 ?
+		mode = tp->op->support_dc2() ?
 			MML_MODE_MML_DECOUPLE2 : MML_MODE_MDP_DECOUPLE;
-		info_cache->mode_caps = BIT(mode);
 		reason = mml_query_dc_off;
 	}
 
 	if (mode == MML_MODE_MML_DECOUPLE2 && !(mml_dc & 0x2)) {
-		info_cache->mode_caps = 0;
 		mode = MML_MODE_NOT_SUPPORT;
 		reason = mml_query_dc_off;
 	}
 
-	mml_trace_begin("%s_%u_%d", __func__, mode, reason);
-	mml_trace_end();
+support:
 	mml_mmp2(query_mode, MMPROFILE_FLAG_PULSE, info->mode, mode, 0, reason);
 	mml_msg("[drm]query mode %u result mode %u reason %d", info->mode, mode, (s32)reason);
 	return mode;
@@ -437,14 +424,12 @@ int mml_drm_query_multi_layer(struct mml_drm_ctx *dctx,
 				infos[i].mode = MML_MODE_NOT_SUPPORT;
 				continue;
 			}
-			info_cache[mml_layer_cnt].remain = remain[mml_sys_frame];
+
 			mode = mml_drm_query_frame(dctx, &infos[i], &info_cache[mml_layer_cnt]);
-			if (mode == MML_MODE_NOT_SUPPORT ||
-				remain[mml_sys_frame] < info_cache[mml_layer_cnt].duration) {
+			if (remain[mml_sys_frame] < info_cache[mml_layer_cnt].duration) {
 				infos[i].mode = MML_MODE_NOT_SUPPORT;
-				info_cache[mml_layer_cnt].mode_caps = 0;
-				mml_msg("[drm][query][r1]layer %u mml %u not support remain %u need %u",
-					i, mml_layer_cnt, remain[mml_sys_frame],
+				mml_msg("[drm][query][r1]layer %u not support remain %u need %u",
+					i, remain[mml_sys_frame],
 					info_cache[mml_layer_cnt].duration);
 				continue;
 			}
@@ -549,7 +534,7 @@ int mml_drm_query_multi_layer(struct mml_drm_ctx *dctx,
 			}
 
 			if (mode == MML_MODE_MML_DECOUPLE && !(mml_dc & 0x1)) {
-				mode = tp->op->support_dc2 ?
+				mode = tp->op->support_dc2() ?
 					MML_MODE_MML_DECOUPLE2 : MML_MODE_MDP_DECOUPLE;
 				reason = mml_query_dc_off;
 			}
@@ -1335,7 +1320,8 @@ static struct mml_drm_ctx *drm_ctx_create(struct mml_dev *mml,
 					  struct mml_drm_param *disp)
 {
 	static const char * const threads[] = {
-		NULL, NULL, "mml_destroy", NULL, NULL,
+		"mml_drm_done", "mml_taskdone", "mml_destroy",
+		NULL, "mml_work1",
 	};
 	struct mml_drm_ctx *dctx;
 	int ret;
@@ -1346,10 +1332,7 @@ static struct mml_drm_ctx *drm_ctx_create(struct mml_dev *mml,
 	if (!dctx)
 		return ERR_PTR(-ENOMEM);
 
-	dctx->ctx.kt_hwdone = mml_dev_get_kt_worker(mml, mml_kt_hwdone);
-	dctx->ctx.kt_taskdone = mml_dev_get_kt_worker(mml, mml_kt_taskdone);
-	dctx->ctx.kt_config[0] = mml_dev_get_kt_worker(mml, mml_kt_config0);
-	dctx->ctx.kt_config[1] = mml_dev_get_kt_worker(mml, mml_kt_config1);
+	dctx->ctx.kt_config[0] = mml_dev_get_config_worker(mml);
 
 	ret = mml_ctx_init(&dctx->ctx, mml, threads);
 	if (ret) {
@@ -1419,9 +1402,6 @@ bool mml_drm_ctx_idle(struct mml_drm_ctx *dctx)
 
 	if (!idle) {
 		if (!wait_for_completion_timeout(&dctx->idle, nsecs_to_jiffies(1000000000))) {
-			#ifdef OPLUS_TRACKPOINT_REPORT
-			display_exception_trackpoint_report("DisplayDriverID@@512$$ mml idle timeout");
-			#endif
 			mml_err("[drm]wait idle timed out");
 			return false;
 		}
@@ -1438,12 +1418,7 @@ static void drm_ctx_release(struct mml_drm_ctx *dctx)
 
 	mml_msg("[drm]%s on ctx %p", __func__, ctx);
 
-	/* clear kthread from mml driver to avoid deinit */
-	ctx->kt_hwdone = NULL;
-	ctx->kt_taskdone = NULL;
-	ctx->kt_config[0] = NULL;
-	ctx->kt_config[1] = NULL;
-
+	ctx->kt_config[0] = NULL;	/* clear kthread from mml driver */
 	mml_ctx_deinit(ctx);
 	for (i = 0; i < ARRAY_SIZE(ctx->tile_cache); i++)
 		if (ctx->tile_cache[i].tiles)

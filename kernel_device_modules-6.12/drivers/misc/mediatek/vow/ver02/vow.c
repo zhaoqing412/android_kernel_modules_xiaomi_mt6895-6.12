@@ -63,10 +63,6 @@
 static unsigned short pmic_6366_version = VOW_PMIC_6366_NONE;
 #endif
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VOW_MONITOR)
-#include "../../../../soc/oplus/oplus_vow_monitor/oplus_vow_scp_monitor.h"
-#endif /* CONFIG_OPLUS_FEATURE_VOW_MONITOR */
-
 /*****************************************************************************
  * Variable Definition
  ****************************************************************************/
@@ -114,12 +110,6 @@ static DEFINE_MUTEX(vow_payloaddump_mutex);
 static DEFINE_MUTEX(vow_vmalloc_lock);
 static DEFINE_MUTEX(vow_extradata_mutex);
 static DEFINE_MUTEX(vow_sendspkmdl_mutex);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD)
-/* ++ for oplus vow custom payload feature(data from scp) ++ */
-static void oplus_vow_service_ReadPayload(void);
-static DEFINE_MUTEX(oplus_vow_payload_mutex);
-/* -- for oplus vow custom payload feature(data from scp) -- */
-#endif /* CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD */
 
 /*****************************************************************************
  * VOW SERVICES
@@ -198,18 +188,6 @@ static struct
 	unsigned int         chre_status;
 	unsigned int         seamless_record_channel;
 } vowserv;
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD)
-static struct
-{
-	/* ++ for oplus vow custom payload feature(data from scp) ++ */
-	bool                 payload_enable;
-	unsigned long        payload_user_addr;
-	unsigned long        payload_user_size;
-	char                *payload_kernel_ptr;
-	/* -- for oplus vow custom payload feature(data from scp) -- */
-} oplusvowserv;
-#endif /* CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD */
 
 struct vow_dump_info_t {
 //	dma_addr_t    phy_addr;           // address of reserved buffer
@@ -491,36 +469,6 @@ static void vow_ipi_rx_handle_data_msg(void *msg_data)
 	}
 }
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VOW_MONITOR)
-static void oplus_vow_scp_fd(void *msg_data)
-{
-	if (!msg_data) {
-		VOWDRV_DEBUG("%s(), [oplus vow monitor] msg_data is NULL, feedback ignore\n", __func__);
-		return;
-	}
-
-	oplus_vow_scp_monitor_ipi_info_t *ipi = (oplus_vow_scp_monitor_ipi_info_t *)msg_data;
-	VOWDRV_DEBUG("%s(), [oplus vow monitor] feedback event id = %d\n", __func__, ipi->event_id);
-
-	switch (ipi->event_id) {
-	case OPLUS_VOW_SCP_EVENTID_VOW_STATE_ERR:
-		oplus_vow_scp_err_fd(ipi->event_id, "VowStateErr");
-		break;
-	case OPLUS_VOW_SCP_EVENTID_RECOG_INPUT_DATA_ERR:
-		oplus_vow_scp_err_fd(ipi->event_id, "RecogInputDataErr");
-		break;
-	case OPLUS_VOW_SCP_EVENTID_CIC_DETECT_ERR:
-		oplus_vow_scp_err_fd(ipi->event_id, "CicDetectErr");
-		break;
-	case OPLUS_VOW_SCP_EVENTID_TEST_ERR:
-		oplus_vow_scp_err_fd(ipi->event_id, "TestErr");
-		break;
-	default:
-		break;
-	}
-}
-#endif
-
 void vow_ipi_rx_internal(unsigned int msg_id,
 			 void *msg_data)
 {
@@ -595,49 +543,6 @@ void vow_ipi_rx_internal(unsigned int msg_id,
 		}
 		break;
 	}
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VOW_MONITOR)
-	case IPIMSG_OPLUS_VOW_SCP_MONITOR: {
-		oplus_vow_scp_fd(msg_data);
-		}
-		break;
-#endif
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD)
-	case IPIMSG_OPLUS_VOW_SCP_CUSTOM_PAYLOAD: {
-		struct oplus_vow_scp_custom_payload_ipi_info_t *ipi =
-			(struct oplus_vow_scp_custom_payload_ipi_info_t *)msg_data;
-		unsigned int msg_len =
-			sizeof(struct oplus_vow_scp_custom_payload_ipi_info_t);
-
-		if (oplusvowserv.payload_enable == false) {
-			VOWDRV_DEBUG("%s(), payload OFF\n", __func__);
-			break;
-		}
-
-		if (oplusvowserv.payload_kernel_ptr == NULL) {
-			VOWDRV_DEBUG("%s(), payload_kernel_ptr is NULL!!\n", __func__);
-			break;
-		}
-
-		if (oplusvowserv.payload_user_size != msg_len) {
-			VOWDRV_DEBUG("%s(), payload_user_size:%lu = msg_len:%u !!\n",
-				__func__, oplusvowserv.payload_user_size, msg_len);
-			break;
-		}
-
-		struct oplus_vow_scp_custom_payload_ipi_info_t *update_payload_kernel =
-			(struct oplus_vow_scp_custom_payload_ipi_info_t *)
-				oplusvowserv.payload_kernel_ptr;
-		update_payload_kernel->tag = ipi->tag;
-		update_payload_kernel->kws_durations = ipi->kws_durations;
-		update_payload_kernel->average_rms = ipi->average_rms;
-
-        VOWDRV_DEBUG("%s(), tag = 0x%x, kws_durations = %u, average_rms = %d, "
-                     "ipi_ptr = %p, msg_len = %u\n",
-            __func__, ipi->tag, ipi->kws_durations, ipi->average_rms, ipi,
-            msg_len);
-		}
-		break;
-#endif /* CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD */
 	case IPIMSG_VOW_ALEXA_ENGINE_VER: {
 		//VOWDRV_DEBUG("%s(), IPIMSG_VOW_ALEXA_ENGINE_VER %s\r",
 		//	__func__, (char *)msg_data);
@@ -946,16 +851,6 @@ static void vow_service_Init(void)
 		}
 		vowserv.google_engine_version = DEFAULT_GOOGLE_ENGINE_VER;
 		memset(vowserv.alexa_engine_version, 0, VOW_ENGINE_INFO_LENGTH_BYTE);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD)
-		/* ++ for oplus vow custom payload feature(data from scp) ++ */
-		oplusvowserv.payload_enable = false;
-		oplusvowserv.payload_user_addr = 0;
-		oplusvowserv.payload_user_size = 0;
-		mutex_lock(&oplus_vow_payload_mutex);
-		oplusvowserv.payload_kernel_ptr = NULL;
-		mutex_unlock(&oplus_vow_payload_mutex);
-		/* -- for oplus vow custom payload feature(data from scp) -- */
-#endif /* CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD */
 	} else {
 		ipi_ret = vow_ipi_send(IPIMSG_VOW_GET_ALEXA_ENGINE_VER,
 				       0,
@@ -1791,35 +1686,6 @@ static void vow_service_ReadPayloadDumpData(unsigned int buf_length)
 
 	mutex_unlock(&vow_payloaddump_mutex);
 }
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD)
-/* for oplus vow custom payload feature(data from scp) */
-static void oplus_vow_service_ReadPayload(void)
-{
-	if (oplusvowserv.payload_enable == false) {
-		VOWDRV_DEBUG("%s(), payload OFF\n", __func__);
-		return;
-	}
-	if (oplusvowserv.payload_kernel_ptr == NULL) {
-		VOWDRV_DEBUG("%s(), payload_kernel_ptr is NULL!!\n", __func__);
-		return;
-	}
-	if (oplusvowserv.payload_user_size == 0) {
-		VOWDRV_DEBUG("%s(), payload_user_size = 0 !!\n", __func__);
-		return;
-	}
-
-	//copy to user space
-	mutex_lock(&oplus_vow_payload_mutex);
-	if (copy_to_user(
-		(void __user *)oplusvowserv.payload_user_addr,
-		oplusvowserv.payload_kernel_ptr,
-		oplusvowserv.payload_user_size))
-		VOWDRV_DEBUG("%s(), copy payload_kernel_ptr fail", __func__);
-
-	mutex_unlock(&oplus_vow_payload_mutex);
-}
-#endif /* CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD */
 
 static void vow_service_SetDualChannelTransfer(unsigned long arg)
 {
@@ -3561,45 +3427,6 @@ static long VowDrv_ioctl(struct file *fp, unsigned int cmd, unsigned long arg_da
 		vowserv.payloaddump_enable = true;
 	}
 		break;
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD)
-	/* for oplus vow custom payload feature(data from scp) */
-	case OPLUS_VOW_SET_CUSTOM_PAYLOAD_INFO: {
-		struct oplus_vow_custom_payload_info_t payload = {};
-
-		if (copy_from_user((void *)&payload,
-				 (const void __user *)arg,
-				 sizeof(struct oplus_vow_custom_payload_info_t))) {
-			VOWDRV_DEBUG("copy oplus_vow_custom_payload_info_t fail\n");
-			return false;
-		}
-
-		if ((payload.return_payload_addr == 0) || (payload.payload_size == 0)) {
-			VOWDRV_DEBUG("oplus vow check payload fail: addr_0x%x, size_0x%x\n",
-				(unsigned int)payload.return_payload_addr,
-				(unsigned int)payload.payload_size);
-			return false;
-		}
-		oplusvowserv.payload_user_addr = payload.return_payload_addr;
-		oplusvowserv.payload_user_size = payload.payload_size;
-		pr_debug("-OPLUS_VOW_SET_CUSTOM_PAYLOAD_INFO(addr=%lu, sz=%lu)",
-			oplusvowserv.payload_user_addr, oplusvowserv.payload_user_size);
-		mutex_lock(&oplus_vow_payload_mutex);
-		if (oplusvowserv.payload_kernel_ptr != NULL) {
-			vfree(oplusvowserv.payload_kernel_ptr);
-			oplusvowserv.payload_kernel_ptr = NULL;
-		}
-		if (oplusvowserv.payload_user_size > 0) {
-			oplusvowserv.payload_kernel_ptr =
-			    vmalloc(oplusvowserv.payload_user_size);
-		} else {
-			strcpy(ioctl_type, "OPLUS_VOW_SET_CUSTOM_PAYLOAD_INFO");
-			ret = -EFAULT;
-		}
-		mutex_unlock(&oplus_vow_payload_mutex);
-		oplusvowserv.payload_enable = true;
-	}
-		break;
-#endif /* CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD */
 	case VOW_SET_VOW_DUAL_CH_TRANSFER:
 		VOWDRV_DEBUG("VOW_SET_VOW_DUAL_CH_TRANSFER(%lu)", arg);
 		vow_service_SetDualChannelTransfer(arg);
@@ -3753,25 +3580,6 @@ static long VowDrv_compat_ioctl(struct file *fp,
 		ret = fp->f_op->unlocked_ioctl(fp, cmd, (unsigned long)&arg_info);
 	}
 		break;
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD)
-	/* for oplus vow custom payload feature(data from scp) */
-	case OPLUS_VOW_SET_CUSTOM_PAYLOAD_INFO: {
-		struct oplus_vow_custom_payload_info_kernel_t data32 = {};
-		struct oplus_vow_custom_payload_info_t data = {};
-		long err = (long)copy_from_user(&data32, compat_ptr(arg_info.return_data),
-			(unsigned long)sizeof(struct oplus_vow_custom_payload_info_kernel_t));
-
-		if (err != 0L)
-			VOWDRV_DEBUG("%s(), copy data from user fail", __func__);
-
-		data.return_payload_addr      = data32.return_payload_addr;
-		data.payload_size         = data32.payload_size;
-		arg_info.return_data = (unsigned long)&data;
-
-		ret = fp->f_op->unlocked_ioctl(fp, cmd, (unsigned long)&arg_info);
-	}
-		break;
-#endif /* CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD */
 	case VOW_GET_SCP_RECOVER_STATUS: {
 		struct vow_scp_recover_info_kernel_t data32 = {};
 		struct vow_scp_recover_info_t data = {};
@@ -3903,10 +3711,6 @@ static ssize_t VowDrv_read(struct file *fp,
 
 	/* for payload dump feature(data from scp) */
 	vow_service_ReadPayloadDumpData(vowserv.payloaddump_length);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD)
-	/* for oplus vow custom payload feature(data from scp) */
-	oplus_vow_service_ReadPayload();
-#endif
 
 	if (dsp_inform_tx_flag) {
 		/* int i; */

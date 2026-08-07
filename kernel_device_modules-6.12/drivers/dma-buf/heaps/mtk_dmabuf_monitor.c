@@ -160,19 +160,6 @@ struct monitor_global_t {
 	struct monitor_size_nents total_end_cpu;
 	struct monitor_size_nents total_begin_cpu_part;
 	struct monitor_size_nents total_end_cpu_part;
-
-	/* boost freq */
-	unsigned int boost_enable;
-	unsigned int boost_size_min;
-	unsigned int boost_size_max;
-	unsigned int boost_frag_ratio;
-	unsigned int boost_sched_min;
-	unsigned int boost_sched_max;
-	unsigned int boost_lock_cores_enable;
-	unsigned int timeout_record_enable;
-	atomic64_t sync_timeout_cnt_boost;
-	atomic64_t sync_timeout_cnt;
-	atomic64_t stat_nr_boost;
 };
 static struct monitor_global_t monitor_globals;
 
@@ -228,8 +215,6 @@ static struct dump_heap_info dump_heap_list[] = {
 };
 #define _DUMP_HEAP_CNT_  (ARRAY_SIZE(dump_heap_list))
 
-#define BOOST_FREQ_CMD_COUNT	(8)
-
 static int cmd_input_tmp;
 static const struct dma_monitor_dbg monitor_helper[] = {
 	{"trace_level:", &monitor_globals.trace_level, MONITOR_CMD_TRACE_LEVEL},
@@ -258,15 +243,6 @@ static const struct dma_monitor_dbg monitor_helper[] = {
 	{"refill_high_water4:", &cmd_input_tmp, MONITOR_CMD_REFILL_HIGH},
 	{"refill_high_water0:", &cmd_input_tmp, MONITOR_CMD_REFILL_HIGH},
 	{"mtk_mm_prefill:", &cmd_input_tmp, MONITOR_CMD_MTKMM_PREFILL},
-
-	{"boost_enable:", &monitor_globals.boost_enable, MONITOR_CMD_INT_VALUE},
-	{"boost_size_min:", &monitor_globals.boost_size_min, MONITOR_CMD_INT_VALUE},
-	{"boost_size_max:", &monitor_globals.boost_size_max, MONITOR_CMD_INT_VALUE},
-	{"boost_frag_ratio:", &monitor_globals.boost_frag_ratio, MONITOR_CMD_INT_VALUE},
-	{"boost_sched_min:", &monitor_globals.boost_sched_min, MONITOR_CMD_INT_VALUE},
-	{"boost_sched_max:", &monitor_globals.boost_sched_max, MONITOR_CMD_INT_VALUE},
-	{"boost_lock_cores_enable:", &monitor_globals.boost_lock_cores_enable, MONITOR_CMD_INT_VALUE},
-	{"timeout_record_enable:", &monitor_globals.timeout_record_enable, MONITOR_CMD_INT_VALUE},
 };
 
 void heap_monitor_init(void)
@@ -309,29 +285,6 @@ void heap_monitor_init(void)
 
 	monitor_globals.enable = 1;
 	monitor_globals.start_log_time = sched_clock();
-
-	/* boost freq */
-	monitor_globals.boost_enable = 0;
-	monitor_globals.boost_size_min = (SZ_8M + SZ_2M - SZ_64K);
-	monitor_globals.boost_size_max = (SZ_16M + SZ_4M);
-	monitor_globals.boost_frag_ratio = 65;
-	monitor_globals.boost_sched_min = 400;
-	monitor_globals.boost_sched_max = 1024;
-	monitor_globals.boost_lock_cores_enable = 0;
-	monitor_globals.timeout_record_enable = 0;
-	atomic64_set(&monitor_globals.sync_timeout_cnt_boost, 0);
-	atomic64_set(&monitor_globals.sync_timeout_cnt, 0);
-	atomic64_set(&monitor_globals.stat_nr_boost, 0);
-
-	pr_info("%s: boost=%u, min=%u max=%u frag=%u sched_min=%u sched_max=%u affinity=%u\n",
-		__func__,
-		monitor_globals.boost_enable,
-		monitor_globals.boost_size_min,
-		monitor_globals.boost_size_max,
-		monitor_globals.boost_frag_ratio,
-		monitor_globals.boost_sched_min,
-		monitor_globals.boost_sched_max,
-		monitor_globals.boost_lock_cores_enable);
 }
 EXPORT_SYMBOL_GPL(heap_monitor_init);
 
@@ -374,8 +327,6 @@ static void monitor_clear_log(void)
 	monitor_globals.start_log_time = sched_clock();
 }
 
-static void mtk_dmabuf_set_timeout_record_enable(unsigned int timeout_record);
-
 ssize_t heap_monitor_proc_write(struct file *file, const char *buf,
 				       size_t count, loff_t *data)
 {
@@ -415,30 +366,6 @@ ssize_t heap_monitor_proc_write(struct file *file, const char *buf,
 			else if (monitor_helper[i].cmd_type == MONITOR_CMD_INT_VALUE &&
 				 sscanf(cmdline, "monitor_pid:%u\n", &vlu) == 1)
 				monitor_globals.monitor_pid = vlu;
-			else if (monitor_helper[i].cmd_type == MONITOR_CMD_INT_VALUE &&
-				 sscanf(cmdline, "boost_enable:%u\n", &vlu) == 1)
-				monitor_globals.boost_enable = vlu;
-			else if (monitor_helper[i].cmd_type == MONITOR_CMD_INT_VALUE &&
-				 sscanf(cmdline, "boost_size_min:%u\n", &vlu) == 1)
-				monitor_globals.boost_size_min = vlu;
-			else if (monitor_helper[i].cmd_type == MONITOR_CMD_INT_VALUE &&
-				 sscanf(cmdline, "boost_size_max:%u\n", &vlu) == 1)
-				monitor_globals.boost_size_max = vlu;
-			else if (monitor_helper[i].cmd_type == MONITOR_CMD_INT_VALUE &&
-				 sscanf(cmdline, "boost_frag_ratio:%u\n", &vlu) == 1)
-				monitor_globals.boost_frag_ratio = vlu;
-			else if (monitor_helper[i].cmd_type == MONITOR_CMD_INT_VALUE &&
-				 sscanf(cmdline, "boost_sched_min:%u\n", &vlu) == 1)
-				monitor_globals.boost_sched_min = vlu;
-			else if (monitor_helper[i].cmd_type == MONITOR_CMD_INT_VALUE &&
-				 sscanf(cmdline, "boost_sched_max:%u\n", &vlu) == 1)
-				monitor_globals.boost_sched_max = vlu;
-			else if (monitor_helper[i].cmd_type == MONITOR_CMD_INT_VALUE &&
-				 sscanf(cmdline, "boost_lock_cores_enable:%u\n", &vlu) == 1)
-				monitor_globals.boost_lock_cores_enable = vlu;
-			else if (monitor_helper[i].cmd_type == MONITOR_CMD_INT_VALUE &&
-				 sscanf(cmdline, "timeout_record_enable:%u\n", &vlu) == 1)
-				mtk_dmabuf_set_timeout_record_enable(vlu);
 
 #if IS_ENABLED(CONFIG_MTK_IOMMU_DEBUG)
 			if (monitor_helper[i].cmd_type == MONITOR_CMD_REFILL_HIGH &&
@@ -641,7 +568,7 @@ static void dmabuf_log_show_help(struct seq_file *s)
 	int i;
 
 	dmabuf_dump(s, "debug cmd:\n");
-	for (i = 0; i < ARRAY_SIZE(monitor_helper) - BOOST_FREQ_CMD_COUNT; i++) {
+	for (i = 0; i < ARRAY_SIZE(monitor_helper); i++) {
 		if (monitor_helper[i].cmd_type == MONITOR_CMD_TRACE_LEVEL) {
 			dmabuf_dump(s, "\t|- %s %d(0-off,1-high,2-all)\n",
 				    monitor_helper[i].str,
@@ -765,23 +692,6 @@ static void dmabuf_log_show_met_total(struct seq_file *s)
 			      &monitor_globals.total_end_cpu_part, log_time);
 }
 
-static void dmabuf_boost_freq_show(struct seq_file *s)
-{
-	dmabuf_dump(s, "-------- boost freq --------\n");
-	dmabuf_dump(s, "boost_enable=%u\n", monitor_globals.boost_enable);
-	dmabuf_dump(s, "boost_size_min=%u\n", monitor_globals.boost_size_min);
-	dmabuf_dump(s, "boost_size_max=%u\n", monitor_globals.boost_size_max);
-	dmabuf_dump(s, "boost_frag_ratio=%u\n", monitor_globals.boost_frag_ratio);
-	dmabuf_dump(s, "boost_sched_min=%u\n", monitor_globals.boost_sched_min);
-	dmabuf_dump(s, "boost_sched_max=%u\n", monitor_globals.boost_sched_max);
-	dmabuf_dump(s, "boost_lock_cores_enable=%u\n", monitor_globals.boost_lock_cores_enable);
-	dmabuf_dump(s, "timeout_record_enable=%u\n", monitor_globals.timeout_record_enable);
-	dmabuf_dump(s, "sync_timeout_cnt=%lld\n", atomic64_read(&monitor_globals.sync_timeout_cnt));
-	dmabuf_dump(s, "stat_nr_boost=%lld\n", atomic64_read(&monitor_globals.stat_nr_boost));
-	dmabuf_dump(s, "sync_timeout_cnt_boost=%lld\n",
-		    atomic64_read(&monitor_globals.sync_timeout_cnt_boost));
-}
-
 static void dmabuf_log_show(struct seq_file *s)
 {
 	unsigned int write_pointer, log_count, log_type, i;
@@ -807,8 +717,6 @@ static void dmabuf_log_show(struct seq_file *s)
 
 	if (monitor_globals.dump_help)
 		dmabuf_log_show_help(s);
-
-	dmabuf_boost_freq_show(s);
 
 	memset(&stats_alloc, 0, sizeof(stats_alloc));
 	memset(&stats_refill, 0, sizeof(stats_refill));
@@ -1127,93 +1035,3 @@ int dmabuf_trace_mark_write(char *fmt, ...)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(dmabuf_trace_mark_write);
-
-/* boost freq */
-
-static void mtk_dmabuf_sync_timeout_cnt_reset(void)
-{
-	atomic64_set(&monitor_globals.sync_timeout_cnt_boost, 0);
-	atomic64_set(&monitor_globals.sync_timeout_cnt, 0);
-}
-
-static void mtk_dmabuf_set_timeout_record_enable(unsigned int timeout_record)
-{
-	monitor_globals.timeout_record_enable = timeout_record;
-	if (timeout_record != 1)
-		mtk_dmabuf_sync_timeout_cnt_reset();
-}
-
-bool mtk_dmabuf_boost_enable(void)
-{
-	return monitor_globals.boost_enable == 1;
-}
-
-unsigned int mtk_dmabuf_boost_size_min(void)
-{
-	return monitor_globals.boost_size_min;
-}
-
-unsigned int mtk_dmabuf_boost_size_max(void)
-{
-	return monitor_globals.boost_size_max;
-}
-
-unsigned int mtk_dmabuf_boost_frag_ratio(void)
-{
-	return monitor_globals.boost_frag_ratio;
-}
-
-unsigned int mtk_dmabuf_boost_sched_min(void)
-{
-	return monitor_globals.boost_sched_min;
-}
-
-unsigned int mtk_dmabuf_boost_sched_max(void)
-{
-	return monitor_globals.boost_sched_max;
-}
-
-bool mtk_dmabuf_boost_lock_cores_enable(void)
-{
-	return monitor_globals.boost_lock_cores_enable == 1;
-}
-
-bool mtk_dmabuf_sync_timeout_record_enable(void)
-{
-	return monitor_globals.timeout_record_enable == 1;
-}
-
-u64 mtk_dmabuf_get_sync_timeout_cnt_boost(void)
-{
-	return atomic64_read(&monitor_globals.sync_timeout_cnt_boost);
-}
-
-u64 mtk_dmabuf_get_sync_timeout_cnt(void)
-{
-	return atomic64_read(&monitor_globals.sync_timeout_cnt);
-}
-
-void mtk_dmabuf_inc_sync_timeout_cnt_boost(void)
-{
-	if (atomic64_read(&monitor_globals.sync_timeout_cnt_boost) < LONG_MAX) {
-		atomic64_inc(&monitor_globals.sync_timeout_cnt_boost);
-	} else {
-		pr_info("[%s] sync_timeout_cnt_boost reset to 0\n", __func__);
-		atomic64_set(&monitor_globals.sync_timeout_cnt_boost, 0);
-	}
-}
-
-void mtk_dmabuf_inc_sync_timeout_cnt(void)
-{
-	if (atomic64_read(&monitor_globals.sync_timeout_cnt) < LONG_MAX) {
-		atomic64_inc(&monitor_globals.sync_timeout_cnt);
-	} else {
-		pr_info("[%s] sync_timeout_cnt reset to 0\n", __func__);
-		atomic64_set(&monitor_globals.sync_timeout_cnt, 0);
-	}
-}
-
-void mtk_dmabuf_inc_stat_nr_boost(void)
-{
-	atomic64_inc(&monitor_globals.stat_nr_boost);
-}

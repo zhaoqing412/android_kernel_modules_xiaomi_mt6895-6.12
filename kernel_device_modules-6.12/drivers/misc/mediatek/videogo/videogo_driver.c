@@ -84,7 +84,6 @@ static int set_gpu_freq_min;
 static int target_fps_count[MAX_CODEC_TYPE] = {0};
 static int alive_count[MAX_CODEC_TYPE] = {0};
 static int isTranscoding;
-static int oprate_venc;
 //static struct task_struct *kvideogo_active;
 
 static inline void videogo_read_and_set_bool(struct device_node *np, const char *prop_name, bool *var)
@@ -243,7 +242,6 @@ static int is_transcoding(struct inst_node *info0, enum codec_type type)
 	// One VENC can be paired with multiple VDECs
 	list_for_each_entry_safe(info1, tmp, &inst_list[list_type], list) {
 		if (info1->caller_pid == info0->caller_pid) {
-			oprate_venc = info0->oprate;
 			// abnormal oprate, it means best effort mode
 			if (info1->oprate > 960 || info0->oprate > 960)
 				ret = 1;
@@ -605,7 +603,7 @@ static int videogo_controller_fn(void *arg)
 			}
 			if (!set_gpu_freq_min && mtk_vgo_gpu_freq_min) {
 				send_service_info("acq gpu_freq_min",
-					VGO_GPU_FREQ_MIN, oprate_venc > 960 ? 7 : mtk_vgo_gpu_freq_min_opp, 0, 0);
+					VGO_GPU_FREQ_MIN, mtk_vgo_gpu_freq_min_opp, 0, 0);
 				set_gpu_freq_min = 1;
 			}
 			if (!set_ct_to_vip && mtk_vgo_ct_to_vip) {

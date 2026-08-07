@@ -12,7 +12,7 @@
 
 #include "mtk_cm_ipi.h"
 
-static int cm_ipi_enable;
+static int cm_ipi_enable = 1;
 static int scmi_cm_id;
 static struct scmi_tinysys_info_st *_tinfo;
 
@@ -87,12 +87,6 @@ void cm_ipi_init(void)
 	unsigned int ret;
 
 	_tinfo = get_scmi_tinysys_info();
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	if (!_tinfo) {
-		pr_err("%s _tinfo is NULL\n", __func__);
-		return;
-	}
-#endif
 
 	if (!(_tinfo && _tinfo->sdev)) {
 		pr_info("call get_scmi_tinysys_info() fail\n");

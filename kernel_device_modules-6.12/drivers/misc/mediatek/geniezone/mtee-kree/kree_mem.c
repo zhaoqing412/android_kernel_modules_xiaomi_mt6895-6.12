@@ -33,7 +33,8 @@
 #define KREE_INFO(fmt...) pr_info("[KREE_MEM]" fmt)
 #define KREE_ERR(fmt...) pr_info("[KREE_MEM][ERR]" fmt)
 
-DEFINE_MUTEX(shmem_mutex);
+DEFINE_MUTEX(shared_mem_mutex_trusty);
+DEFINE_MUTEX(shared_mem_mutex_nebula);
 DEFINE_MUTEX(chmem_mutex);
 
 /*only for code separation, don't update*/
@@ -44,23 +45,19 @@ DEFINE_MUTEX(chmem_mutex);
 /******/
 
 #if API_sharedMem
-static TZ_RESULT add_shm_list_node(struct KREE_SHM_RUNLENGTH_LIST **tail,
+static void add_shm_list_node(struct KREE_SHM_RUNLENGTH_LIST **tail,
 	uint64_t start, uint32_t size)
 {
-	TZ_RESULT ret = TZ_RESULT_ERROR_GENERIC;
-	struct KREE_SHM_RUNLENGTH_LIST *mylist = NULL;
+	struct KREE_SHM_RUNLENGTH_LIST *mylist;
 
-	if (!tail) {
-		ret = TZ_RESULT_ERROR_BAD_PARAMETERS;
-		goto end;
-	}
+	if (!tail)
+		return;
 
 	/* add a record */
 	mylist = kmalloc(sizeof(*mylist), GFP_KERNEL);
 	if (!mylist) {
 		KREE_ERR("[%s] kmalloc failed!\n", __func__);
-		ret = TZ_RESULT_ERROR_OUT_OF_MEMORY;
-		goto end;
+		return;
 	}
 	mylist->entry.low = (uint32_t) (start & (0x00000000ffffffff));
 	mylist->entry.high = (uint32_t) (start >> 32);
@@ -68,17 +65,11 @@ static TZ_RESULT add_shm_list_node(struct KREE_SHM_RUNLENGTH_LIST **tail,
 	mylist->next = NULL;
 	(*tail)->next = mylist;
 	(*tail) = mylist;
-
-	ret = TZ_RESULT_SUCCESS;
-
-end:
-	return ret;
 }
 
 static struct KREE_SHM_RUNLENGTH_ENTRY *shmem_param_run_length_encoding(
 	int numOfPA, int *runLeng_arySize, int64_t *ary)
 {
-	TZ_RESULT tz_ret = TZ_RESULT_ERROR_GENERIC;
 	int arySize = numOfPA + 1;
 	int i = 0;
 	int64_t start;
@@ -115,9 +106,7 @@ static struct KREE_SHM_RUNLENGTH_ENTRY *shmem_param_run_length_encoding(
 			if ((next - now) == (1 * PAGE_SIZE)) {
 				size++;
 			} else {
-				tz_ret = add_shm_list_node(&tail, start, size);
-				if (unlikely(tz_ret != TZ_RESULT_SUCCESS))
-					break;
+				add_shm_list_node(&tail, start, size);
 				size = 1;	/* reset */
 				xx++;
 			}
@@ -127,47 +116,21 @@ static struct KREE_SHM_RUNLENGTH_ENTRY *shmem_param_run_length_encoding(
 			if ((ary[i] - start + (1 * PAGE_SIZE))
 				== (size * PAGE_SIZE)) {
 
-				tz_ret = add_shm_list_node(&tail, start, size);
-				if (unlikely(tz_ret != TZ_RESULT_SUCCESS))
-					break;
+				add_shm_list_node(&tail, start, size);
 				size = 1;	/* reset */
 				xx++;
 			}
 		}
 	}
 
-	if (unlikely(tz_ret != TZ_RESULT_SUCCESS)) {
-		KREE_ERR("[%s] runLengAry creation failed, tz_ret = %d\n",
-				__func__, tz_ret);
-		if (head->next) {
-			curr = head->next;
-			while (curr) {
-				tail = curr;
-				curr = curr->next;
-				kfree(tail);
-			}
-		}
-		kfree(head);
-		return runLengAry; // runLengAry == NULL
-	}
-
 	*runLeng_arySize = xx;
-	KREE_DEBUG("[%s]runLeng_arySize = %d, tz_ret = %d\n",
-			__func__, *runLeng_arySize, tz_ret);
+	KREE_DEBUG("[%s]runLeng_arySize = %d\n", __func__, *runLeng_arySize);
 
 	runLengAry = kmalloc((*runLeng_arySize + 1)
 			* sizeof(struct KREE_SHM_RUNLENGTH_ENTRY),
 			GFP_KERNEL);
 	if (!runLengAry) {
 		KREE_ERR("[%s] kmalloc failed!\n", __func__);
-		if (head->next) {
-			curr = head->next;
-			while (curr) {
-				tail = curr;
-				curr = curr->next;
-				kfree(tail);
-			}
-		}
 		kfree(head);
 		return runLengAry;
 	}
@@ -503,7 +466,7 @@ static TZ_RESULT kree_register_sharedmem(KREE_SESSION_HANDLE session,
 	TZ_RESULT ret = 0;
 	int locktry;
 	enum tee_id_t tee_id = 0;
-	struct mutex *shared_mem_mutex = &shmem_mutex;
+	struct mutex *shared_mem_mutex;
 
 	KREE_DEBUG("[%s]is calling.\n", __func__);
 
@@ -513,6 +476,11 @@ static TZ_RESULT kree_register_sharedmem(KREE_SESSION_HANDLE session,
 			__func__, ret, tee_id);
 
 	/*FIXME: mutex should be removed after re-implement sending procedure */
+	if (tee_id == TEE_ID_TRUSTY)
+		shared_mem_mutex = &shared_mem_mutex_trusty;
+	else
+		shared_mem_mutex = &shared_mem_mutex_nebula;
+
 	do {
 		locktry = mutex_lock_interruptible(shared_mem_mutex);
 		if (locktry && locktry != -EINTR) {

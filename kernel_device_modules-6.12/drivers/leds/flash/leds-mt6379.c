@@ -22,14 +22,6 @@
 #include "flashlight-core.h"
 #endif
 
-#ifndef OPLUS_FEATURE_CAMERA_COMMON
-#define OPLUS_FEATURE_CAMERA_COMMON
-#endif /* OPLUS_FEATURE_CAMERA_COMMON */
-
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-#include <soc/oplus/system/oplus_project.h>
-#endif /* OPLUS_FEATURE_CAMERA_COMMON */
-
 struct mt6379_data;
 
 enum mt6379_fled_idx {
@@ -92,55 +84,6 @@ struct mt6379_data {
 	struct mt6379_flash mtflash[];
 };
 
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-extern unsigned int get_project(void);
-enum v4l2_flash_led_nums {
-	MT6379_CONTROL_LED1 = 2,
-	MT6379_CONTROL_LED2,
-	MT6379_CONTROL_DUAL_LED = 6,
-	MT6379_CONTROL_LED_MAX,
-};
-
-static int flash_cali_led = 0;
-static int torch_led = 0;
-
-static int mt6379_select_led(struct led_classdev *led_cdev,
-				       enum v4l2_flash_led_nums led_num)
-{
-	struct mt6379_flash *mtflash = container_of(led_cdev,
-						    struct mt6379_flash,
-						    flash.led_cdev);
-	struct mt6379_data *data = mtflash->driver_data;
-	struct regmap *regmap = data->regmap;
-	int ret = 0;
-	unsigned int prj_id = 0;
-
-	pr_info("mt6379_select_led: %d", led_num);
-	if (led_num == MT6379_CONTROL_LED1) {
-		ret = regmap_write(regmap, MT6379_REG_FLED_EN, 0x15);
-	} else if (led_num == MT6379_CONTROL_LED2) {
-		ret = regmap_write(regmap, MT6379_REG_FLED_EN, 0x12);
-	} else if (led_num == MT6379_CONTROL_DUAL_LED) {
-		ret = regmap_write(regmap, MT6379_REG_FLED_EN, 0x13);
-		torch_led = MT6379_CONTROL_DUAL_LED;
-	} else {
-		if (led_num > 0) {
-			flash_cali_led = led_num - MT6379_CONTROL_LED2;
-			prj_id = get_project();
-			pr_info("project: %d, mt6379_select_led: %d", prj_id, led_num);
-			if ((24081 == prj_id) || (24082 == prj_id) || (24206 == prj_id)) {
-				flash_cali_led ^= MT6379_FLASH_MAX_LED;
-			}
-		} else {
-			flash_cali_led = 0;
-			ret = regmap_write(regmap, MT6379_REG_FLED_EN, 0x00);
-		}
-	}
-
-	return ret;
-}
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
-
 static int mt6379_torch_set_brightness(struct led_classdev *led_cdev,
 				       enum led_brightness brightness)
 {
@@ -153,13 +96,6 @@ static int mt6379_torch_set_brightness(struct led_classdev *led_cdev,
 	unsigned int cur;
 	int ret;
 
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	if (flash_cali_led > 0) {
-		pr_info("flash_cali_led: %d", flash_cali_led);
-		mtflash->idx = flash_cali_led - 1;
-	}
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
-
 	mutex_lock(&data->lock);
 
 	if (data->strobe_enabled) {
@@ -169,22 +105,9 @@ static int mt6379_torch_set_brightness(struct led_classdev *led_cdev,
 	}
 
 	mask = MT6379_FL_TORCH_MASK | MT6379_FL_CSEN_MASK(mtflash->idx);
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	if (torch_led == MT6379_CONTROL_DUAL_LED) {
-		mask = MT6379_FL_TORCH_MASK | MT6379_FL_CSEN_MASK(MT6379_FLASH_LED1) | MT6379_FL_CSEN_MASK(MT6379_FLASH_LED2);
-	}
-	pr_err("mtflash->idx(%d) [%s] 0x%x\n", mtflash->idx, __func__, mask);
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 
 	if (brightness == LED_OFF) {
 		data->torch_enabled &= ~BIT(mtflash->idx);
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	if (torch_led == MT6379_CONTROL_DUAL_LED) {
-		data->torch_enabled &= ~BIT(MT6379_FLASH_LED1 | MT6379_FLASH_LED2);
-		torch_led = 0;
-	}
-	pr_err("mtflash->idx(%d) [%s] 0x%x\n", mtflash->idx, __func__, mask);
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 
 		/* If anyone is still in use, keep torch mode enabled */
 		if (data->torch_enabled)
@@ -210,17 +133,8 @@ static int mt6379_torch_set_brightness(struct led_classdev *led_cdev,
 		}
 #endif
 
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-		if (torch_led == MT6379_CONTROL_DUAL_LED) {
-			ret = regmap_write(regmap, MT6379_REG_ITORCH(MT6379_FLASH_LED1), brightness - 1);
-			ret |= regmap_write(regmap, MT6379_REG_ITORCH(MT6379_FLASH_LED2), brightness - 1);
-		} else {
-			ret = regmap_write(regmap, MT6379_REG_ITORCH(mtflash->idx), brightness - 1);
-		}
-#else /*OPLUS_FEATURE_CAMERA_COMMON*/
 		ret = regmap_write(regmap, MT6379_REG_ITORCH(mtflash->idx),
 				   brightness - 1);
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 		if (ret)
 			goto out_torch_set;
 
@@ -243,14 +157,6 @@ static int mt6379_flash_set_brightness(struct led_classdev_flash *flash,
 	struct led_flash_setting *s = &flash->brightness;
 	unsigned int selector;
 
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	int ret = -1;
-	if (flash_cali_led > 0) {
-		pr_info("flash_cali_led: %d", flash_cali_led);
-		mtflash->idx = flash_cali_led - 1;
-	}
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
-
 #ifdef CONFIG_MTK_FLASHLIGHT_PT
 	if (mtflash->need_cooler == 1 &&
 			brightness > mtflash->target_current) {
@@ -259,20 +165,8 @@ static int mt6379_flash_set_brightness(struct led_classdev_flash *flash,
 	}
 #endif
 	selector = (brightness - s->min) / s->step;
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	pr_err("mtflash->idx(%d) [%s] selector: %d\n", mtflash->idx, __func__, selector);
-	if (torch_led == MT6379_CONTROL_DUAL_LED) {
-		ret = regmap_write(data->regmap, MT6379_REG_ISTRB(MT6379_FLASH_LED1), selector);
-		ret |= regmap_write(data->regmap, MT6379_REG_ISTRB(MT6379_FLASH_LED2), selector);
-		return ret;
-	} else {
-		return regmap_write(data->regmap, MT6379_REG_ISTRB(mtflash->idx),
-					selector);
-	}
-#else
 	return regmap_write(data->regmap, MT6379_REG_ISTRB(mtflash->idx),
-			selector);
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
+			    selector);
 }
 
 static int mt6379_flash_get_brightness(struct led_classdev_flash *flash,
@@ -284,22 +178,12 @@ static int mt6379_flash_get_brightness(struct led_classdev_flash *flash,
 	unsigned int selector;
 	int ret;
 
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	if (flash_cali_led > 0) {
-		pr_info("flash_cali_led: %d", flash_cali_led);
-		mtflash->idx = flash_cali_led - 1;
-	}
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
-
 	ret = regmap_read(data->regmap, MT6379_REG_ISTRB(mtflash->idx),
 			  &selector);
 	if (ret)
 		return ret;
 
 	*brightness = selector * s->step + s->min;
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	pr_err("mtflash->idx(%d) [%s] brightness: %d\n", mtflash->idx, __func__, *brightness);
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 	return 0;
 }
 
@@ -311,14 +195,6 @@ static int mt6379_flash_set_strobe(struct led_classdev_flash *flash, bool state)
 	unsigned int mask, enable = 0;
 	unsigned long min_wait_us = 0;
 	int ret = 0, idx = mtflash->idx;
-
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	if (flash_cali_led > 0) {
-		pr_info("flash_cali_led: %d", flash_cali_led);
-		mtflash->idx = flash_cali_led - 1;
-		idx = mtflash->idx;
-	}
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 
 	mutex_lock(&data->lock);
 
@@ -335,12 +211,6 @@ static int mt6379_flash_set_strobe(struct led_classdev_flash *flash, bool state)
 	}
 
 	mask = MT6379_FL_STROBE_MASK | MT6379_FL_CSEN_MASK(mtflash->idx);
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	if (torch_led == MT6379_CONTROL_DUAL_LED) {
-		mask = MT6379_FL_TORCH_MASK | MT6379_FL_CSEN_MASK(MT6379_FLASH_LED1) | MT6379_FL_CSEN_MASK(MT6379_FLASH_LED2);
-	}
-	pr_err("mtflash->idx(%d) [%s] mask: 0x%x\n", mtflash->idx, __func__, mask);
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 
 	if (state) {
 		/* If first on, minimum wait on time */
@@ -368,9 +238,6 @@ static int mt6379_flash_set_strobe(struct led_classdev_flash *flash, bool state)
 #endif
 
 	ret = regmap_update_bits(regmap, MT6379_REG_FLED_EN, mask, enable);
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	pr_err("mtflash->idx(%d) [%s] mask: 0x%x\n", mtflash->idx, __func__, mask);
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 	if (ret) {
 		dev_err(flash->led_cdev.dev, "Failed to set FLED_EN\n");
 		goto out_strobe_set;
@@ -394,9 +261,6 @@ static int mt6379_flash_get_strobe(struct led_classdev_flash *flash,
 	mutex_lock(&data->lock);
 	*state = data->strobe_enabled & BIT(mtflash->idx);
 	mutex_unlock(&data->lock);
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	pr_err("mtflash->idx(%d), %s state: 0x%x\n", mtflash->idx, __func__, *state);
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 
 	return 0;
 }
@@ -410,9 +274,6 @@ static int mt6379_flash_set_timeout(struct led_classdev_flash *flash,
 	unsigned int selector;
 
 	selector = (timeout - s->min) / s->step;
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	pr_err("mtflash->idx(%d) [%s] selector: %d\n", mtflash->idx, __func__, selector);
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 	return regmap_write(data->regmap, MT6379_REG_STRBTO, selector);
 }
 
@@ -446,9 +307,6 @@ static int mt6379_flash_get_fault(struct led_classdev_flash *flash, u32 *fault)
 		rpt_fault |= LED_FAULT_TIMEOUT;
 
 	*fault = rpt_fault;
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	pr_err("mtflash->idx(%d) [%s] fault: %d\n", mtflash->idx, __func__, *fault);
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 	return 0;
 }
 
@@ -618,11 +476,6 @@ static int mt6379_ioctl(unsigned int cmd, unsigned long arg)
 	case FLASH_IOC_SET_THERMAL_CUR_STATE:
 		mt6379_cooling_set_cur_state(channel, fl_arg->arg);
 		break;
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	case OPLUS_FLASH_IOC_SELECT_LED_NUM:
-		mt6379_select_led(lcdev, (int)fl_arg->arg);
-		break;
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 	default:
 		dev_info(lcdev->dev, "No such command and arg(%d): (%d, %d)\n",
 				channel, _IOC_NR(cmd), (int)fl_arg->arg);
@@ -739,10 +592,6 @@ static int mt6379_flash_set_external_strobe(struct v4l2_flash *v4l2_flash,
 		data->strobe_enabled &= ~BIT(mtflash->idx);
 		enable &= ~mask;
 	}
-
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	pr_info("%s state: %d, mask: %d\n", __func__, state, mask);
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 
 	ret = regmap_update_bits(regmap, MT6379_REG_FLED_EN, mask, enable);
 

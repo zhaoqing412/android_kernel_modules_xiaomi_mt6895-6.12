@@ -23,7 +23,7 @@ androidboot.hardware=mt6895";
 		vib_vol= <9>;
 	};
 };
-#ifdef OPLUS_CONFIG_DELETE_PLATFORM_PANEL
+
 &mtk_leds {
 	compatible = "mediatek,i2c-leds";
 
@@ -33,7 +33,7 @@ androidboot.hardware=mt6895";
 		pwm-config = <0 1 0 0 0>;
 	};
 };
-#endif
+
 /* AUDIO GPIO standardization start */
 &afe {
 	pinctrl-names = "aud_clk_mosi_off",
@@ -284,32 +284,6 @@ androidboot.hardware=mt6895";
 	};
 };
 /* AUDIO GPIO standardization end */
-
-&mtkheap_page_svp {
-status = "ok";
-};
-
-&mtkheap_page_wfd {
-status = "ok";
-};
-
-&mtkheap_region_svp {
-	status = "ok";
-};
-
-&mtkheap_region_wfd {
-	status = "ok";
-};
-
-&mtee_svp {
-	mtee: MTEE {
-		compatible = "mediatek,mtk_svp_on_mtee_support";
-	};
-
-	svp: SecureVideoPath {
-		compatible = "mediatek,mtk_sec_video_path_support";
-	};
-};
 
 &i2c6 {
 	spk: speaker_amp@5c {
@@ -575,7 +549,7 @@ status = "ok";
 
 	mtkfb_pins_lcm_led_en1: lcm_led_en1_gpio {
 		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO216__FUNC_GPIO216>;
+			pinmux = <PINMUX_GPIO215__FUNC_GPIO215>;
 			slew-rate = <1>;
 			output-high;
 		};
@@ -583,7 +557,7 @@ status = "ok";
 
 	mtkfb_pins_lcm_led_en0: lcm_led_en0_gpio {
 		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO216__FUNC_GPIO216>;
+			pinmux = <PINMUX_GPIO215__FUNC_GPIO215>;
 			slew-rate = <1>;
 			output-low;
 		};
@@ -615,6 +589,45 @@ status = "ok";
 	pinctrl-1 = <&mtkfb_pins_lcm_rst_out0_gpio>;
 	pinctrl-2 = <&mtkfb_pins_lcm_dsi_te>;
 	status = "okay";
+};
+
+&dsi0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	panel1@0 {
+		compatible = "jdi,nt36672e,vdo,120hz";
+		reg = <0>;
+		pm-enable-gpios = <&pio 215 0>;
+		reset-gpios = <&pio 41 0>;
+		gate-ic = <4831>;
+		pinctrl-names = "default";
+		port {
+			panel_in1: endpoint {
+				remote-endpoint = <&dsi_out>;
+			};
+		};
+	};
+	panel2@0 {
+		compatible = "truly,td4330,cmd";
+		reg = <1>;
+		pm-enable-gpios = <&pio 215 0>;
+		reset-gpios = <&pio 41 0>;
+		gate-ic = <4831>;
+		pinctrl-names = "default";
+		port {
+			panel_in2: endpoint {
+				remote-endpoint = <&dsi_out>;
+			};
+		};
+	};
+	ports {
+		port {
+			dsi_out: endpoint {
+				remote-endpoint = <&panel_in1>;
+			};
+		};
+	};
 };
 
 /* usb typec mux start */
@@ -671,14 +684,7 @@ status = "ok";
 	pd_vbus_upper_bound = <9000000>;
 };
 
-&mmlsys_config {
-	racing-enable;
-};
-
-&mobicore{
-        trustonic,real-drv = <1>;
-};
-
-//#include "mediatek/cust_mt6895_camera_v4l2.dtsi"
-//#include <k6895v1_64/cust.dtsi>
+#include "mediatek/cust_mt6895_touch_1080x2400.dtsi"
+#include "mediatek/cust_mt6895_camera_v4l2.dtsi"
+#include <k6895v1_64/cust.dtsi>
 /*End of this file, DO NOT ADD ANYTHING HERE*/

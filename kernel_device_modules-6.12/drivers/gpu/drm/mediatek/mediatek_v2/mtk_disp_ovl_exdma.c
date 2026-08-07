@@ -744,7 +744,6 @@ static void mtk_ovl_update_hrt_usage(struct mtk_drm_crtc *mtk_crtc,
 	unsigned int fmt = 0;
 	unsigned int phy_id = 0;
 	int ovl_fmt, ovl_compr;
-	enum EXDMA_COMPR_TYPE type = COMPR_TYPE_IS_UNCOMPR;
 
 	//Don't use Pending.format here. At this time, Pending is still the previous old information.
 	if (IS_ERR_OR_NULL(fb) || IS_ERR_OR_NULL(fb->format))
@@ -756,12 +755,11 @@ static void mtk_ovl_update_hrt_usage(struct mtk_drm_crtc *mtk_crtc,
 
 	phy_id = ovl->data->ovl_phy_mapping(comp);
 	ovl_fmt = mtk_get_format_bpp(fmt);
+	ovl_compr = plane_state->prop_val[PLANE_PROP_COMPRESS];
 	if (ovl_fmt > mtk_crtc->usage_ovl_fmt[phy_id])
 		mtk_crtc->usage_ovl_fmt[phy_id] = ovl_fmt;
-	ovl_compr = plane_state->prop_val[PLANE_PROP_COMPRESS];
-	if (ovl_compr)
-		type = COMPR_TYPE_IS_COMPR;
-	mtk_crtc->usage_ovl_compr[phy_id] |= BIT(type);
+	if (ovl_compr > mtk_crtc->usage_ovl_compr[phy_id])
+		mtk_crtc->usage_ovl_compr[phy_id] = ovl_compr;
 
 	if (mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_OVL_EXT_LAYER))
 		return;
@@ -927,11 +925,6 @@ static void mtk_ovl_exdma_stop(struct mtk_ddp_comp *comp, struct cmdq_pkt *handl
 	struct mtk_disp_ovl_exdma *exdma = comp_to_ovl_exdma(comp);
 	const u16 *regs = exdma->data->regs;
 	const u32 *reg_fld = exdma->data->reg_fld;
-	unsigned int i;
-	struct mtk_drm_crtc *mtk_crtc = comp->mtk_crtc;
-	struct drm_crtc *crtc = &mtk_crtc->base;
-	struct mtk_drm_private *priv = crtc->dev->dev_private;
-	unsigned long crtc_idx = (unsigned long)drm_crtc_index(crtc);
 
 	DDPDBG("%s+ %s\n", __func__, mtk_dump_comp_str(comp));
 
@@ -943,11 +936,6 @@ static void mtk_ovl_exdma_stop(struct mtk_ddp_comp *comp, struct cmdq_pkt *handl
 
 	mtk_ovl_exdma_all_layer_off(comp, handle, 0);
 
-	if (mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_OVL_BWM20) &&
-			(crtc_idx == 0)) {
-		for (i = 0; i < 4; i++)
-			memset(&comp->layer_srt[i], 0, sizeof(struct mtk_exdma_srt_bw));
-	}
 	comp->qos_bw = 0;
 	comp->qos_bw_other = 0;
 	comp->fbdc_bw = 0;
@@ -2689,9 +2677,6 @@ static void mtk_ovl_exdma_layer_config(struct mtk_ddp_comp *comp, unsigned int i
 		dim_color = 0xff000000;
 	}
 
-	DDPINFO("%s idx[%d] comp[%s] matrix_idx[%u]", __func__,
-		idx, mtk_dump_comp_str(comp), pending->prop_val[PLANE_PROP_OVL_Y2R_MATRIX_IDX]);
-
 	/* handle buffer de-compression */
 	if (exdma->data->compr_info && exdma->data->compr_info->l_config) {
 		if (exdma->data->compr_info->l_config(comp,
@@ -2766,22 +2751,14 @@ static void mtk_ovl_exdma_layer_config(struct mtk_ddp_comp *comp, unsigned int i
 			pending->prop_val[PLANE_PROP_COMPRESS]);
 	con |= (alpha_con << 8) | alpha;
 
+	if (fmt == DRM_FORMAT_UYVY || fmt == DRM_FORMAT_YUYV ||
+		pending->mml_mode == MML_MODE_DIRECT_LINK) {
+		unsigned int prop = (unsigned int)pending->prop_val[PLANE_PROP_DATASPACE];
 
-	if (pending->prop_val[PLANE_PROP_OVL_Y2R_MATRIX_IDX] == MTK_DRM_Y2R_MATRIX_LEGACY_MODE) {
-		if (fmt == DRM_FORMAT_UYVY || fmt == DRM_FORMAT_YUYV ||
-			pending->mml_mode == MML_MODE_DIRECT_LINK) {
-			unsigned int prop = (unsigned int)pending->prop_val[PLANE_PROP_DATASPACE];
-
-			con |= mtk_ovl_yuv_matrix_convert((enum mtk_drm_dataspace)prop);
-		} else if (fmt == DRM_FORMAT_Y410) {
-			DDPDBG("%s: DRM_FORMAT_Y410, dataspace set as BT601_FULL\n", __func__);
-			con |= mtk_ovl_yuv_matrix_convert(MTK_DRM_DATASPACE_V0_JFIF);
-		}
-	} else if (((unsigned int)pending->prop_val[PLANE_PROP_OVL_Y2R_MATRIX_IDX]) !=
-			MTK_DRM_Y2R_MATRIX_DISABLE) {
-
-		unsigned int prop = (unsigned int)pending->prop_val[PLANE_PROP_OVL_Y2R_MATRIX_IDX];
 		con |= mtk_ovl_yuv_matrix_convert((enum mtk_drm_dataspace)prop);
+	} else if (fmt == DRM_FORMAT_Y410) {
+		DDPDBG("%s: DRM_FORMAT_Y410, dataspace set as BT601_FULL\n", __func__);
+		con |= mtk_ovl_yuv_matrix_convert(MTK_DRM_DATASPACE_V0_JFIF);
 	}
 
 	mtk_addon_get_comp(crtc, mtk_crtc_state->lye_state.rpo_lye, &cmp_id, NULL);
@@ -3056,8 +3033,8 @@ static void mtk_ovl_exdma_layer_config(struct mtk_ddp_comp *comp, unsigned int i
 		temp_peak_bw = temp_peak_bw * vrefresh;
 		do_div(temp_peak_bw, 1000);
 
-		DDPDBG_BWM("comp %d alloc_id:%u lye %u bw %llu peak %llu vtotal:%d vact:%d\n",
-			comp->id, alloc_id, lye_idx, temp_bw, temp_peak_bw, vtotal, vact);
+		DDPDBG("comp %d lye %u bw %llu peak %llu vtotal:%d vact:%d\n",
+			comp->id, lye_idx, temp_bw, temp_peak_bw, vtotal, vact);
 
 		if (mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_OVL_BW_MONITOR) &&
 			(crtc_idx == 0) && (pending->prop_val[PLANE_PROP_COMPRESS]) &&
@@ -3081,9 +3058,8 @@ static void mtk_ovl_exdma_layer_config(struct mtk_ddp_comp *comp, unsigned int i
 						<= 1000)) {
 						avg_ratio =
 						fbt_layer_compress_ratio_tb[i].average_ratio;
-						/* need revert default ratio(0.7) */
-						temp_bw = temp_bw * avg_ratio * 10;
-						do_div(temp_bw, 1000 * 7);
+						temp_bw = temp_bw * avg_ratio;
+						do_div(temp_bw, 1000);
 						break;
 					}
 				}
@@ -3100,9 +3076,8 @@ static void mtk_ovl_exdma_layer_config(struct mtk_ddp_comp *comp, unsigned int i
 						<= 1000)) {
 						avg_ratio =
 						unchanged_compress_ratio_table[i].average_ratio;
-						/* need revert default ratio(0.7) */
-						temp_bw = temp_bw * avg_ratio * 10;
-						do_div(temp_bw, 1000 * 7);
+						temp_bw = temp_bw * avg_ratio;
+						do_div(temp_bw, 1000);
 						have_get_ratio = 1;
 						break;
 					}
@@ -3119,9 +3094,8 @@ static void mtk_ovl_exdma_layer_config(struct mtk_ddp_comp *comp, unsigned int i
 						<= 1000)) {
 						avg_ratio =
 						normal_layer_compress_ratio_tb[i].average_ratio;
-						/* need revert default ratio(0.7) */
-						temp_bw = temp_bw * avg_ratio * 10;
-						do_div(temp_bw, 1000 * 7);
+						temp_bw = temp_bw * avg_ratio;
+						do_div(temp_bw, 1000);
 						break;
 					}
 				}
@@ -3132,7 +3106,7 @@ static void mtk_ovl_exdma_layer_config(struct mtk_ddp_comp *comp, unsigned int i
 			if (temp_bw <= 0)
 				temp_bw = 1;
 
-			DDPDBG_BWM("BWM:frame idx:%u alloc_id:%lu key:%llu lye_idx:%u bw:%llu(%llu)\n",
+			DDPINFO("BWM:frame idx:%u alloc id:%lu key:%llu lye_idx:%u bw:%llu(%llu)\n",
 					frame_idx, alloc_id, key, idx, temp_bw, temp_bw_old);
 		}
 
@@ -3142,50 +3116,13 @@ static void mtk_ovl_exdma_layer_config(struct mtk_ddp_comp *comp, unsigned int i
 			temp_bw = 0;
 			temp_peak_bw = 0;
 		}
-		comp->layer_srt[lye_idx + ext_lye_idx].srt_bw = temp_bw;
-		comp->layer_srt[lye_idx + ext_lye_idx].alloc_id = alloc_id;
-		DDPINFO("%s idx:%u,%u bw:%u alloc_id:%u\n",
-			mtk_dump_comp_str(comp), lye_idx, ext_lye_idx, temp_bw, alloc_id);
-
-		/* consider ext layer, need use += not = */
-		comp->qos_bw += temp_bw;
+		comp->qos_bw = temp_bw;
 		comp->hrt_bw = temp_peak_bw;
 	}
 
 	if (comp && comp->bind_comp && comp->bind_comp->funcs
-		&& comp->bind_comp->funcs->layer_config && !comp->bind_comp->blank_mode) {
-
-		if (mtk_crtc->bg_bld_id > 0) {
-			int bld_id = comp->bind_comp->id - mtk_crtc->first_blender->id;
-
-			if (bld_id >= 0 && (mtk_crtc->bg_bld_id & (1 << bld_id))) {
-				cmdq_pkt_write(handle, comp->cmdq_base,
-					comp->regs_pa + regs[OVL_EXDMA_RDMA0_CTRL], 0,
-					REG_FLD_MASK(reg_fld[FLD_L0_EN]) |
-					REG_FLD_MASK(reg_fld[FLD_L0_FBDC_EN]));
-
-				cmdq_pkt_write(handle, comp->cmdq_base,
-					comp->regs_pa + OVL_EXDMA_ELX_EN(exdma, 0), 0x0,
-					REG_FLD_MASK(reg_fld[FLD_L0_EN]) |
-					REG_FLD_MASK(reg_fld[FLD_L0_FBDC_EN]));
-
-				cmdq_pkt_write(handle, comp->cmdq_base,
-					comp->regs_pa + OVL_EXDMA_ELX_EN(exdma, 1), 0x0,
-					REG_FLD_MASK(reg_fld[FLD_L0_EN]) |
-					REG_FLD_MASK(reg_fld[FLD_L0_FBDC_EN]));
-
-				cmdq_pkt_write(handle, comp->cmdq_base,
-					comp->regs_pa + OVL_EXDMA_ELX_EN(exdma, 2), 0x0,
-					REG_FLD_MASK(reg_fld[FLD_L0_EN]) |
-					REG_FLD_MASK(reg_fld[FLD_L0_FBDC_EN]));
-			}
-
-			DDPINFO("%s bld_id[%s] bind_comp[%s] bg_bld_id[%d] bg_code[%08x]\n",
-				__func__, bld_id, mtk_dump_comp_str(comp->bind_comp),
-				mtk_crtc->bg_bld_id, mtk_crtc->bg_code);
-		}
+		&& comp->bind_comp->funcs->layer_config && !comp->bind_comp->blank_mode)
 		comp->bind_comp->funcs->layer_config(comp->bind_comp, idx, state, handle);
-	}
 }
 
 bool compr_ovl_exdma_l_config_AFBC_V1_2(struct mtk_ddp_comp *comp,
@@ -4133,8 +4070,7 @@ static int mtk_ovl_replace_bootup_mva(struct mtk_ddp_comp *comp,
 		layer_addr = read_phy_layer_addr(comp, 0);
 		if (comp->id == DDP_COMPONENT_OVL_EXDMA2 || comp->id == DDP_COMPONENT_OVL_EXDMA3) {
 			DDPMSG("%s, replace mva same as pa %pad\n", __func__, &layer_addr);
-			/* TODO: add helper */
-			/* mtk_crtc->lk_dma_addr = layer_addr; */
+			mtk_crtc->lk_dma_addr = layer_addr;
 			domain = iommu_get_domain_for_dev(mtk_smmu_get_shared_device(comp->dev));
 			if (domain == NULL) {
 				DDPPR_ERR("%s, iommu_get_domain fail\n", __func__);
@@ -4151,24 +4087,6 @@ static int mtk_ovl_replace_bootup_mva(struct mtk_ddp_comp *comp,
 		if (mode)
 			comp->qos_bw = bw;
 	}
-
-	return 0;
-}
-
-static unsigned int mtk_ovl_exdma_is_compr_type(enum EXDMA_COMPR_TYPE type,
-	unsigned int usage_ovl_compr)
-{
-	if (usage_ovl_compr == 0)
-		return 0;
-
-	if (type == COMPR_TYPE_ALL_COMPR) /* 2'b10 */
-		return usage_ovl_compr == BIT(COMPR_TYPE_IS_COMPR);
-	else if (type == COMPR_TYPE_HAS_COMPR) /* 2'b10 or 2'b11 */
-		return (usage_ovl_compr & BIT(COMPR_TYPE_IS_COMPR)) ? 1 : 0;
-	else if (type == COMPR_TYPE_ALL_UNCOMPR) /* 2'b01 */
-		return usage_ovl_compr == BIT(COMPR_TYPE_IS_UNCOMPR);
-	else if (type == COMPR_TYPE_HAS_UNCOMPR) /* 2'b01 or 2'b11 */
-		return (usage_ovl_compr & BIT(COMPR_TYPE_IS_UNCOMPR)) ? 1 : 0;
 
 	return 0;
 }
@@ -4266,49 +4184,6 @@ static int mtk_ovl_calc_layer_hrt_bw(struct mtk_drm_crtc *mtk_crtc, unsigned int
 		IS_ERR_OR_NULL(stash_hdr_bw) ? 999999 : *stash_hdr_bw,
 		uncompr_bw);
 	return total;
-}
-
-static void mtk_bwm_update_comp_compr_bw(struct mtk_drm_crtc *mtk_crtc,
-		struct mtk_ddp_comp *comp)
-{
-	struct mtk_drm_private *priv = NULL;
-	unsigned int crtc_idx, idx, i, compr_ratio, alloc_id, srt_bw, tmp_bw = 0;
-
-	if (IS_ERR_OR_NULL(mtk_crtc))
-		return;
-
-	crtc_idx = drm_crtc_index(&mtk_crtc->base);
-	priv = mtk_crtc->base.dev->dev_private;
-
-	if (IS_ERR_OR_NULL(priv) ||
-		!mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_OVL_BWM20) || (crtc_idx != 0))
-		return;
-
-	for(idx = 0; idx < 4; idx++) {
-		compr_ratio = 0;
-		alloc_id = comp->layer_srt[idx].alloc_id;
-		srt_bw = comp->layer_srt[idx].srt_bw;
-		if (!srt_bw)
-			continue;
-
-		/* BWM1.0 already apply in layer_config, this function only apply BWM2.0 */
-		for (i = 0; i < MAX_LAYER_RATIO_NUMBER; i++) {
-			if (alloc_id == all_layer_compress_ratio_table[i].key_value &&
-				all_layer_compress_ratio_table[i].active)
-				compr_ratio = all_layer_compress_ratio_table[i].average_ratio;
-		}
-		if (!compr_ratio || compr_ratio > 1000)
-			compr_ratio = 1000;
-
-		/* need revert default ratio(0.7) */
-		if (compr_ratio != 1000)
-			tmp_bw += srt_bw * compr_ratio * 10 / (1000 * 7);
-		else
-			tmp_bw += srt_bw;
-		DDPINFO("%s %s idx:%u ratio:%u tmp_bw:%u alloc_id:%u\n", __func__,
-			mtk_dump_comp_str_id(comp->id), idx, compr_ratio, tmp_bw, alloc_id);
-	}
-	comp->qos_bw = tmp_bw;
 }
 
 static void mtk_ovl_backup_info_cmp(struct mtk_ddp_comp *comp, bool *compare)
@@ -4490,8 +4365,6 @@ static int mtk_ovl_exdma_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *hand
 
 		usage_ovl_fmt = mtk_crtc->usage_ovl_fmt[phy_id];
 		usage_ovl_compr = mtk_crtc->usage_ovl_compr[phy_id];
-		/* if exdma's any layer has compr, need consider hdr and hdr stash port bw */
-		usage_ovl_compr = mtk_ovl_exdma_is_compr_type(COMPR_TYPE_HAS_COMPR, usage_ovl_compr);
 
 		bw_val = (bw_val * usage_ovl_fmt) >> 2;
 
@@ -4575,8 +4448,6 @@ static int mtk_ovl_exdma_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *hand
 
 		usage_ovl_fmt = mtk_crtc->usage_ovl_fmt[phy_id];
 		usage_ovl_compr = mtk_crtc->usage_ovl_compr[phy_id];
-		/* if exdma's any layer has compr, need consider hdr and hdr stash port bw */
-		usage_ovl_compr = mtk_ovl_exdma_is_compr_type(COMPR_TYPE_HAS_COMPR, usage_ovl_compr);
 
 		bw_val = (bw_val * usage_ovl_fmt) >> 2;
 
@@ -4772,8 +4643,6 @@ static int mtk_ovl_exdma_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *hand
 
 		usage_ovl_fmt = mtk_crtc->usage_ovl_fmt[phy_id];
 		usage_ovl_compr = mtk_crtc->usage_ovl_compr[phy_id];
-		/* only when exdmaX's all layer is compr can consider compr_ratio */
-		usage_ovl_compr = mtk_ovl_exdma_is_compr_type(COMPR_TYPE_ALL_COMPR, usage_ovl_compr);
 
 		if (usage_ovl_fmt == 0)
 			break;
@@ -4834,7 +4703,6 @@ static int mtk_ovl_exdma_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *hand
 		}
 
 		if (!force_update && !update_pending) {
-			mtk_bwm_update_comp_compr_bw(mtk_crtc, comp);
 			mtk_crtc->total_srt += comp->qos_bw;
 			if (channel_id < 4)
 				priv->srt_channel_bw_sum[crtc_idx][channel_id] += comp->qos_bw;
@@ -4847,8 +4715,13 @@ static int mtk_ovl_exdma_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *hand
 		__mtk_disp_set_module_srt(comp->qos_req, comp->id, comp->qos_bw, 0,
 					    DISP_BW_NORMAL_MODE, priv->data->real_srt_ostdl);
 		comp->last_qos_bw = comp->qos_bw;
+		if (!force_update && update_pending) {
+			mtk_crtc->total_srt += comp->qos_bw;
+			if (channel_id < 4)
+				priv->srt_channel_bw_sum[crtc_idx][channel_id] += comp->qos_bw;
+		}
 
-		DDPINFO("update ovl qos bw to %u %u, peak %u %u\n",
+		DDPINFO("update ovl qos bw to %u, %u peak %u %u\n",
 			comp->qos_bw, comp->qos_bw_other, comp->hrt_bw, comp->hrt_bw_other);
 		break;
 	}

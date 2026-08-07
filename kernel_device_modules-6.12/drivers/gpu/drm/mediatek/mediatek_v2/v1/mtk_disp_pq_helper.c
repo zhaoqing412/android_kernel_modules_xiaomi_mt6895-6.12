@@ -899,7 +899,7 @@ err:
 
 bool is_pq_frame_cfg_need_wait_done(struct mtk_drm_pq_param *requests, unsigned int cmds_len)
 {
-	bool ret = true;
+	bool ret = false;
 	int index;
 
 	for (index = 0; index < cmds_len; index++) {

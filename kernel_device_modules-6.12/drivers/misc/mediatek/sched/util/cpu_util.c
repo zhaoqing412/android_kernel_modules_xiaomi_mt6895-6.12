@@ -17,12 +17,7 @@
 	*ptr -= min_t(typeof(*ptr), *ptr, _val);		\
 } while (0)
 
-
-static bool runnable_boost_default = true;
-module_param(runnable_boost_default , bool , 0644);
-/* runnable_boost_enable ctrl */
 static bool runnable_boost_enable = DEFAULT_RUNNABLE_BOOST;
-module_param(runnable_boost_enable , bool , 0644);
 
 bool is_runnable_boost_enable(void)
 {
@@ -36,7 +31,7 @@ void set_runnable_boost_enable(int ctrl)
 		return;
 
 	if (ctrl == -1) {
-		runnable_boost_enable = runnable_boost_default;
+		runnable_boost_enable = DEFAULT_RUNNABLE_BOOST;
 		return;
 	}
 

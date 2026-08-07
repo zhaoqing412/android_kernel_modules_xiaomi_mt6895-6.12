@@ -164,21 +164,13 @@ static void ged_eb_work_cb(struct work_struct *psWork)
 		desire_ipi_cnt++;
 		if (is_fdvfs_enable() & POLICY_MODE_V2) {
 			mutex_lock(&gsPolicyLock);
-
-			if (psEBEvent->idx[2] == 0xFFFFFFFF) {
+			dcs_set_setting_dirty();
+			if (psEBEvent->idx[1] == GOV_MASK_DEBUG && psEBEvent->idx[0] != 0)
 				dcs_set_fix_core_mask(psEBEvent->idx[1], psEBEvent->idx[0]);
-				trace_tracing_mark_write(5566, "desire_ipi_req_ex", psEBEvent->idx[0]);
-			} else {
-				dcs_set_setting_dirty();
-				if ((psEBEvent->idx[1] == GOV_MASK_DEBUG) &&
-					psEBEvent->idx[0] != 0)
-					dcs_set_fix_core_mask(psEBEvent->idx[1], psEBEvent->idx[0]);
-				else
-					ged_kpi_fastdvfs_update_dcs();
-
-				trace_tracing_mark_write(5566, "desire_ipi_req", psEBEvent->idx[0]);
-			}
+			else
+				ged_kpi_fastdvfs_update_dcs();
 			mutex_unlock(&gsPolicyLock);
+			trace_tracing_mark_write(5566, "desire_ipi_req", psEBEvent->idx[0]);
 		}
 		trace_tracing_mark_write(5566, "desire_ipi_cnt", desire_ipi_cnt);
 		break;
@@ -734,7 +726,6 @@ int ged_to_fdvfs_command(unsigned int cmd, struct fdvfs_ipi_data *ipi_data)
 	case GPUFDVFS_IPI_GET_LB_TUNE_PARAM:
 	case GPUFDVFS_IPI_GET_DEFAULT_POLICY_MODE:
 	case GPUFDVFS_IPI_GET_LOADING_MODE:
-	case GPUFDVFS_IPI_GET_FB_MARGIM:
 		ret = mtk_ipi_send_compl_to_gpueb(
 			g_fast_dvfs_ipi_channel,
 			IPI_SEND_POLLING, ipi_data,
@@ -1140,7 +1131,6 @@ void mtk_gpueb_set_power_state(enum ged_gpu_power_state power_state)
 }
 EXPORT_SYMBOL(mtk_gpueb_set_power_state);
 
-
 unsigned int is_fdvfs_enable(void)
 {
 	return eb_policy_mode;
@@ -1399,10 +1389,8 @@ int mtk_gpueb_sysram_write(int offset, int val)
 {
 	unsigned int real_offset = offset;
 
-	if (!mtk_gpueb_dvfs_sysram_base_addr) {
-		GED_LOGE("%s: sysram_base_addr is Null. offset(%d)", __func__, offset);
+	if (!mtk_gpueb_dvfs_sysram_base_addr)
 		return -EADDRNOTAVAIL;
-	}
 
 	if (ged_fp && ged_fp->get_sysram) {
 		// use virtual offset to query real offset
@@ -1873,9 +1861,6 @@ int ged_eb_dvfs_task(enum ged_eb_dvfs_task_index index, int value)
 			// g_tb_dvfs_margin_step [24:27]
 			tmp |= ((ged_dvfs_get_margin_step() & 0xF) << 24);
 			mtk_gpueb_sysram_write(SYSRAM_GPU_EB_CMD_TB_DVFS_MARGIN, tmp);
-			if (ged_get_dvfs_margin_value_cmd() > 0)
-				mtk_gpueb_sysram_write(SYSRAM_GPU_EB_CMD_DVFS_MARGIN_VALUE,
-					ged_get_dvfs_margin_value_cmd());
 		break;
 		case EB_FB_RSF_POLICY_ENABLE:
 			mtk_gpueb_dvfs_fb_rsf_policy_enable(value);
@@ -2091,8 +2076,6 @@ void ged_do_platform_related_init(void)
 	mtk_get_dvfs_workload_mode(&workloadMode);
 	mtk_gpueb_sysram_write(fdvfs_v2_table[GPU_EB_WORKLOAD_MODE].addr, workloadMode);
 	mtk_gpueb_sysram_write(fdvfs_v2_table[GPU_FB_NPU_HINT_MS].addr, 0);
-	mtk_gpueb_sysram_write(SYSRAM_GPU_EB_CMD_DVFS_MARGIN_VALUE, 0);
-	mtk_gpueb_sysram_write(SYSRAM_GPU_FB_TARGET_HD, g_frame_target_mode * 100 + g_frame_target_time);
 
 	GED_LOGI("ts_rb_num(%u) mbrain_max_num(%u)",
 		ged_get_ts_rb_num(), ged_get_mbrain_max_num());

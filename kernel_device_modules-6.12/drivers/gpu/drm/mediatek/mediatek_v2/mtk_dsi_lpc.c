@@ -26,16 +26,6 @@
 #include "mtk_dsi_lpc.h"
 #include <linux/module.h>
 
-#ifdef OPLUS_FEATURE_DISPLAY_ADFR
-#include "oplus_adfr.h"
-#endif /* OPLUS_FEATURE_DISPLAY_ADFR */
-#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
-#include "oplus_display_onscreenfingerprint.h"
-#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
-#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
-#include "oplus_display_apollo_brightness.h"
-#endif /* OPLUS_FEATURE_DISPLAY_APOLLO */
-
 #define DSI_LPC_EN (0x0)
 #define DSI_LPC_EN_BIT_FLD REG_FLD_MSB_LSB(0, 0)
 #define DSI_LPC_EN_BIT BIT(0)
@@ -168,16 +158,12 @@
 #define DSI_LPC_EXT_TE_SEL REG_FLD_MSB_LSB(1, 0)
 #define DSI_LPC_MIPI_ERROR_FLAG_SEL REG_FLD_MSB_LSB(3, 2)
 
-int lpc_te_enabled = 1;
-module_param(lpc_te_enabled, int, 0644);
-
 enum LPC_MMP_IDX {
 	HW_VSYNC_ON_CONFIG,
 	IRQ_DISABLE = 0xFF,
 };
 struct mtk_dsi_lpc_data {
 	const unsigned int te_limit;
-	const bool dpc_te_by_lpc;
 };
 struct mtk_dsi_lpc {
 	struct mtk_ddp_comp ddp_comp;
@@ -191,13 +177,7 @@ struct mtk_dsi_lpc {
 };
 static const struct mtk_dsi_lpc_data lpc_data_mt6993 = {
 	.te_limit = 8333,
-	.dpc_te_by_lpc = true,
 };
-
-#ifdef OPLUS_FEATURE_DISPLAY
-extern unsigned long long oplus_last_te_time;
-#endif /* OPLUS_FEATURE_DISPLAY */
-
 void mtk_dsi_lpc_for_debug_config(struct mtk_drm_crtc *mtk_crtc, struct cmdq_pkt *cmdq_handle)
 {
 	unsigned int value = 0;
@@ -282,7 +262,7 @@ void mtk_dsi_lpc_te_irq_en(struct mtk_drm_crtc *mtk_crtc,
 		return;
 
 	lpc_inten = readl(comp->regs + DSI_LPC_INTEN(index));
-	if (en && lpc_te_enabled)
+	if (en)
 		lpc_inten |= EVENT_TE_INT_EN;
 	else
 		lpc_inten &= ~EVENT_TE_INT_EN;
@@ -382,7 +362,14 @@ static void mtk_dsi_lpc_stop(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle)
 	drm_trace_tag_mark("lpc_stop");
 	DRM_MMP_MARK(dsi_lpc, IRQ_DISABLE, 0xFFFF);
 }
-
+static void mtk_dsi_lpc_prepare(struct mtk_ddp_comp *comp)
+{
+	mtk_ddp_comp_clk_prepare(comp);
+}
+static void mtk_dsi_lpc_unprepare(struct mtk_ddp_comp *comp)
+{
+	mtk_ddp_comp_clk_unprepare(comp);
+}
 void set_pl_kernel_offset(struct mtk_ddp_comp *comp)
 {
 	struct mtk_dsi_lpc *lpc = comp_to_dsi_lpc(comp);
@@ -391,36 +378,16 @@ void set_pl_kernel_offset(struct mtk_ddp_comp *comp)
 	lpc->ts_offset = arch_timer_read_counter() - ts;
 
 	DDPINFO("%s,ker:%llu,offset:%llu\n", __func__, ts, lpc->ts_offset);
-	drm_trace_tag_value("lpc_ts_offset", lpc->ts_offset);
 }
-void mtk_dsi_lpc_sys_time_ts(unsigned long long *sys_time_ts, struct mtk_drm_crtc *mtk_crtc, struct mtk_ddp_comp *comp)
+ktime_t pl_kernel_offset(struct mtk_ddp_comp *comp)
 {
-	int index = 0;
-	unsigned long ts0, ts1;
 	struct mtk_dsi_lpc *lpc = comp_to_dsi_lpc(comp);
 
-	index = mtk_dsi_lpc_unit(mtk_crtc);
-	if (index < 0) {
-		DDPMSG("%s lpc unit error\n", __func__);
-		return;
-	}
-
-	ts0 = readl(comp->regs+ DSI_LPC_SYS_TIMER_TIMESTAMP0);
-	ts1 = readl(comp->regs + DSI_LPC_SYS_TIMER_TIMESTAMP1);
-	*sys_time_ts = (ts1 << 32 | ts0) << 7;
-	if (*sys_time_ts > lpc->ts_offset)
-		*sys_time_ts -= lpc->ts_offset;
-	else
-		DDPPR_ERR("%s,error,ts_offset:%llu\n", __func__, lpc->ts_offset);
-
-	drm_trace_tag_value("lpc_sys_time_timestamp0", ts0);
-	drm_trace_tag_value("lpc_sys_time_timestamp1", ts1);
-	drm_trace_tag_value("lpc_sys_time_timestamp", *sys_time_ts);
-	DDPPR_ERR("%s,error,t0:%llu,t1:%llu,sys_time_ts:%llu,ts_offset:%llu\n",
-				__func__, ts0, ts1, *sys_time_ts, lpc->ts_offset);
+	return lpc->ts_offset;
 }
-void mtk_dsi_lpc_sof_ts(unsigned long long *sof_ts, struct mtk_drm_crtc *mtk_crtc, struct mtk_ddp_comp *comp)
+void mtk_dsi_lpc_sof_ts(long long *sof_ts, struct mtk_drm_crtc *mtk_crtc, struct mtk_ddp_comp *comp)
 {
+	/* repot sof time */
 	int index = 0;
 	unsigned long ts0, ts1;
 	struct mtk_dsi_lpc *lpc = comp_to_dsi_lpc(comp);
@@ -434,19 +401,10 @@ void mtk_dsi_lpc_sof_ts(unsigned long long *sof_ts, struct mtk_drm_crtc *mtk_crt
 	ts0 = readl(comp->regs+ DSI_LPC_SOF_TIMESTAMP_0(index));
 	ts1 = readl(comp->regs + DSI_LPC_SOF_TIMESTAMP_1(index));
 	*sof_ts = (ts1 << 32 | ts0) << 7;
-	if (*sof_ts > lpc->ts_offset)
-		*sof_ts -= lpc->ts_offset;
-	else {
-		unsigned long long sys_time_ts = 0;
-
-		mtk_dsi_lpc_sys_time_ts(&sys_time_ts, mtk_crtc, comp);
-
-		*sof_ts = ktime_get();
-	}
+	*sof_ts -= pl_kernel_offset(comp);
 
 	lpc->lpc_sof_status = 1;
-	drm_trace_tag_value("lpc_sof_timestamp0", ts0);
-	drm_trace_tag_value("lpc_sof_timestamp1", ts1);
+
 	drm_trace_tag_value("lpc_sof_timestamp", *sof_ts);
 }
 void mtk_dsi_lpc_event_te_ts(unsigned long *event_te_ts_diff, struct mtk_drm_crtc *mtk_crtc,
@@ -477,12 +435,12 @@ void mtk_dsi_lpc_event_te_ts(unsigned long *event_te_ts_diff, struct mtk_drm_crt
 		pre_event_te_ts = event_te_ts;
 	}
 }
-void mtk_dsi_lpc_resync_ts(unsigned long long *resync_ts, struct mtk_drm_crtc *mtk_crtc,
+void mtk_dsi_lpc_resync_ts(long long *resync_ts, struct mtk_drm_crtc *mtk_crtc,
 	struct mtk_ddp_comp *comp)
 {
+	/* repot resync time */
 	int index = 0;
 	unsigned long ts0, ts1;
-	struct mtk_dsi_lpc *lpc = comp_to_dsi_lpc(comp);
 
 	index = mtk_dsi_lpc_unit(mtk_crtc);
 	if (index < 0) {
@@ -493,17 +451,8 @@ void mtk_dsi_lpc_resync_ts(unsigned long long *resync_ts, struct mtk_drm_crtc *m
 	ts0 = readl(comp->regs + DSI_LPC_RESYNC_TE_TIMESTAMP_0(index));
 	ts1 = readl(comp->regs + DSI_LPC_RESYNC_TE_TIMESTAMP_1(index));
 	*resync_ts = (ts1 << 32 | ts0) << 7;
-	if (*resync_ts > lpc->ts_offset)
-		*resync_ts -= lpc->ts_offset;
-	else {
-		unsigned long long sys_time_ts = 0;
+	*resync_ts -= pl_kernel_offset(comp);
 
-		mtk_dsi_lpc_sys_time_ts(&sys_time_ts, mtk_crtc, comp);
-
-		*resync_ts = ktime_get();
-	}
-	drm_trace_tag_value("lpc_resync_timestamp0", ts0);
-	drm_trace_tag_value("lpc_resync_timestamp1", ts1);
 	drm_trace_tag_value("lpc_resync_timestamp", *resync_ts);
 }
 int mtk_dsi_lpc_interrupt_enable(struct mtk_drm_crtc *mtk_crtc,
@@ -555,7 +504,7 @@ int mtk_dsi_lpc_interrupt_enable(struct mtk_drm_crtc *mtk_crtc,
 		lpc_te_con0_val &= ~DSI_LPC_HW_VSYNC_ON;
 	}
 
-	if (lpc->dsi_lpc_te_irq_en && lpc_te_enabled)
+	if (lpc->dsi_lpc_te_irq_en)
 		inten |= EVENT_TE_INT_EN;
 
 	/* for ddic error */
@@ -743,9 +692,6 @@ void mtk_dsi_lpc_init_config(struct drm_crtc *crtc, struct mtk_ddp_comp *comp)
 	mtk_dsi_set_lpc_en(lpc_en, comp);
 	mtk_dsi_lpc_unit_en(lpc_en, index, comp);
 
-	if (lpc->data->dpc_te_by_lpc)
-		mtk_vidle_dsi_pll_set(0);
-
 	drm_trace_tag_end("lpc_init_config");
 }
 static int mtk_dsi_lpc_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
@@ -776,14 +722,14 @@ static int mtk_dsi_lpc_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle
 		break;
 	case DSI_LPC_GET_SOF_TS:
 	{
-		unsigned long long *ts = (unsigned long long *)params;
+		long long *ts = (long long *)params;
 
 		mtk_dsi_lpc_sof_ts(ts,mtk_crtc, comp);
 	}
 		break;
 	case DSI_LPC_GET_RESYNC_TS:
 	{
-		unsigned long long *ts = (unsigned long long *)params;
+		long long *ts = (long long *)params;
 
 		mtk_dsi_lpc_resync_ts(ts,mtk_crtc, comp);
 	}
@@ -837,6 +783,8 @@ static int mtk_dsi_lpc_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle
 static const struct mtk_ddp_comp_funcs mtk_dsi_lpc_funcs = {
 	//.start = mtk_dsi_lpc_start,
 	.stop = mtk_dsi_lpc_stop,
+	.prepare = mtk_dsi_lpc_prepare,
+	.unprepare = mtk_dsi_lpc_unprepare,
 	//.config = mtk_dsi_lpc_config,,
 	.io_cmd = mtk_dsi_lpc_io_cmd,
 };
@@ -936,31 +884,6 @@ static irqreturn_t mtk_dsi_lpc_irq_handler(int irq, void *dev_id)
 		if (status & EVENT_TE_INT) {
 			DRM_MMP_MARK(dsi_lpc0_te, status, event_te_ts_diff);
 			drm_trace_tag_mark("lpc_te_irq");
-
-#ifdef OPLUS_FEATURE_DISPLAY
-			DDPINFO("%s:lpc_te_irq", __func__);
-#endif /* OPLUS_FEATURE_DISPLAY */
-#ifdef OPLUS_FEATURE_DISPLAY
-			oplus_last_te_time = ktime_get();
-			mtk_crtc->oplus_apollo_br->oplus_te_diff_ns = ktime_get() - mtk_crtc->oplus_apollo_br->oplus_te_tag_ns;
-#endif /* OPLUS_FEATURE_DISPLAY */
-#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
-			mtk_crtc->oplus_apollo_br->oplus_te_tag_ns = ktime_get();
-#endif /* OPLUS_FEATURE_DISPLAY_APOLLO */
-#ifdef OPLUS_FEATURE_DISPLAY_ADFR
-			oplus_adfr_irq_handler(mtk_crtc, OPLUS_ADFR_TE_IRQ);
-#endif /* OPLUS_FEATURE_DISPLAY_ADFR */
-#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
-			if (oplus_ofp_is_supported()) {
-				if (!oplus_ofp_video_mode_aod_fod_is_enabled()) {
-					oplus_ofp_pressed_icon_status_update(OPLUS_OFP_TE_RDY);
-					oplus_ofp_aod_off_hbm_on_delay_check(mtk_crtc);
-					/* send ui ready */
-					oplus_ofp_notify_uiready(mtk_crtc);
-				}
-			}
-#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
-
 		}
 
 		if (status & MIPI_ERROR_FLAG_INT) {
@@ -1027,7 +950,6 @@ static int mtk_dsi_lpc_probe(struct platform_device *pdev)
 		}
 	}
 	dsi_lpc->dsi_lpc_en = true;
-	dsi_lpc->dsi_lpc_te_irq_en = true;
 
 	mtk_ddp_comp_pm_enable(&dsi_lpc->ddp_comp);
 

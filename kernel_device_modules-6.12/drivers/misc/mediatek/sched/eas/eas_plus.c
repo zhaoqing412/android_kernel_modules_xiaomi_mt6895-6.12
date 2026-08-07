@@ -31,28 +31,10 @@
 #include "flt_cal.h"
 #endif
 
-#ifdef CONFIG_HMBIRD_SCHED_BPF
-#include <hmbird_II/hmbird_II_export.h>
-#endif
-
 #include <mt-plat/mtk_irq_mon.h>
 #include "arch.h"
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-#include <linux/sa_common.h>
-#endif
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
-#include <linux/sa_pipeline.h>
-#endif
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_LOADBALANCE)
-#include <linux/sa_balance.h>
-#endif
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_GKI_CPUFREQ_BOUNCING)
-#include <linux/cpufreq_bouncing.h>
-#endif
+
 #include "balance.h"
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_ABNORMAL_FLAG)
-#include <linux/task_overload.h>
-#endif
 
 MODULE_LICENSE("GPL");
 
@@ -89,14 +71,6 @@ EXPORT_SYMBOL_GPL(get_swpm_pwr_coef);
 
 struct cpumask __cpu_pause_mask;
 EXPORT_SYMBOL(__cpu_pause_mask);
-
-#ifdef CONFIG_HMBIRD_SCHED_BPF
-bool cpu_paused(int cpu)
-{
-	return cpumask_test_cpu((cpu), cpu_pause_mask) && !hmbird_bypass_hooks();
-}
-EXPORT_SYMBOL_GPL(cpu_paused);
-#endif
 
 struct perf_domain *find_pd(struct perf_domain *pd, int cpu)
 {
@@ -608,7 +582,6 @@ inline void update_thermal_pressure_capacity(bool update_all, int this_cpu)
 	struct cpumask *cpus;
 	unsigned int freq_thermal, last_th_freq;
 	int wl = get_curr_wl(), r_o = is_dpt_v2_support() ? 1 : 0;
-	int dbg[16];
 
 	for (gear_id = 0; gear_id < num_sched_clusters; gear_id++) {
 		cpus = get_gear_cpumask(gear_id);
@@ -618,9 +591,7 @@ inline void update_thermal_pressure_capacity(bool update_all, int this_cpu)
 
 		freq_thermal = get_cpu_ceiling_freq(gear_id);
 		last_th_freq = READ_ONCE(per_cpu(thermal_freq, first_cpu));
-		for (int i=0; i<16; i++)
-			dbg[i] = get_cpu_cooler_dbg(i);
-		trace_sched_frequency_limits(first_cpu, freq_thermal, dbg);
+		trace_sched_frequency_limits(first_cpu, freq_thermal);
 
 
 		thermal_max_capacity = pd_freq2util(first_cpu, freq_thermal, true, wl, NULL, r_o);
@@ -799,25 +770,10 @@ void hook_sched_tick(void *data, struct rq *rq)
 		return;
 
 	struct root_domain *rd = rq->rd;
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_GKI_CPUFREQ_BOUNCING)
-	int this_cpu = cpu_of(rq);
-	struct cpufreq_policy *pol = cpufreq_cpu_get_raw(this_cpu);
 
-	if (pol)
-		cb_update(pol, ktime_get_ns());
-#endif
 	rcu_read_lock();
 	rd->android_vendor_data1 = system_has_many_heavy_task();
 	rcu_read_unlock();
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_LOADBALANCE)
-	if (__oplus_tick_balance(NULL, rq))
-		return;
-#endif
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_ABNORMAL_FLAG)
-	test_task_overload(rq->curr);
-#endif /* #OPLUS_FEATURE_ABNORMAL_FLAG */
 
 	if (rq->curr->policy == SCHED_NORMAL)
 		check_for_migration(rq->curr);
@@ -829,10 +785,6 @@ void mtk_hook_after_enqueue_task(void *data, struct rq *rq,
 	int this_cpu = smp_processor_id();
 	struct sugov_rq_data *sugov_data_ptr;
 	struct sugov_rq_data *sugov_data_ptr2;
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-	android_rvh_after_enqueue_task_handler(data, rq, p, flags);
-#endif
 
 	if (!get_eas_hook())
 		return;
@@ -1151,10 +1103,6 @@ void mtk_sched_switch(void *data, struct task_struct *prev,
 	if (next->pid == 0)
 		per_cpu(sbb, rq->cpu)->active = 0;
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-	android_rvh_schedule_handler(data, prev, next, rq);
-#endif
-
 	if (trace_sched_stat_vdeadline_enabled()) {
 		if (prev->pid != 0 && next->pid != 0) {
 			if (prev->prio > 99 && next->prio > 99) {
@@ -1189,13 +1137,6 @@ void mtk_update_misfit_status(void *data, struct task_struct *p, struct rq *rq, 
 		rq->misfit_task_load = 0;
 		return;
 	}
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
-	if (oplus_pipeline_prime_cpu_capacity_fit(p, rq)) {
-		rq->misfit_task_load = 0;
-		return;
-	}
-#endif
 
 	uclamp_min = uclamp_eff_value(p, UCLAMP_MIN);
 	uclamp_max = uclamp_eff_value(p, UCLAMP_MAX);
@@ -1246,7 +1187,4 @@ int set_util_est_ctrl(bool enable)
 	sysctl_util_est = enable;
 	return 0;
 }
-
-
-
 

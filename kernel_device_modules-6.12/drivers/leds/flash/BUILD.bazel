@@ -49,9 +49,6 @@ define_mgk_ddk_ko(
     includes = ["."],
     ko_deps = [
         "//kernel_device_modules-{}/drivers/misc/mediatek/flashlight:flashlight".format(kernel_version),
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-        "//kernel_device_modules-{}/drivers/soc/oplus/boot:oplus_bsp_boot_projectinfo".format(kernel_version),
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
     ],
     copts = [
         "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/flashlight",

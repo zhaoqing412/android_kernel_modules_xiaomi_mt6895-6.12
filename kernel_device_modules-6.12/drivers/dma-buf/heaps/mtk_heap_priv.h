@@ -20,12 +20,6 @@
 #define P2K(x) ((x) << (PAGE_SHIFT - 10))	/* Converts #Pages to KB */
 #define P2M(x) ((x) >> (20 - PAGE_SHIFT))	/* Converts #Pages to MB */
 
-#if PAGE_SHIFT < 20
-#define M2P(mb)	((mb) << (20 - PAGE_SHIFT))
-#else
-#define M2P(mb)	((mb) >> (PAGE_SHIFT - 20))
-#endif
-
 #define DUMP_INFO_LEN_MAX    (400)
 
 /* Bit map */
@@ -155,21 +149,6 @@ void dmabuf_log_end_cpu_partial(struct dma_buf *dmabuf, u32 sync_size);
 
 u32 dmabuf_trace_level(void);
 int dmabuf_trace_mark_write(char *fmt, ...);
-
-/* boost freq */
-bool mtk_dmabuf_boost_enable(void);
-unsigned int mtk_dmabuf_boost_size_min(void);
-unsigned int mtk_dmabuf_boost_size_max(void);
-unsigned int mtk_dmabuf_boost_frag_ratio(void);
-unsigned int mtk_dmabuf_boost_sched_min(void);
-unsigned int mtk_dmabuf_boost_sched_max(void);
-bool mtk_dmabuf_boost_lock_cores_enable(void);
-bool mtk_dmabuf_sync_timeout_record_enable(void);
-u64 mtk_dmabuf_get_sync_timeout_cnt_boost(void);
-u64 mtk_dmabuf_get_sync_timeout_cnt(void);
-void mtk_dmabuf_inc_sync_timeout_cnt_boost(void);
-void mtk_dmabuf_inc_sync_timeout_cnt(void);
-void mtk_dmabuf_inc_stat_nr_boost(void);
 
 #define DMABUF_TRACE_HIGH	1
 #define DMABUF_TRACE_ALL	2

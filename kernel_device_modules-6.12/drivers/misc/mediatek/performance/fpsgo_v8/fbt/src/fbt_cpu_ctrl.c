@@ -62,7 +62,6 @@ static int *fbt_cur_floor;
 
 static DEFINE_MUTEX(cpu_ctrl_lock);
 
-static int fbt_cpu_ctrl_enable;
 static int cfp_onoff;
 static int cfp_polling_ms;
 static int cfp_up_time;
@@ -76,7 +75,6 @@ static int ceiling_min_M_EARA;
 static int ceiling_min_enable_EARA;
 
 
-module_param(fbt_cpu_ctrl_enable, int, 0644);
 module_param(cfp_onoff, int, 0644);
 module_param(cfp_polling_ms, int, 0644);
 module_param(cfp_up_time, int, 0644);
@@ -549,17 +547,6 @@ int fbt_set_cpu_freq_ceiling(int num, int *freq)
 	return 0;
 }
 
-int fpsgo_set_fbt_cpu_ctrl_enable(int enable)
-{
-	int last_enable = fbt_cpu_ctrl_enable;
-
-	if (last_enable != !!enable)
-		fbt_cpu_ctrl_enable = !!enable;
-
-	return 0;
-}
-EXPORT_SYMBOL(fpsgo_set_fbt_cpu_ctrl_enable);
-
 void update_userlimit_cpu_freq(int kicker, int cluster_num, struct cpu_ctrl_data *pld)
 {
 	int *freq;
@@ -570,12 +557,8 @@ void update_userlimit_cpu_freq(int kicker, int cluster_num, struct cpu_ctrl_data
 	if (!freq)
 		return;
 
-	for (i = 0; i < cluster_num; i++) {
-		if (fbt_cpu_ctrl_enable)
-			freq[i] = pld[i].max;
-		else
-			freq[i] = -1;
-	}
+	for (i = 0; i < cluster_num; i++)
+		freq[i] = pld[i].max;
 
 	fbt_set_cpu_freq_ceiling(cluster_num, freq);
 
@@ -655,7 +638,6 @@ int fbt_cpu_ctrl_init(void)
 		prev_idle_time[i].time = cur_idle_time[i].time = 0;
 	}
 
-	fbt_cpu_ctrl_enable = 1;
 	cfp_onoff = 1;
 	cfp_enable = 0;
 

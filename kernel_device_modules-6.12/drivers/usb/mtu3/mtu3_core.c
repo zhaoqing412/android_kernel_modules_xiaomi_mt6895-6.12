@@ -88,7 +88,6 @@ static void ep_fifo_free(struct mtu3_ep *mep)
 		__func__, mep->fifo_seg_size, mep->fifo_size, start_bit);
 }
 
-int mtu3_is_usb_pd(struct mtu3 *mtu);
 static void mtu3_vbus_draw_work(struct work_struct *data)
 {
 	struct mtu3 *mtu = container_of(data, struct mtu3, draw_work);
@@ -96,9 +95,7 @@ static void mtu3_vbus_draw_work(struct work_struct *data)
 	int ret;
 
 	if (mtu->is_active) {
-		if (!mtu->gadget_suspend && mtu->g.state == USB_STATE_CONFIGURED)
-			val.intval = UNLIMIT_CURRENT_MASK; /* unlimited */
-		else if (mtu->vbus_draw < USB_SELF_POWER_VBUS_MAX_DRAW)
+		if (mtu->vbus_draw < USB_SELF_POWER_VBUS_MAX_DRAW)
 			val.intval = 0; /* 0 mA*/
 		else if (mtu->vbus_draw == USB_SELF_POWER_VBUS_MAX_DRAW)
 			val.intval = 100; /* 100 mA*/
@@ -240,8 +237,6 @@ static inline void mtu3_hs_softconn_set(struct mtu3 *mtu, bool enable)
 	} else {
 		mtu3_clrbits(mtu->mac_base, U3D_POWER_MANAGEMENT,
 			SOFT_CONN | SUSPENDM_ENABLE);
-		/* Delay for eUSB2 port reset signal */
-		mdelay(4);
 	}
 	dev_dbg(mtu->dev, "SOFTCONN = %d\n", !!enable);
 }
@@ -634,10 +629,6 @@ void mtu3_start(struct mtu3 *mtu)
 
 	if (mtu->softconnect)
 		mtu3_dev_on_off(mtu, 1);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	else if (!mtu->is_gadget_ready)
-		ssusb_phy_dp_pullup(mtu->ssusb);
-#endif
 
 	/* set vbus limit*/
 	mtu3_gadget_vbus_draw(&mtu->g, USB_SELF_POWER_VBUS_MAX_DRAW);
@@ -945,7 +936,7 @@ static irqreturn_t mtu3_link_isr(struct mtu3 *mtu)
 	link = mtu3_readl(mbase, U3D_DEV_LINK_INTR);
 	link &= mtu3_readl(mbase, U3D_DEV_LINK_INTR_ENABLE);
 	mtu3_writel(mbase, U3D_DEV_LINK_INTR, link); /* W1C */
-	dev_info(mtu->dev, "=== LINK[%x] ===\n", link);
+	dev_dbg(mtu->dev, "=== LINK[%x] ===\n", link);
 
 	if (!(link & SSUSB_DEV_SPEED_CHG_INTR))
 		return IRQ_NONE;
@@ -1239,9 +1230,6 @@ static void ssusb_get_host_speed_max(struct mtu3 *mtu)
 int ssusb_gadget_init(struct ssusb_mtk *ssusb)
 {
 	struct device *dev = ssusb->dev;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	struct device_node *np = dev->of_node;
-#endif
 	struct platform_device *pdev = to_platform_device(dev);
 	struct mtu3 *mtu = NULL;
 	int ret = -ENOMEM;
@@ -1304,8 +1292,7 @@ int ssusb_gadget_init(struct ssusb_mtk *ssusb)
 	dev_info(dev, "max_speed_host: %s\n", usb_speed_string(mtu->max_speed_host));
 
 	of_property_read_u32(dev->of_node, "mediatek,u2-lpm-quirks", &mtu->u2_lpm_quirks);
-	if (of_device_is_compatible(mtu->dev->of_node, "mediatek,mt6991-mtu3") ||
-	    (ssusb->eusb2_id == 6379 && ssusb->eusb2_rev <= 4))
+	if (of_device_is_compatible(mtu->dev->of_node, "mediatek,mt6991-mtu3"))
 		mtu->u2_lpm_quirks |= MTU3_U2_LPM_SW_MODE;
 
 	dev_info(dev, "u2_lpm_quirks: 0x%x\n", mtu->u2_lpm_quirks);
@@ -1337,11 +1324,6 @@ int ssusb_gadget_init(struct ssusb_mtk *ssusb)
 	}
 
 	ssusb_dev_debugfs_init(ssusb);
-
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	dev_info(dev, "remove cdp-block property\n");
-	of_remove_property(np, of_find_property(np, "cdp-block", NULL));
-#endif
 
 	dev_dbg(dev, " %s() done...\n", __func__);
 

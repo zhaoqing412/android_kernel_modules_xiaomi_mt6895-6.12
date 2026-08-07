@@ -502,70 +502,22 @@ TRACE_EVENT(sched_cpu_overutilized,
  */
 TRACE_EVENT(sched_frequency_limits,
 
-	TP_PROTO(int cpu_id, int freq_thermal, int *dbg),
+	TP_PROTO(int cpu_id, int freq_thermal),
 
-	TP_ARGS(cpu_id, freq_thermal, dbg),
+	TP_ARGS(cpu_id, freq_thermal),
 
 	TP_STRUCT__entry(
 		__field(int,  cpu_id)
 		__field(int,  freq_thermal)
-		__field(int, dbg1)
-		__field(int, dbg2)
-		__field(int, dbg3)
-		__field(int, dbg4)
-		__field(int, dbg5)
-		__field(int, dbg6)
-		__field(int, dbg7)
-		__field(int, dbg8)
-		__field(int, dbg9)
-		__field(int, dbg10)
-		__field(int, dbg11)
-		__field(int, dbg12)
-		__field(int, dbg13)
-		__field(int, dbg14)
-		__field(int, dbg15)
-		__field(int, dbg16)
 		),
 
 	TP_fast_assign(
 		__entry->cpu_id = cpu_id;
 		__entry->freq_thermal = freq_thermal;
-		__entry->dbg1 = dbg[0];
-		__entry->dbg2 = dbg[1];
-		__entry->dbg3 = dbg[2];
-		__entry->dbg4 = dbg[3];
-		__entry->dbg5 = dbg[4];
-		__entry->dbg6 = dbg[5];
-		__entry->dbg7 = dbg[6];
-		__entry->dbg8 = dbg[7];
-		__entry->dbg9 = dbg[8];
-		__entry->dbg10 = dbg[9];
-		__entry->dbg11 = dbg[10];
-		__entry->dbg12 = dbg[11];
-		__entry->dbg13 = dbg[12];
-		__entry->dbg14 = dbg[13];
-		__entry->dbg15 = dbg[14];
-		__entry->dbg16 = dbg[15];
 		),
 
-	TP_printk("cpu=%d thermal=%d dbg1=%d dbg2=%d dbg3=%d dbg4=%d dbg5=%d dbg6=%d dbg7=%d dbg8=%d dbg9=%d dbg10=%d dbg11=%d dbg12=%d dbg13=%d dbg14=%d dbg15=%d dbg16=%d",
-		__entry->cpu_id, __entry->freq_thermal,
-		__entry->dbg1,
-		__entry->dbg2,
-		__entry->dbg3,
-		__entry->dbg4,
-		__entry->dbg5,
-		__entry->dbg6,
-		__entry->dbg7,
-		__entry->dbg8,
-		__entry->dbg9,
-		__entry->dbg10,
-		__entry->dbg11,
-		__entry->dbg12,
-		__entry->dbg13,
-		__entry->dbg14,
-		__entry->dbg15,
-		__entry->dbg16)
+	TP_printk("cpu=%d thermal=%d",
+		__entry->cpu_id, __entry->freq_thermal)
 );
 
 TRACE_EVENT(sched_queue_task,
@@ -698,8 +650,8 @@ TRACE_EVENT(sched_task_util,
 
 TRACE_EVENT(sched_task_uest,
 	TP_PROTO(int pid, unsigned int dequeued, unsigned int ewma, unsigned int util_est,
-		unsigned long runnable_avg, bool runnable_aware, unsigned int weight_shift),
-	TP_ARGS(pid, dequeued, ewma, util_est, runnable_avg, runnable_aware, weight_shift),
+		unsigned long runnable_avg, bool runnable_aware),
+	TP_ARGS(pid, dequeued, ewma, util_est, runnable_avg, runnable_aware),
 	TP_STRUCT__entry(
 		__field(int, pid)
 		__field(unsigned int, dequeued)
@@ -707,7 +659,6 @@ TRACE_EVENT(sched_task_uest,
 		__field(unsigned int, util_est)
 		__field(unsigned long, runnable_avg)
 		__field(bool, runnable_aware)
-		__field(unsigned int, weight_shift)
 	),
 	TP_fast_assign(
 		__entry->pid = pid;
@@ -716,17 +667,15 @@ TRACE_EVENT(sched_task_uest,
 		__entry->util_est = util_est;
 		__entry->runnable_avg = runnable_avg;
 		__entry->runnable_aware = runnable_aware;
-		__entry->weight_shift = weight_shift;
 	),
 	TP_printk(
-		"pid=%d dequeued=%u ewma=%u util_est=%u runnable_avg=%lu, runnable_aware=%d weight_shift=%u",
+		"pid=%d dequeued=%u ewma=%u util_est=%u runnable_avg=%lu, runnable_aware=%d",
 		__entry->pid,
 		__entry->dequeued,
 		__entry->ewma,
 		__entry->util_est,
 		__entry->runnable_avg,
-		__entry->runnable_aware,
-		__entry->weight_shift)
+		__entry->runnable_aware)
 );
 
 TRACE_EVENT(sched_task_uclamp,

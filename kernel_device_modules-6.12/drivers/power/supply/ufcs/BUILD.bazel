@@ -45,7 +45,7 @@ define_mgk_ddk_ko(
     ],
     includes = ["."],
     ko_deps = [
-        #":ufcs_class",
+        ":ufcs_class",
     ],
     copts = [
         "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",

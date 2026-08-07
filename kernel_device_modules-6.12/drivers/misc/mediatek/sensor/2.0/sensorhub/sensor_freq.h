@@ -17,9 +17,9 @@ enum freq_level {
 };
 
 enum freq_value {
-	LOW_FREQ_VALUE = 400,
-	MEDIUM_FREQ_VALUE = 700,
-	HIGH_FREQ_VALUE = 1000,
+	LOW_FREQ_VALUE = 150,
+	MEDIUM_FREQ_VALUE = 290,
+	HIGH_FREQ_VALUE = 700,
 };
 
 struct sensor_freq_tb {

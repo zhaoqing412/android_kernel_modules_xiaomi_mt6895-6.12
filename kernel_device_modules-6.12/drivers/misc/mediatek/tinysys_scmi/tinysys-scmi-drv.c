@@ -150,12 +150,6 @@ static ssize_t tinysys_scmi_debug_store(struct device *kobj,
 	          pro_id, f_id, p1, p2, p3, p4, p5);
 
 	tt = get_scmi_tinysys_info();
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	if (!tt) {
-		pr_err("%s tt is NULL\n", __func__);
-		return -1;
-	}
-#endif
 
 	switch (pro_id) {
 	case 0:

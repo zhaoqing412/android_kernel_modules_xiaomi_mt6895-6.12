@@ -59,10 +59,8 @@ extern unsigned int dbg_log_level;
 #define MT6379_REG_CHG_STAT0		(0x70)
 #define MT6379_REG_CHG_STAT1		(0x71)
 #define MT6379_REG_CHG_STAT2		(0x72)
-#ifdef OPLUS_FEATURE_CHG_BASIC
-#define MT6379_HVDCP_TRIGGER		(0x73)
+#define MT6379_REG_CHG_STAT3		(0x73)
 #define MT6379_REG_CHRDET_STAT		(0x78)
-#endif
 #define MT6379_REG_USBID_STAT		(0x89)
 
 #define MT6379_REG_CHG_BATPRO_SLE	(0x100)
@@ -84,9 +82,7 @@ extern unsigned int dbg_log_level;
 #define MT6379_REG_CHG_AICC		(0x116)
 #define MT6379_REG_CHG_IPREC		(0x117)
 #define MT6379_REG_CHG_AICC_RPT		(0x118)
-#ifdef OPLUS_FEATURE_CHG_BASIC
 #define MT6379_REG_THR_REGU1		(0x119)
-#endif
 #define MT6379_REG_CHG_OTG_LBP		(0x11B)
 #define MT6379_REG_CHG_OTG_CV_MSB	(0x11C)
 #define MT6379_REG_CHG_OTG_C		(0x11E)
@@ -104,9 +100,8 @@ extern unsigned int dbg_log_level;
 #define MT6379_REG_ADC_ZCV_RPT		(0x17F)
 #define MT6379_REG_USBID_CTRL1		(0x190)
 #define MT6379_REG_USBID_CTRL2		(0x191)
-#ifdef OPLUS_FEATURE_CHG_BASIC
 #define MT6379_REG_CHRD_CTRL2		(0x194)
-#endif
+
 /* For store icc calibrated result */
 #define MT6379_REG_DIE_X		(0x305)
 #define MT6379_REG_WAFER_ID		(0x307)
@@ -122,10 +117,6 @@ extern unsigned int dbg_log_level;
 #define MT6379_REG_DPDM_CTRL1		(0x603)
 #define MT6379_REG_DPDM_CTRL2		(0x604)
 #define MT6379_REG_DPDM_CTRL4		(0x606)
-#ifdef OPLUS_FEATURE_CHG_BASIC
-#define MT6379_HVDCP_SETTING_CTRL1	(0x605)
-#define MT6379_HVDCP_SETTING_CTRL2	(0x607)
-#endif
 
 #define MT6379_REG_FGADC_SYS_INFO_CON0	(0x7F9)
 #define MT6379_REG_FGADC_SYS_INFO_CON2	(0x7FD)
@@ -202,10 +193,8 @@ enum mt6379_charger_reg_field {
 	F_IPREC,
 	/* MT6379_REG_CHG_AICC_RPT */
 	F_AICC_RPT,
-#ifdef OPLUS_FEATURE_CHG_BASIC
 	/* MT6379_REG_THR_REGU1 */
 	F_DIG_THREG_EN,
-#endif
 	/* MT6379_REG_CHG_OTG_LBP */
 	F_OTG_LBP,
 	/* MT6379_REG_CHG_OTG_C */
@@ -244,10 +233,6 @@ enum mt6379_charger_reg_field {
 	F_PD_OTP_HWEN,
 	/* MT6379_REG_BC12_FUNC */
 	F_BC12_EN,
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	/* oplus add for uvlo */
- 	//F_CHRD_UV, F_CHRD_OV,
-#endif
 	/* MT6379_REG_BC12_STAT */
 	F_PORT_STAT,
 	/* MT6379_REG_DPDM_CTRL1 */
@@ -256,9 +241,6 @@ enum mt6379_charger_reg_field {
 	F_DP_LDO_EN, F_DP_LDO_VSEL,
 	/* MT6379_REG_DPDM_CTRL4 */
 	F_DP_PULL_REN, F_DP_PULL_RSEL,
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	//F_CHRDET_EXT,
-#endif
 	F_MAX
 };
 
@@ -273,9 +255,6 @@ enum mt6379_adc_chan {
 	ADC_CHAN_USBDM,
 	ADC_CHAN_TEMPJC,
 	ADC_CHAN_SBU2,
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	ADC_CHAN_PDVBUS, //add PD_VBUS
-#endif
 	ADC_CHAN_VBATMON2,
 	ADC_CHAN_ZCV,
 	ADC_CHAN_MAX
@@ -292,9 +271,6 @@ static const char *const mt6379_adc_chan_names[] = {
 	[ADC_CHAN_USBDM] = "usb-dm",
 	[ADC_CHAN_TEMPJC] = "temp-jc",
 	[ADC_CHAN_SBU2] = "sbu2",
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	[ADC_CHAN_PDVBUS] = "pd-vbus",
-#endif
 	[ADC_CHAN_VBATMON2] = "vbatmon2",
 	[ADC_CHAN_ZCV] = "zcv",
 };
@@ -328,9 +304,6 @@ enum {
 	MT6379_IRQ_OTG_CLEAR,
 	MT6379_IRQ_DCD_DONE,
 	MT6379_IRQ_BC12_HVDCP,
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	MT6379_INT_CHRDET_EXT,
-#endif
 	MT6379_IRQ_BC12_DN,
 	MT6379_ADC_VBAT_MON,
 	MT6379_USBID_EVT,
@@ -475,33 +448,6 @@ struct mt6379_charger_data {
 	enum mt6379_chip_rev rev;
 	u32 waferid;
 	u8 id; /* mt6379 or mt6720 */
-#if CONFIG_OPLUS_HVDCP_SUPPORT
-/* oplus add for hvdcp */
-	struct delayed_work hvdcp_work;
-	struct delayed_work hvdcp_result_check_work;
-	int hvdcp_type;
-	unsigned long long hvdcp_detect_time;
-	unsigned long long hvdcp_detach_time;
-	bool hvdcp_cfg_9v_done;
- 	int hvdcp_exit_stat;
-	bool oplus_hvdcp_detect;
-	bool oplus_get_hvdcp_bc12_result;
-#endif
-
-#ifdef OPLUS_FEATURE_CHG_BASIC
-/* oplus add for pd become usb port */
-	int bc12_retry;
-#endif
-#ifdef OPLUS_FEATURE_CHG_BASIC
-/* oplus add for charging icon disappears slowly */
-	bool wd0_status;
-/* oplus add for bc12 detecting after ovp on DX4*/
-	bool pdvbus_ovp_status;
-	struct regmap *mos_con;
-	u32 mos_con_reg;
-	u32 mos_con_mask;
-	u32 mos_con_val;
-#endif
 	u8 ecid_val[3];
 };
 
@@ -510,10 +456,6 @@ extern int mt6379_charger_field_set(struct mt6379_charger_data *cdata,
 				    enum mt6379_charger_reg_field fd, unsigned int val);
 extern int mt6379_charger_field_get(struct mt6379_charger_data *cdata,
 				    enum mt6379_charger_reg_field fd, u32 *val);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-extern int mt6379_set_shipping_mode(struct mt6379_charger_data *cdata);
-#endif
-
 extern int mt6379_charger_fsw_control(struct mt6379_charger_data *cdata);
 extern int mt6379_charger_set_non_switching_setting(struct mt6379_charger_data *cdata);
 

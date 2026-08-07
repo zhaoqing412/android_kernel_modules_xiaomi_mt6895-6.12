@@ -15,17 +15,16 @@
 #include "mdw_trace.h"
 #include "apu_sysmem.h"
 #include "mdw_cmd.h"//for cmd invoke
-#include "plat/rv/mdw_rv_events.h"
 
 #define mdw_mem_show(m) \
-	mdw_mem_debug("mem(0x%llx/0x%llx/%pK)(%d)(%llu/%llu/0x%llx)(%pK)(%d)(%u)\n", \
-		m->mpriv->id, m->id, (void *)APU_SYSMEM_GET_DMABUF(m->sysbuf), \
+	mdw_mem_debug("mem(0x%llx/0x%llx/0x%llx)(%d)(%llu/%llu/0x%llx)(%p)(%d)(%u)\n", \
+		(uint64_t)m->mpriv, (uint64_t)m, (uint64_t)APU_SYSMEM_GET_DMABUF(m->sysbuf), \
 		m->mem_type, m->size, m->align, m->flags, m->vaddr, \
 		kref_read(&m->ref), task_pid_nr(current))
 
 #define mdw_map_show(m) \
-	mdw_mem_debug("map(0x%llx/0x%llx/%pK)(%d/0x%llx)(%pK/0x%llx/%llu)(%d)(%u)\n", \
-		m->mpriv->id, m->id, (void *)APU_SYSMEM_GET_DMABUF(m->sysmap), \
+	mdw_mem_debug("map(0x%llx/0x%llx/0x%llx)(%d/0x%llx)(%p/0x%llx/%llu)(%d)(%u)\n", \
+		(uint64_t)m->mpriv, (uint64_t)m, (uint64_t)APU_SYSMEM_GET_DMABUF(m->sysmap), \
 		m->buf_type, m->flags, m->vaddr, m->device_va, m->size, \
 		kref_read(&m->ref), task_pid_nr(current))
 
@@ -47,8 +46,8 @@ static struct mdw_mem_map *mdw_mem_get_map_by_handle(struct mdw_fpriv *mpriv, in
 			mdw_map_show(map);
 			goto put_dbuf;
 		} else {
-			mdw_mem_debug("found same dbuf but diff params: dbuf(%pK/%pK) dva(0x%llx/0x%llx) find next\n",
-				dbuf, (void *)APU_SYSMEM_GET_DMABUF(map->sysmap),
+			mdw_mem_debug("found same dbuf but diff params: dbuf(0x%llx/0x%llx) dva(0x%llx/0x%llx) find next\n",
+				(uint64_t)dbuf, (uint64_t)APU_SYSMEM_GET_DMABUF(map->sysmap),
 				device_va, map->device_va);
 		}
 	}
@@ -93,7 +92,7 @@ struct mdw_mem *mdw_mem_get_mem_by_device_dbuf(struct dma_buf *dbuf)
 {
 	struct mdw_mem *m = NULL;
 
-	mdw_mem_debug("dbuf %pK\n", dbuf);
+	mdw_mem_debug("dbuf 0x%llx\n", (uint64_t)dbuf);
 
 	hash_for_each_possible(mdw_dev->u_mem_hash, m, device_node, (uint64_t)dbuf) {
 		if (m->dbuf == dbuf) {
@@ -168,14 +167,9 @@ static void mdw_mem_release(struct kref *ref)
 
 	mdw_mem_show(m);
 
-	// add by chenhaowen for dma debug
-	if (m->mem_type == MDW_MEM_TYPE_MAIN) {
-		trace_mdw_dma_free(m->sysbuf->dbuf->size, m->sysbuf->dbuf->__kabi_reserved2, "APUSYS");
-	}
-
 	ret = m->mpriv->mem_allocator->free(m->mpriv->mem_allocator, m->sysbuf);
 	if (ret) {
-		mdw_drv_err("delete mem failed(%d) m(0x%llx) size(%llu)\n", ret, m->id, m->size);
+		mdw_drv_err("delete mem failed(%d) dbuf(0x%llx) size(%llu)\n", ret, (uint64_t)m->dbuf, m->size);
 		mdw_exception("delete mem failed\n");
 	}
 
@@ -217,7 +211,6 @@ struct mdw_mem *mdw_mem_alloc(struct mdw_fpriv *mpriv, enum mdw_mem_type mem_typ
 		mdw_drv_err("allocate mdw_mem(%s) failed\n", name);
 		goto out;
 	}
-	m->id = hash_ptr(m, 64);
 
 	/* allocate sys mem */
 	m->sysbuf = mpriv->mem_allocator->alloc(mpriv->mem_allocator, mdw_mem_type2sysmem(mem_type),
@@ -226,16 +219,6 @@ struct mdw_mem *mdw_mem_alloc(struct mdw_fpriv *mpriv, enum mdw_mem_type mem_typ
 		mdw_drv_err("allocate sysmem failed, type(%d) size(%llu) flags(0x%llx) name(%s)\n",
 			mem_type, size, flags, name);
 		goto free_mem;
-	}
-
-	// add by chenhaowen for dma debug
-	/*
-	 * use __kabi_reserved2 as inode no. but it has potential risk if
-	 * google uses it.
-	 */
-	if (mem_type == MDW_MEM_TYPE_MAIN) {
-		m->sysbuf->dbuf->__kabi_reserved2 = file_inode(m->sysbuf->dbuf->file)->i_ino;
-		trace_mdw_dma_alloc(m->sysbuf->dbuf->size, m->sysbuf->dbuf->__kabi_reserved2, "APUSYS");
 	}
 
 	/* init */
@@ -284,7 +267,7 @@ static void mdw_map_release(struct kref *ref)
 
 	ret = map->mpriv->mem_allocator->unmap(map->mpriv->mem_allocator, map->sysmap);
 	if (ret) {
-		mdw_drv_err("unmap failed(%d) map(0x%llx) size(%llu)\n", ret, map->id, map->size);
+		mdw_drv_err("unmap failed(%d) dbuf(0x%llx) size(%llu)\n", ret, (uint64_t)map->dbuf, map->size);
 		mdw_exception("unmap failed\n");
 	}
 
@@ -317,7 +300,7 @@ struct mdw_mem_map *mdw_mem_create_map(struct mdw_fpriv *mpriv, struct dma_buf *
 		mdw_drv_err("allocate map failed\n");
 		goto out;
 	}
-	map->id = hash_ptr(map, 64);
+
 	mutex_lock(&mdw_dev->mctl_mtx);
 	m = mdw_mem_get_mem_by_device_dbuf(dbuf);
 	if (m)
@@ -390,8 +373,8 @@ int mdw_mem_flush(struct mdw_fpriv *mpriv, struct mdw_mem_map *map)
 		goto out;
 	}
 
-	mdw_mem_debug("flush(0x%llx/0x%llx/%pK) (%pK/0x%llx/%llu)\n",
-		map->mpriv->id, map->id, (void *)map->dbuf,
+	mdw_mem_debug("flush(0x%llx/0x%llx/0x%llx) (%p/0x%llx/%llu)\n",
+		(uint64_t)map->mpriv, (uint64_t)map, (uint64_t)map->dbuf,
 		map->vaddr, map->device_va, map->size);
 
 out:
@@ -436,8 +419,8 @@ int mdw_mem_invalidate(struct mdw_fpriv *mpriv, struct mdw_mem_map *map)
 		goto out;
 	}
 
-	mdw_mem_debug("flush(0x%llx/0x%llx/%pK) (%pK/0x%llx/%llu)\n",
-		map->mpriv->id, map->id, (void *)map->dbuf,
+	mdw_mem_debug("flush(0x%llx/0x%llx/0x%llx) (%p/0x%llx/%llu)\n",
+		(uint64_t)map->mpriv, (uint64_t)map, (uint64_t)map->dbuf,
 		map->vaddr, map->device_va, map->size);
 
 out:
@@ -456,7 +439,7 @@ static int mdw_mem_gen_handle(struct mdw_mem *m)
 	fd =  dma_buf_fd(m->dbuf,
 		(O_RDWR | O_CLOEXEC) & ~O_ACCMODE);
 	if (fd < 0)
-		mdw_drv_err("create handle for dmabuf(%pK) fail\n", m->dbuf);
+		mdw_drv_err("create handle for dmabuf(0x%llx) fail\n", (uint64_t)m->dbuf);
 
 	get_dma_buf(m->dbuf);
 
@@ -519,7 +502,7 @@ static int mdw_mem_ioctl_free(struct mdw_fpriv *mpriv,
 	int ret = 0;
 
 	dbuf = dma_buf_get(args->in.free.handle);
-	if (IS_ERR_OR_NULL(dbuf)) {
+	if (!dbuf) {
 		mdw_drv_err("invalid handle(%llu) to get dbuf\n", args->in.free.handle);
 		return -EINVAL;
 	}
@@ -564,13 +547,13 @@ static int mdw_mem_ioctl_alloc_fb(struct mdw_fpriv *mpriv,
 		in->alloc_fb.total_vlm_size, in->alloc_fb.num_subcmds);
 	mdw_trace_begin("apummu:alloc dram fb|size:%u",
 		in->alloc_fb.total_vlm_size);
-	ret = mdw_apu_mem_fallback_alloc(mpriv->id, in->alloc_fb.total_vlm_size,
+	ret = mdw_apu_mem_fallback_alloc((uint64_t)mpriv, in->alloc_fb.total_vlm_size,
 		in->alloc_fb.num_subcmds);
 	mdw_trace_end();
 
 	if (ret)
-		mdw_drv_err("apummu: s(0x%llx) alloc fb size(%u) fail(%d) num_subcmds(%u)\n",
-			mpriv->id, in->alloc_fb.total_vlm_size, ret,
+		mdw_drv_err("apummu: alloc fb size(%u) fail(%d) num_subcmds(%u)\n",
+			in->alloc_fb.total_vlm_size, ret,
 			in->alloc_fb.num_subcmds);
 
 	return ret;
@@ -585,8 +568,7 @@ static int mdw_mem_ioctl_map(struct mdw_fpriv *mpriv,
 
 	dbuf = dma_buf_get(args->in.map.handle);
 	if (IS_ERR_OR_NULL(dbuf)) {
-		mdw_drv_err("s(0x%llx) can't get dbuf by handle(%llu)\n",
-			mpriv->id, args->in.map.handle);
+		mdw_drv_err("can't get dbuf by handle(%llu)\n", args->in.map.handle);
 		return -EINVAL;
 	}
 
@@ -594,7 +576,7 @@ static int mdw_mem_ioctl_map(struct mdw_fpriv *mpriv,
 
 	map = mdw_mem_create_map(mpriv, dbuf, MDW_BUF_TYPE_DATA, args->in.map.flags, false);
 	if (!map) {
-		mdw_drv_err("s(0x%llx) create map failed\n", mpriv->id);
+		mdw_drv_err("create map failed\n");
 		ret = -EINVAL;
 		goto unlock;
 	}
@@ -621,9 +603,8 @@ static int mdw_mem_ioctl_unmap(struct mdw_fpriv *mpriv,
 	int ret = 0;
 
 	dbuf = dma_buf_get(args->in.map.handle);
-	if (IS_ERR_OR_NULL(dbuf)) {
-		mdw_drv_err("s(0x%llx) invalid handle(%llu) to get dbuf\n",
-			mpriv->id, args->in.unmap.handle);
+	if (!dbuf) {
+		mdw_drv_err("invalid handle(%llu) to get dbuf\n", args->in.unmap.handle);
 		return -EINVAL;
 	}
 
@@ -631,8 +612,7 @@ static int mdw_mem_ioctl_unmap(struct mdw_fpriv *mpriv,
 
 	map = mdw_mem_get_map_by_handle(mpriv, args->in.unmap.handle, args->in.unmap.device_va);
 	if (!map) {
-		mdw_drv_err("s(0x%llx) can't find map by handle(%llu)\n",
-			mpriv->id, args->in.unmap.handle);
+		mdw_drv_err("can't find map by handle(%llu)\n", args->in.unmap.handle);
 		ret = -EINVAL;
 		goto unlock;
 	}
@@ -653,7 +633,7 @@ int mdw_mem_ioctl(struct mdw_fpriv *mpriv, void *data)
 	union mdw_mem_args *args = (union mdw_mem_args *)data;
 	int ret = 0;
 
-	mdw_flw_debug("s(0x%llx) op::%d\n", mpriv->id, args->in.op);
+	mdw_flw_debug("s(0x%llx) op::%d\n", (uint64_t)mpriv, args->in.op);
 	switch (args->in.op) {
 	case MDW_MEM_IOCTL_ALLOC:
 		ret = mdw_mem_ioctl_alloc(mpriv, args);
@@ -716,8 +696,8 @@ int apusys_mem_validate_by_cmd(void *session, void *cmd, uint64_t eva, uint32_t 
 
 		ret = mdw_cmd_invoke_map(c, map);
 		if (ret) {
-			mdw_drv_err("s(%pK)c(0x%llx)m(0x%llx/%u)get map fail(%d)\n",
-				(void *)session, c->kid, eva, size, ret);
+			mdw_drv_err("s(0x%llx)c(0x%llx)m(0x%llx/%u)get map fail(%d)\n",
+				(uint64_t)session, (uint64_t)cmd, eva, size, ret);
 		}
 
 		return ret;
@@ -772,8 +752,8 @@ static struct mdw_mem_map *mdw_mem_query_map_by_device_kva(uint64_t kva)
 		if (kva >= (uint64_t)map->vaddr &&
 			kva < (uint64_t)map->vaddr + map->size) {
 
-			mdw_mem_debug("query iova (%pK->%pK)\n",
-				(void *)kva, map);
+			mdw_mem_debug("query iova (0x%llx->0x%llx)\n",
+				kva, (uint64_t)map);
 			mutex_unlock(&mdw_dev->mctl_mtx);
 			return map;
 		}
@@ -796,7 +776,7 @@ int apusys_mem_flush_kva(void *kva, uint32_t size)
 	}
 
 	ret = mdw_mem_flush(map->mpriv, map);
-	mdw_mem_debug("flush kva %pK\n", kva);
+	mdw_mem_debug("flush kva 0x%llx\n", (uint64_t)kva);
 
 out:
 	return ret;
@@ -816,7 +796,7 @@ int apusys_mem_invalidate_kva(void *kva, uint32_t size)
 
 	ret = mdw_mem_invalidate(map->mpriv, map);
 
-	mdw_mem_debug("invalidate kva %pK\n", (void *)kva);
+	mdw_mem_debug("invalidate kva 0x%llx\n", (uint64_t)kva);
 out:
 	return ret;
 }

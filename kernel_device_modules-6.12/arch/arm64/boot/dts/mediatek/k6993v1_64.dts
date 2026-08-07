@@ -10,31 +10,23 @@
 #include <dt-bindings/phy/phy.h>
 #include <dt-bindings/iio/mt635x-auxadc.h>
 
-/* Trustonic Mobilecore real driver */
-/* #ifdef OPLUS_FEATURE_SECURITY_COMMON */
-&mobicore{
-	trustonic,real-drv = <1>;
-	trustonic,sel2-support = <0>;
-};
-/* #endif OPLUS_FEATURE_SECURITY_COMMON */
-
 &chosen {
 	bootargs_ext = "";
 };
 
 &ise_lpm {
-	ise-wakelock = <0>;
-	ise-lpm-freerun = <0>;
+	ise-wakelock = <1>;
+	ise-lpm-freerun = <1>;
 	ise-lpm-deinit-bypass = <0>;
-	ise-lpm-vote-dram = <0>;
+	ise-lpm-vote-dram = <1>;
 };
 
 &ise_mbox {
-	mediatek,real-drv = <0>;
+	mediatek,real-drv = <1>;
 };
 
 &ise_trusty {
-	mediatek,real-drv = <0>;
+	mediatek,real-drv = <1>;
 };
 
 &pio {
@@ -287,7 +279,6 @@
 /* PCIe pinmux end */
 
 /* usb typec mux start */
-/*
 &pio {
 	ps_enable: ps-enable {
 		pins-cmd-dat {
@@ -303,7 +294,6 @@
 		};
 	};
 };
-*/
 
 &mt6379_typec {
 	port {
@@ -326,8 +316,8 @@
 
 &ps5170 {
 	pinctrl-names = "enable", "disable";
-	// pinctrl-0 = <&ps_enable>;
-	// pinctrl-1 = <&ps_disable>;
+	pinctrl-0 = <&ps_enable>;
+	pinctrl-1 = <&ps_disable>;
 	status = "okay";
 };
 
@@ -354,57 +344,57 @@
 	};
 };
 
-/* For the difference of dual antenna CS, the common parts are commented out here and distinguished in other DTS directories */
-//&connfem {
-//	sku {
-//		hw-names =
-//			"qm42655_qm45655_was";	/* [0] QM42655/QM45655, 2G+2A, BT/Wi-Fi AntSwap */
-//
-//		/***************************************************************
-//		 * [HW][0] QM42655/QM45655, 2G+2A, BT/Wi-Fi AntSwap
-//		 **************************************************************/
-//		hw-0 {
-//			using-fems =
-//				<&qm42655>,
-//				<&qm45655>;
-//
-//			layout-flag = <0x00000000>;
-//			layout =
-//				<&g_wf0_bt0_qm42655>,
-//				<&g_wf1_bt1_qm42655>,
-//				<&a_wf0_qm45655>,
-//				<&a_wf1_qm45655>;
-//
-//			layout-spdt =
-//				<&spdt_bt0_cs>,
-//				<&spdt_a_wf0_antswap>,
-//				<&spdt_g_bt1_antswap>;
-//
-//			common {
-//				flags {
-//					fe-ant-cnt = [85];
-//					fe-conn-dpdt-sp3t = [80];
-//					fe-conn-spdt = [90];
-//					fe-bt-wf-usage = [80];
-//					fe-conn-spdt-2 = [81];
-//				};
-//			};
-//
-//			wifi {
-//				using-states =
-//					<&qm42655_rxl>,
-//					<&qm45655_rxl_rxh>;
-//			};
-//
-//			bt {
-//				flags {
-//					efem-mode = [03]; /* 3:epa_elna, 2:epa, 1:elna, 0:bypass */
-//					rx-mode = [24]; /* 0x24: G-band RxL */
-//				};
-//			};
-//		};
-//	};
-//};
+&connfem {
+	sku {
+		hw-names =
+			"qm42655_qm45655_was";	/* [0] QM42655/QM45655, 2G+2A, BT/Wi-Fi AntSwap */
+
+		/***************************************************************
+		 * [HW][0] QM42655/QM45655, 2G+2A, BT/Wi-Fi AntSwap
+		 **************************************************************/
+		hw-0 {
+			using-fems =
+				<&qm42655>,
+				<&qm45655>;
+
+			layout-flag = <0x00000000>;
+			layout =
+				<&g_wf0_bt0_qm42655>,
+				<&g_wf1_bt1_qm42655>,
+				<&a_wf0_qm45655>,
+				<&a_wf12_emlsr_bt0_qm45655>;
+
+			layout-spdt =
+				<&spdt_a1_a2_tx>,
+				<&spdt_a1_a2_rx>,
+				<&spdt_a_wf0_antswap>,
+				<&spdt_g_bt1_antswap>;
+
+			common {
+				flags {
+					fe-ant-cnt = [86];
+					fe-conn-dpdt-sp3t = [80];
+					fe-conn-spdt = [93];
+					fe-bt-wf-usage = [80];
+					fe-conn-spdt-2 = [90];
+				};
+			};
+
+			wifi {
+				using-states =
+					<&qm42655_rxl>,
+					<&qm45655_rxl_rxh>;
+			};
+
+			bt {
+				flags {
+					efem-mode = [03]; /* 3:epa_elna, 2:epa, 1:elna, 0:bypass */
+					rx-mode = [24]; /* 0x24: G-band RxL */
+				};
+			};
+		};
+	};
+};
 
 &connv3 {
 	drdi-detect = <1>;
@@ -553,9 +543,11 @@
 &mmlsys2_config {
 	dl-enable;
 };
+
 &disp_dpc {
-	vidle-mask = <0x11>;
+	vidle-mask = <0x13>;
 };
+
 
 &mt6661_6_buck1 {
 	regulator-always-on;
@@ -569,9 +561,9 @@
 	regulator-always-on;
 };
 
-//#include "k6993v1_64/cust.dtsi"
-//#include "mediatek/cust_mt6993_camera_v4l2.dtsi"
+#include "k6993v1_64/cust.dtsi"
+#include "mediatek/cust_mt6993_camera_v4l2.dtsi"
 #include "mediatek/cust_k6993_connfem.dtsi"
-// #include "mediatek/cust_mt6993_touch_cmd_mult.dtsi"
+#include "mediatek/cust_mt6993_touch_cmd_mult.dtsi"
 /*End of this file, DO NOT ADD ANYTHING HERE*/
 

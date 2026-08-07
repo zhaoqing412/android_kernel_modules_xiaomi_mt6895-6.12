@@ -259,23 +259,6 @@
 #define MT6375_MSK_WD0_TDET	GENMASK(2, 0)
 #define MT6375_SFT_WD0_TDET	(0)
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-
-enum mt6375_debug_msg_type {
-	DEBUG_MSG_VCONN_RVP,
-	DEBUG_MSG_VCONN_OCP,
-	DEBUG_MSG_VCONN_OVP,
-	DEBUG_MSG_VCONN_UVP,
-	DEBUG_MSG_VCONN_OPEN,
-	DEBUG_MSG_VCONN_CLOSE,
-	DEBUG_MSG_POWER_STATUS_CHANGE,
-};
-
-struct mt6375_debug_data {
-	void *priv_data;
-	void (*msg_handler)(void *data, int msg_type);
-};
-#endif /* OPLUS_FEATURE_CHG_BASIC */
 struct mt6375_tcpc_data {
 	struct device *dev;
 	struct regmap *rmap;
@@ -285,11 +268,6 @@ struct mt6375_tcpc_data {
 	int irq;
 	u8 wd0_tsleep;
 	u8 wd0_tdet;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	struct mt6375_debug_data debug_data;
-	bool wd0_state;
-	bool wd0_enable;
-#endif /* OPLUS_FEATURE_CHG_BASIC */
 
 	atomic_t wd_protect_rty;
 	bool wd_polling;
@@ -1374,37 +1352,6 @@ static int mt6375_enable_floating_ground(struct mt6375_tcpc_data *ddata,
 	return 0;
 }
 
-/*#ifdef OPLUS_FEATURE_CHG_BASIC*/
-static bool wd0_status = false;
-bool tcpci_get_wd0_status(void)
-{
-	u8   data = 0;
-	bool wd0_pre_status = wd0_status;
-	struct mt6375_tcpc_data *ddata = NULL;
-	struct tcpc_device *tcpc_dev = tcpc_dev_get_by_name("type_c_port0");
-
-	if (NULL == tcpc_dev) {
-		pr_err("%s wd0: tcpc_dev is NULL.\n", __func__);
-		return false;
-	}
-	ddata = tcpc_get_dev_data(tcpc_dev);
-	if (NULL == ddata) {
-                pr_err("%s wd0: ddata is NULL.\n", __func__);
-		return false;
-        }
-
-	/* check wd0 status */
-	if (0 > mt6375_read8(ddata, MT6375_REG_WD0SET, &data)) {
-		pr_err("%s wd0: check wd0 status failed.\n", __func__);
-		return false;
-	}
-
-	wd0_status = ((data & MT6375_MSK_WD0PULL_STS)?true:false);
-        pr_err("%s wd0_pre_status: %d, wd0_status: %d\n", __func__, wd0_pre_status, wd0_status);
-	return wd0_status;
-}
-EXPORT_SYMBOL(tcpci_get_wd0_status);
-
 static int mt6375_floating_ground_evt_process(struct mt6375_tcpc_data *ddata)
 {
 	int ret;
@@ -1675,17 +1622,6 @@ static int mt6375_set_cc(struct tcpc_device *tcpc, int pull)
 
 	MT6375_INFO("%d\n", pull);
 	pull = TYPEC_CC_PULL_GET_RES(pull);
-
-/*#ifdef OPLUS_FEATURE_CHG_BASIC*/
-#if CONFIG_WD0_IRQ_ONLY
-	/* enable wd0 once when set cc */
-	if (!ddata->wd0_enable && (tcpc->tcpc_flags & TCPC_FLAGS_FLOATING_GROUND)) {
-		mt6375_enable_floating_ground(ddata, true);
-		ddata->wd0_enable = true;
-	}
-#endif /* CONFIG_WD0_IRQ_ONLY */
-/*#endif*/
-
 	if (pull == TYPEC_CC_DRP) {
 		data = TCPC_V10_REG_ROLE_CTRL_RES_SET(1, rp_lvl, TYPEC_CC_RD,
 						      TYPEC_CC_RD);
@@ -1757,13 +1693,6 @@ static int mt6375_set_vconn(struct tcpc_device *tcpc, int en)
 	ret = (en ? mt6375_set_bits : mt6375_clr_bits)
 		(ddata, MT6375_REG_I2CTORSTCTRL, MT6375_MSK_VCONN_UVP_OCP_CPEN);
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	if (ddata->debug_data.msg_handler)
-		ddata->debug_data.msg_handler(ddata->debug_data.priv_data,
-					      en ? DEBUG_MSG_VCONN_OPEN :
-						   DEBUG_MSG_VCONN_CLOSE);
-#endif /* OPLUS_FEATURE_CHG_BASIC */
-
 	return ret;
 }
 
@@ -1775,7 +1704,7 @@ static int mt6375_tcpc_deinit(struct tcpc_device *tcpc)
 	if (cc1 != TYPEC_CC_DRP_TOGGLING &&
 	    (cc1 != TYPEC_CC_VOLT_OPEN || cc2 != TYPEC_CC_VOLT_OPEN)) {
 		mt6375_set_cc(tcpc, TYPEC_CC_OPEN);
-		usleep_range(200000, 300000);
+		usleep_range(20000, 30000);
 	}
 	return 0;
 }
@@ -2612,9 +2541,6 @@ static int mt6375_tcpc_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	device_init_wakeup(ddata->dev, true);
-#endif
 	dev_info(ddata->dev, "%s successfully!\n", __func__);
 	return 0;
 err:
@@ -2653,37 +2579,6 @@ static void mt6375_tcpc_shutdown(struct platform_device *pdev)
 	tcpm_shutdown(ddata->tcpc);
 }
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-int tcpc_mt6375_reg_debug_msg_handler(struct tcpc_device *tcpc,
-				      void (*msg_handler)(void *, int),
-				      void *priv_data)
-{
-	struct mt6375_tcpc_data *ddata;
-
-	if (tcpc == NULL || msg_handler == NULL)
-		return -EINVAL;
-
-	ddata = tcpc_get_dev_data(tcpc);
-	ddata->debug_data.priv_data = priv_data;
-	ddata->debug_data.msg_handler = msg_handler;
-
-	return 0;
-}
-EXPORT_SYMBOL(tcpc_mt6375_reg_debug_msg_handler);
-
-void tcpc_mt6375_unreg_debug_msg_handler(struct tcpc_device *tcpc)
-{
-	struct mt6375_tcpc_data *ddata;
-
-	if (tcpc == NULL)
-		return;
-
-	ddata = tcpc_get_dev_data(tcpc);
-	ddata->debug_data.priv_data = NULL;
-	ddata->debug_data.msg_handler = NULL;
-}
-EXPORT_SYMBOL(tcpc_mt6375_unreg_debug_msg_handler);
-#endif /* OPLUS_FEATURE_CHG_BASIC */
 static int __maybe_unused mt6375_tcpc_suspend(struct device *dev)
 {
 	struct mt6375_tcpc_data *ddata = dev_get_drvdata(dev);

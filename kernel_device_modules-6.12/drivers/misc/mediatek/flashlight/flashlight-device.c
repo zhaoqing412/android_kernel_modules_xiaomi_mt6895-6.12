@@ -4,11 +4,7 @@
  */
 
 #include "flashlight-core.h"
-#ifndef OPLUS_FEATURE_CAMERA_COMMON
-#define OPLUS_FEATURE_CAMERA_COMMON
-#endif
 
-#ifndef OPLUS_FEATURE_CAMERA_COMMON
 #if defined(mt6739)
 const struct flashlight_device_id flashlight_id[] = {
 	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
@@ -108,13 +104,4 @@ const struct flashlight_device_id flashlight_id[] = {
 
 const int flashlight_device_num =
 	sizeof(flashlight_id) / sizeof(struct flashlight_device_id);
-#else /*OPLUS_FEATURE_CAMERA_COMMON*/
-const struct flashlight_device_id flashlight_id_24267[] = {
-	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
-	{0, 0, 0, "flashlights_24267", 0, 1},
-};
-const struct flashlight_device_id flashlight_id_cl4[] = {
-	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
-	{0, 0, 0, "flashlights-cl4", 0, 1},
-};
-#endif //OPLUS_FEATURE_CAMERA_COMMON
+

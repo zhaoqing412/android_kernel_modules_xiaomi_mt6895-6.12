@@ -67,7 +67,6 @@
 #define PROPNAME_SCP_DVFS_DISABLE      "scp-dvfs-disable"
 #define PROPNAME_SCP_DVFS_CORES        "scp-cores"
 #define PROPNAME_SCP_CORE_ONLINE_MASK  "scp-core-online-mask"
-#define PROPNAME_SCP_SMP_SUPPORT       "smp-support"
 #define PROPNAME_SCP_VLP_SUPPORT       "vlp-support"
 #define PROPNAME_SCP_IPS_SUPPORT       "ips-support"
 #define PROPNAME_PMIC                  "pmic"
@@ -260,11 +259,6 @@ struct scp_pmic_regs scp_pmic_hw_regs[MAX_SCP_DVFS_CHIP_HW] = {
 static bool is_core_online(uint32_t core_id)
 {
 	return (CORE_ONLINE_MSK << core_id) & g_dvfs_dev.core_online_msk;
-}
-
-static bool is_core_smp(void)
-{
-	return g_dvfs_dev.smp_support;
 }
 
 static void slp_ipi_init(void)
@@ -1039,32 +1033,6 @@ static int mt_scp_dvfs_sleep_cnt_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-/****************************
- * show scp dvfs freq(cycle count)
- *****************************/
-static int mt_scp_freq_proc_show(struct seq_file *m, void *v)
-{
-	struct ipi_tx_data_t ipi_data;
-	unsigned int *scp_ack_data = NULL;
-	int ret;
-
-	if (!g_dvfs_dev.sleep_init_done)
-		slp_ipi_init();
-
-	ipi_data.arg1 = SCP_SLEEP_FREQ_GET;
-	ret = mtk_ipi_send_compl(&scp_ipidev, IPI_OUT_C_SLEEP_0,
-		IPI_SEND_WAIT, &ipi_data, PIN_OUT_C_SIZE_SLEEP_0, 100);
-	scp_ack_data = &scp_ipi_ackdata0;
-	if (ret != IPI_ACTION_DONE) {
-		pr_notice("[%s] ipi send failed with error: %d\n",
-			__func__, ret);
-		return -ESCP_DVFS_IPI_FAILED;
-	}
-	seq_printf(m, "scp freq: %u\n", *scp_ack_data);
-
-	return 0;
-}
-
 /**********************************
  * write scp dvfs sleep
  ***********************************/
@@ -1377,7 +1345,6 @@ static const struct proc_ops mt_ ## name ## _proc_fops = {\
 PROC_FOPS_RO(scp_ips);
 PROC_FOPS_RO(scp_dvfs_state);
 PROC_FOPS_RO(scp_dvfs_opp);
-PROC_FOPS_RO(scp_freq);
 PROC_FOPS_RW(scp_dvfs_sleep_cnt);
 PROC_FOPS_RW(scp_dvfs_sleep);
 PROC_FOPS_RW(scp_dvfs_ctrl);
@@ -1396,7 +1363,6 @@ static int mt_scp_dvfs_create_procfs(void)
 		PROC_ENTRY(scp_ips),
 		PROC_ENTRY(scp_dvfs_state),
 		PROC_ENTRY(scp_dvfs_opp),
-		PROC_ENTRY(scp_freq),
 		PROC_ENTRY(scp_dvfs_sleep_cnt),
 		PROC_ENTRY(scp_dvfs_sleep),
 		PROC_ENTRY(scp_dvfs_ctrl)
@@ -2205,7 +2171,7 @@ static void mt_scp_start_res_prof(void)
 		return;
 	}
 
-	if (!is_core_online(SCP_CORE_1) || is_core_smp())
+	if (!is_core_online(SCP_CORE_1))
 		return;
 
 	/* if there are core0 & core1 */
@@ -2266,7 +2232,7 @@ static void mt_scp_stop_res_prof(void)
 				res.user, res.duration);
 	}
 
-	if (!is_core_online(SCP_CORE_1) || is_core_smp())
+	if (!is_core_online(SCP_CORE_1))
 		return;
 
 	/* if there are core0 & core1 */
@@ -2320,7 +2286,7 @@ static int mt_scp_dump_sleep_count(void)
 	}
 
 	/* if no enable core1 */
-	if (!is_core_online(SCP_CORE_1) || is_core_smp()) {
+	if (!is_core_online(SCP_CORE_1)) {
 		pr_notice("[SCP] [%s:%d] - scp_sleep_cnt_0 = %d\n",
 			__func__, __LINE__, scp_ipi_ackdata0);
 		goto FINISH;
@@ -2775,10 +2741,6 @@ static int __init mt_scp_dts_init(struct platform_device *pdev)
 		g_dvfs_dev.core_online_msk = SCP_CORE_0_ONLINE_MASK;
 		WARN_ON(1);
 	}
-
-	g_dvfs_dev.smp_support = of_property_read_bool(node, PROPNAME_SCP_SMP_SUPPORT);
-	if (g_dvfs_dev.smp_support)
-		pr_notice("[%s]: smp support is enabled\n", __func__);
 
 	if (g_dvfs_dev.vlp_support)
 		g_dvfs_dev.pmic_sshub_en = false;

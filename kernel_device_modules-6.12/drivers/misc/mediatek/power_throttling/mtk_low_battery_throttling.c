@@ -6,7 +6,6 @@
 #include <linux/device.h>
 #include <linux/module.h>
 #include <linux/notifier.h>
-#include <linux/nvmem-consumer.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
@@ -61,7 +60,6 @@ struct tag_bootmode {
 struct lbat_thl_priv {
 	struct tag_bootmode *tag;
 	bool notify_flag;
-	bool exec_thl_enable;
 	struct wait_queue_head notify_waiter;
 	struct timer_list notify_timer;
 	struct task_struct *notify_thread;
@@ -120,7 +118,6 @@ struct multi_voltage_table {
 	unsigned int selected_table;
 };
 
-static const char *efuse_field = "fab_info";
 struct multi_voltage_table lbat_voltage_table;
 struct multi_voltage_table lvsys_voltage_table;
 static struct notifier_block lbat_nb;
@@ -139,7 +136,6 @@ static int lvsys_thd_enable;
 static int vbat_thd_enable;
 unsigned int pmic_level_num;
 bool lvsys_lv1_trigger;
-unsigned int *exec_thl_enable_pct;
 
 static unsigned int __used KTF_check_vbat(void)
 {
@@ -282,9 +278,6 @@ void exec_throttle(unsigned int thl_level, enum LOW_BATTERY_USER_TAG user, unsig
 		return;
 	}
 
-	if (!lbat_data->exec_thl_enable && thl_level > lbat_data->cur_thl_lv)
-		return;
-
 	if (user == HPT && thl_level != lbat_data->cur_thl_lv) {
 		for (i = 0; i <= LOW_BATTERY_PRIO_GPU; i++) {
 			if (lbcb_tb[i].lbcb)
@@ -298,7 +291,7 @@ void exec_throttle(unsigned int thl_level, enum LOW_BATTERY_USER_TAG user, unsig
 	}
 
 	if (lbat_data->cur_thl_lv == thl_level && lbat_data->cur_cg_thl_lv == thl_level) {
-		//pr_info("[%s] same throttle thl_level=%d\n", __func__, thl_level);
+		pr_info("[%s] same throttle thl_level=%d\n", __func__, thl_level);
 		return;
 	}
 
@@ -1067,72 +1060,6 @@ static ssize_t lvsys_modify_threshold_store(struct device *dev,
 }
 static DEVICE_ATTR_RW(lvsys_modify_threshold);
 
-static ssize_t exec_thl_enable_pct_array_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	unsigned int i;
-	int len = 0;
-
-	if (exec_thl_enable_pct != NULL) {
-		for(i = 0; i < lbat_data->temp_max_stage + 1; i++) {
-			len += snprintf(buf + len, PAGE_SIZE,
-				"%u ", exec_thl_enable_pct[i]);
-		}
-	} else {
-		len += snprintf(buf + len, PAGE_SIZE,
-			"exec_thl_enable_pct is NULL");
-	}
-	len += snprintf(buf + len, PAGE_SIZE, "\n");
-
-	return len;
-}
-
-static ssize_t exec_thl_enable_pct_array_store(struct device *dev,
-		struct device_attribute *attr,
-		const char *buf, size_t size)
-{
-	unsigned int array_idx = 0;
-	int ret, soc;
-	char str[30];
-	char cmd[21];
-	union power_supply_propval val;
-
-	if (sscanf(buf, "%20s %u\n", cmd, &array_idx) != 2) {
-		dev_info(dev, "Failed to read lbat-thl-enable-pct array_idx\n");
-		return -EINVAL;
-	}
-
-	if (strncmp(cmd, "array_index", 11))
-		return -EINVAL;
-
-	ret = snprintf(str, sizeof(str), "lbat-thl-enable-pct%u", array_idx);
-
-	if (exec_thl_enable_pct != NULL) {
-		ret = of_property_read_u32_array(dev->of_node, str,
-			exec_thl_enable_pct, lbat_data->temp_max_stage + 1);
-		if (ret) {
-			dev_notice(dev, "[%s] DTS no %s\n", __func__, str);
-			return -EINVAL;
-		}
-	} else {
-		dev_notice(dev, "[%s] exec_thl_enable_pct is NULL\n", __func__);
-		return -EINVAL;
-	}
-
-	ret = power_supply_get_property(lbat_data->psy, POWER_SUPPLY_PROP_CAPACITY, &val);
-	soc = val.intval;
-	if (exec_thl_enable_pct != NULL &&
-		soc < exec_thl_enable_pct[lbat_data->temp_cur_stage])
-		lbat_data->exec_thl_enable = true;
-	else if (exec_thl_enable_pct == NULL)
-		lbat_data->exec_thl_enable = true;
-	else
-		lbat_data->exec_thl_enable = false;
-
-	return size;
-}
-static DEVICE_ATTR_RW(exec_thl_enable_pct_array);
-
 static int lbat_psy_event(struct notifier_block *nb, unsigned long event, void *v)
 {
 	if (!lbat_data)
@@ -1328,7 +1255,7 @@ static void psy_handler(struct work_struct *work)
 {
 	struct power_supply *psy;
 	union power_supply_propval val;
-	int ret, temp, temp_stage, temp_thd, aging_stage = 0, lvsys_aging_stage = 0, soc;
+	int ret, temp, temp_stage, temp_thd, aging_stage = 0, lvsys_aging_stage = 0;
 	static int last_temp = MAX_INT;
 	bool loop;
 	unsigned int pre_thl_lv, cur_thl_lv, thl_lv_idx;
@@ -1352,8 +1279,6 @@ static void psy_handler(struct work_struct *work)
 #ifdef LBAT2_ENABLE
 	temp = val.intval; // because of battery bug, remove me if battery driver fix
 #endif
-
-
 	lbat_data->lbat_mbrain_info.bat_temp = temp;
 	temp_stage = lbat_data->temp_cur_stage;
 
@@ -1411,19 +1336,6 @@ static void psy_handler(struct work_struct *work)
 		lbat_data->aging_cur_stage = aging_stage;
 		lbat_data->lvsys_aging_cur_stage = lvsys_aging_stage;
 	}
-
-	ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_CAPACITY, &val);
-	if (ret)
-		return;
-	soc = val.intval;
-	if (exec_thl_enable_pct != NULL &&
-		soc < exec_thl_enable_pct[lbat_data->temp_cur_stage])
-		lbat_data->exec_thl_enable = true;
-	else if (exec_thl_enable_pct == NULL)
-		lbat_data->exec_thl_enable = true;
-	else
-		lbat_data->exec_thl_enable = false;
-
 }
 
 static int lvsys_notifier_call(struct notifier_block *this,
@@ -2106,31 +2018,8 @@ static int low_battery_register_setting(struct platform_device *pdev,
 static int low_battery_throttling_probe(struct platform_device *pdev)
 {
 	int ret, i;
-	size_t len;
 	struct lbat_thl_priv *priv;
-	struct device_node *np = pdev->dev.of_node, *es_np;
-	struct nvmem_cell *cell;
-	u32 *nvmem_buf, value;
-
-	cell = nvmem_cell_get(&pdev->dev, efuse_field);
-	if (!IS_ERR(cell)) {
-		nvmem_buf = (u32 *)nvmem_cell_read(cell, &len);
-		nvmem_cell_put(cell);
-		if (!IS_ERR(nvmem_buf)) {
-			value = *nvmem_buf;
-			pr_info("[%s]:fab_value = %u", __func__, value);
-			if (value == 0) {
-				es_np = of_find_compatible_node(NULL, NULL, "mediatek,es-low-battery-throttling");
-				if (es_np != NULL){
-					pdev->dev.of_node = es_np;
-					np = es_np;
-				} else
-					pr_info("[%s]:es_np is NULL", __func__);
-			}
-			kfree(nvmem_buf);
-		} else
-			pr_info ("[%s]:get fab_info failed", __func__);
-	}
+	struct device_node *np = pdev->dev.of_node;
 
 	switch_pt = true;
 	ret = of_property_read_u32(np, "lbat-max-tb-num", &max_tb_num);
@@ -2235,21 +2124,6 @@ static int low_battery_throttling_probe(struct platform_device *pdev)
 		lvsys_lv1_trigger = false;
 	}
 
-	exec_thl_enable_pct = NULL;
-	if (of_property_count_u32_elems(np, "lbat-thl-enable-pct0") ==
-		(priv->temp_max_stage + 1)) {
-		exec_thl_enable_pct = devm_kmalloc_array(&pdev->dev,
-			priv->temp_max_stage + 1, sizeof(u32), GFP_KERNEL);
-		ret = of_property_read_u32_array(np, "lbat-thl-enable-pct0",
-			exec_thl_enable_pct, priv->temp_max_stage + 1);
-		if (ret) {
-			dev_notice(&pdev->dev, "[%s] Always enable exec_throttle\n", __func__);
-			for (i = 0; i < priv->temp_max_stage + 1; i++)
-				exec_thl_enable_pct[i] = MAX_INT;
-
-		}
-	}
-
 	ret = device_create_file(&(pdev->dev),
 		&dev_attr_low_battery_protect_ut);
 	ret |= device_create_file(&(pdev->dev),
@@ -2266,8 +2140,6 @@ static int low_battery_throttling_probe(struct platform_device *pdev)
 		&dev_attr_lvsys_table);
 	ret |= device_create_file(&(pdev->dev),
 		&dev_attr_lvsys_modify_threshold);
-	ret |= device_create_file(&(pdev->dev),
-		&dev_attr_exec_thl_enable_pct_array);
 	if (ret) {
 		dev_notice(&pdev->dev, "create file error ret=%d\n", ret);
 		return ret;

@@ -34,9 +34,6 @@
 #define mtk_leds_brightness_set(x, y, m, n) do { } while (0)
 #endif
 
-#ifdef OPLUS_FEATURE_DISPLAY
-#include <mtk_boot_common.h>
-#endif
 #define DISP_REG_CCORR_EN		(0x000)
 #define DISP_REG_CCORR_INTEN		(0x008)
 #define DISP_REG_CCORR_INTSTA		(0x00C)
@@ -337,17 +334,7 @@ int disp_ccorr_set_color_matrix(struct mtk_ddp_comp *comp, struct cmdq_pkt *hand
 	struct mtk_disp_ccorr *ccorr_data = comp_to_ccorr(comp);
 	struct mtk_disp_ccorr_primary *primary_data = ccorr_data->primary_data;
 	struct DRM_DISP_CCORR_COEF_T *ccorr;
-#ifdef OPLUS_FEATURE_DISPLAY
-	struct mtk_drm_crtc *mtk_crtc = comp->mtk_crtc;
-#endif /* OPLUS_FEATURE_DISPLAY */
 
-#ifdef OPLUS_FEATURE_DISPLAY
-	if (ccorr_data->g_prim_ccorr_force_linear &&
-		(get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT || get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT)) {
-		DDPPR_ERR("%s power off charging boot, return\n", __func__);
-		return 0;
-	}
-#endif
 	if (handle == NULL) {
 		DDPPR_ERR("%s: cmdq can not be NULL\n", __func__);
 		return -EFAULT;
@@ -404,11 +391,6 @@ int disp_ccorr_set_color_matrix(struct mtk_ddp_comp *comp, struct cmdq_pkt *hand
 		ccorr_without_gamma = 0;
 	else
 		ccorr_without_gamma = 1;
-
-#ifdef OPLUS_FEATURE_DISPLAY
-	if(mtk_crtc->panel_ext->params->oplus_panel_ccorr_gamma)
-		ccorr_without_gamma = 0;
-#endif /* OPLUS_FEATURE_DISPLAY */
 
 	// hint: 0: identity matrix; 1: arbitraty matrix
 	// fte_flag: true: gpu overlay && hwc not identity matrix

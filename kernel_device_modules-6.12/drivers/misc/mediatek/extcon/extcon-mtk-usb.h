@@ -29,9 +29,6 @@ struct mtk_extcon_info {
 	struct delayed_work wq_detcable;
 	unsigned int vbus_limit_cur;
 	bool vbus_cur_inlimit;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	bool oplus_vbus_set;
-#endif /* OPLUS_FEATURE_CHG_BASIC */
 };
 
 struct usb_role_info {

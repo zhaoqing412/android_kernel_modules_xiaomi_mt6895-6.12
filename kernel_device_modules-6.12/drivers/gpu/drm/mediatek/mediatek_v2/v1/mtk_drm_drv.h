@@ -38,6 +38,8 @@
 
 #define PQ_PATH_11
 
+extern unsigned int dsi_delay;
+
 struct device;
 struct device_node;
 struct drm_crtc;
@@ -369,27 +371,6 @@ struct mtk_drm_private {
 
 	struct device_node *pwr_node;
 	struct clk *pwr_clks[CLK_MAX_NUM];
-
-#ifdef OPLUS_FEATURE_DISPLAY_ADFR
-	struct workqueue_struct *fakeframe_wq;
-	struct hrtimer fakeframe_timer;
-	struct work_struct fakeframe_work;
-	/* add for mux switch control */
-	struct completion switch_te_gate;
-	bool vsync_switch_pending;
-	bool need_vsync_switch;
-	struct workqueue_struct *vsync_switch_wq;
-	struct work_struct vsync_switch_work;
-
-	/* indicate that whether the current frame backlight has been updated */
-	bool oplus_adfr_backlight_updated;
-	/* need qsync mode recovery after backlight status updated */
-	bool osync_mode_recovery;
-	/* set timer to reset qsync after the backlight is no longer updated */
-	struct hrtimer osync_mode_timer;
-	struct workqueue_struct *osync_mode_wq;
-	struct work_struct osync_mode_work;
-#endif
 };
 
 struct mtk_drm_property {

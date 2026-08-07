@@ -25,7 +25,6 @@
 #include "mtk_rect.h"
 #include "mtk_drm_drv.h"
 #include "mtk_drm_graphics_base.h"
-#include "mtk_drm_mmp.h"
 
 #include <soc/mediatek/mmqos.h>
 
@@ -234,9 +233,6 @@ static bool is_ovl_wcg(enum mtk_drm_dataspace ds)
 	case MTK_DRM_DATASPACE_V0_SCRGB:
 	case MTK_DRM_DATASPACE_V0_SCRGB_LINEAR:
 	case MTK_DRM_DATASPACE_DISPLAY_P3:
-	case MTK_DRM_DATASPACE_BT2020:
-	case MTK_DRM_DATASPACE_BT2020_PQ:
-	case MTK_DRM_DATASPACE_STANDARD_BT2020_CONSTANT_LUMINANCE:
 		ret = true;
 		break;
 	default:
@@ -260,7 +256,7 @@ static bool is_ovl_standard(struct drm_device *dev, enum mtk_drm_dataspace ds)
 	switch (std) {
 	case MTK_DRM_DATASPACE_STANDARD_BT2020:
 	case MTK_DRM_DATASPACE_STANDARD_BT2020_CONSTANT_LUMINANCE:
-		ret = true;
+		ret = false;
 		break;
 	default:
 		ret = true;
@@ -833,21 +829,13 @@ static int layering_get_valid_hrt(struct drm_crtc *crtc,
 	dvfs_bw *= 10000;
 	tmp = 0;
 
-	DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
 	output_comp = mtk_ddp_comp_request_output(mtk_crtc);
 	DDPDBG("%s: %u mode_idx:%d\n", __func__, disp_idx, mode_idx);
 	mtk_crtc->mode_idx = mode_idx;
-	if (priv->data->mmsys_id == MMSYS_MT6895 && !mtk_crtc->res_switch) {
-		if (output_comp)
-			mtk_ddp_comp_io_cmd(output_comp, NULL,
-				GET_FRAME_HRT_BW_BY_DATARATE, &tmp);
-	} else {
-		tmp = mode_idx;
-		if (output_comp)
-			mtk_ddp_comp_io_cmd(output_comp, NULL,
-				GET_FRAME_HRT_BW_BY_MODE, &tmp);
-	}
-	DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+	tmp = mode_idx;
+	if (output_comp)
+		mtk_ddp_comp_io_cmd(output_comp, NULL,
+			GET_FRAME_HRT_BW_BY_MODE, &tmp);
 
 	if (!tmp) {
 		/* for avail_bw == 0 case, which imply this display is not HRT,

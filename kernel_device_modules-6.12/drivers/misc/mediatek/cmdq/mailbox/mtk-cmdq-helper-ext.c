@@ -25,11 +25,6 @@
 #endif
 #include "vcp.h"
 #include "vcp_status.h"
-
-#if IS_ENABLED(CONFIG_MTK_TINYSYS_VCP_SUPPORT)
-#include "vcp_reg.h"
-#endif
-
 #if IS_ENABLED(CONFIG_VHOST_CMDQ)
 #include "cmdq.h"
 #endif
@@ -62,10 +57,8 @@ struct cmdq_sec_helper_fp *cmdq_sec_helper;
 #define CMDQ_WRITE_ENABLE_MASK	BIT(0)
 #define CMDQ_EOC_IRQ_EN		BIT(0)
 #define CMDQ_EOC_IRQ_DIS	(0)
-
 #define CMDQ_EOC_CMD		((u64)((CMDQ_CODE_EOC << CMDQ_OP_CODE_SHIFT)) \
 				<<32)
-
 #if IS_ENABLED(CONFIG_ARCH_DMA_ADDR_T_64BIT)
 #define CMDQ_EOC_MASK		GENMASK(63, 1)
 #else
@@ -124,6 +117,7 @@ struct cmdq_sec_helper_fp *cmdq_sec_helper;
 #define MMINFRA_MBIST_DELSEL18	0xa48
 #define MMINFRA_MBIST_DELSEL19	0xa4c
 
+
 #define	MDP_VCP_BUF_SIZE 0x80000
 
 #define	VCP_OFF_DELAY 1000 /* 1000ms */
@@ -148,7 +142,6 @@ struct vcp_control {
 	struct workqueue_struct *vcp_wq;
 	atomic_t		vcp_usage;
 	atomic_t		vcp_power;
-	struct notifier_block vcp_notify;
 	void __iomem	*mminfra_base;
 };
 struct vcp_control vcp;
@@ -191,21 +184,6 @@ struct cmdq_flush_item {
 	s32 err;
 	bool done;
 };
-
-bool cmdq_get_gce_in_vcp(void)
-{
-	return gce_in_vcp;
-}
-
-void cmdq_set_gce_in_vcp(bool set)
-{
-	gce_in_vcp = set;
-
-	cmdq_msg("%s set gce_in_vcp as %d", __func__, gce_in_vcp);
-	if (gce_in_vcp)
-		vcp.mminfra_base = ioremap(MMINFRA_BASE, 0x1000);
-}
-EXPORT_SYMBOL(cmdq_set_gce_in_vcp);
 
 #if IS_ENABLED(CONFIG_VIRTIO_CMDQ)
 bool is_virtio_client(struct cmdq_client *cl)
@@ -628,12 +606,6 @@ static void cmdq_vcp_off_work(struct work_struct *work_item)
 #ifndef CMDQ_SKIP_BY_CMDQ_BUILT
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_VCP_SUPPORT)
 		vcp_deregister_feature_ex(GCE_FEATURE_ID);
-
-		if (vcp.vcp_notify.notifier_call && cmdq_get_gce_in_vcp()) {
-			vcp_A_unregister_notify_ex(GCE_FEATURE_ID, &vcp.vcp_notify);
-			vcp.vcp_notify.notifier_call = NULL;
-			cmdq_log("[VCP] vcp_A_unregister_notify_ex");
-		}
 #endif
 #endif
 		atomic_dec(&vcp.vcp_power);
@@ -645,20 +617,6 @@ static void cmdq_vcp_off(struct timer_list *t)
 {
 	if (!work_pending(&vcp.vcp_work))
 		queue_work(vcp.vcp_wq, &vcp.vcp_work);
-}
-
-static dma_addr_t cmdq_get_vcp_dummy(enum CMDQ_VCP_ENG_ENUM engine)
-{
-	const dma_addr_t offset[VCP_USER_CNT] = {
-		MMINFRA_MBIST_DELSEL12, MMINFRA_MBIST_DELSEL13,
-		MMINFRA_MBIST_DELSEL14, MMINFRA_MBIST_DELSEL15,
-		MMINFRA_MBIST_DELSEL16, MMINFRA_MBIST_DELSEL17,
-		MMINFRA_MBIST_DELSEL18, MMINFRA_MBIST_DELSEL19,};
-
-	if (engine >= VCP_USER_CNT)
-		return 0;
-
-	return MMINFRA_BASE + offset[engine];
 }
 
 #ifndef CMDQ_SKIP_BY_CMDQ_BUILT
@@ -677,55 +635,7 @@ static void cmdq_vcp_is_ready(void)
 			break;
 		}
 	}
-}
 
-static int cmdq_vcp_notify_irq_cb(struct notifier_block *this,
-	unsigned long event, void *ptr)
-{
-	dma_addr_t addr;
-	u32 i, val;
-	void __iomem *vcp_irq;
-	struct cmdq_vcp_inst *vcp_inst = (struct cmdq_vcp_inst *)&val;
-	struct vcp_control *vcp_ptr = container_of(this, struct vcp_control, vcp_notify);
-
-	if (!vcp_ptr->mminfra_base) {
-		cmdq_err("[VCP] not support vcp but register vcp notify callback.");
-		return NOTIFY_STOP_MASK;
-	}
-	if (atomic_read(&vcp.vcp_power) <= 0) {
-		cmdq_msg("[VCP] not power on VCP");
-		return NOTIFY_DONE;
-	}
-
-	vcp_irq = ioremap((dma_addr_t)VCP_TO_SPM_REG_PA, 0x08);
-
-	if (!vcp_irq) {
-		cmdq_err("%s could not ioremap VCP_TO_SPM_REG_PA", __func__);
-		return NOTIFY_STOP;
-	}
-
-	switch (event) {
-	case VCP_EVENT_READY:
-		for (i = 0; i < VCP_USER_CNT; i++) {
-			addr = cmdq_get_vcp_dummy(i);
-			val = readl(vcp_ptr->mminfra_base + (addr - MMINFRA_BASE));
-			cmdq_log("[VCP] addr[%pa]=%#x enable:%d enter:%d error:%d",
-					&addr, val, vcp_inst->enable, vcp_inst->enter,
-					vcp_inst->error);
-			if (vcp_inst->enable) {
-				writel(readl(vcp_irq) | B_GIPC2_SETCLR_0, vcp_irq);
-				cmdq_msg("[VCP] ready from exception, retry trigger irq");
-				break;
-			}
-		}
-		break;
-	default:
-		cmdq_log("[VCP] nothing to do, event:%lu", event);
-	}
-
-	iounmap(vcp_irq);
-
-	return NOTIFY_DONE;
 }
 #endif
 #endif
@@ -740,34 +650,19 @@ void cmdq_vcp_enable(bool en)
 	if (en) {
 		if (atomic_inc_return(&vcp.vcp_usage) == 1)
 			del_timer(&vcp.vcp_timer);
-
-#if IS_ENABLED(CONFIG_MTK_TINYSYS_VCP_SUPPORT)
-		if (!is_vcp_ready_ex(GCE_FEATURE_ID) && (atomic_read(&vcp.vcp_power) > 0)
-			&& cmdq_get_gce_in_vcp()) {
-			vcp_deregister_feature_ex(GCE_FEATURE_ID);
-			atomic_dec(&vcp.vcp_power);
-			cmdq_msg("[VCP] checking vcp is not ready, retry power on vcp");
-		}
-#endif
-
 		if (atomic_read(&vcp.vcp_power) <= 0) {
 #ifndef CMDQ_SKIP_BY_CMDQ_BUILT
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_VCP_SUPPORT)
 			dma_addr_t buf_pa = vcp_get_reserve_mem_phys_ex(GCE_MEM_ID);
 
 			vcp_register_feature_ex(GCE_FEATURE_ID);
-			cmdq_vcp_is_ready();
-			cmdq_msg("[VCP] power on VCP");
-			if (!vcp.vcp_notify.notifier_call) {
-				vcp.vcp_notify.notifier_call = cmdq_vcp_notify_irq_cb;
-				vcp_A_register_notify_ex(GCE_FEATURE_ID, &vcp.vcp_notify);
-				cmdq_log("[VCP] vcp_A_register_notify_ex");
-			}
 			atomic_inc(&vcp.vcp_power);
+			mutex_unlock(&vcp.vcp_mutex);
+			cmdq_msg("[VCP] power on VCP");
+			cmdq_vcp_is_ready();
 			writel(CMDQ_PACK_IOVA(buf_pa), vcp.mminfra_base + MMINFRA_MBIST_DELSEL10);
 #endif
 #endif
-			mutex_unlock(&vcp.vcp_mutex);
 			return;
 		}
 	} else {
@@ -802,6 +697,20 @@ void *cmdq_get_vcp_buf(enum CMDQ_VCP_ENG_ENUM engine, dma_addr_t *pa_out)
 	return va;
 }
 EXPORT_SYMBOL(cmdq_get_vcp_buf);
+
+static dma_addr_t cmdq_get_vcp_dummy(enum CMDQ_VCP_ENG_ENUM engine)
+{
+	const dma_addr_t offset[VCP_USER_CNT] = {
+		MMINFRA_MBIST_DELSEL12, MMINFRA_MBIST_DELSEL13,
+		MMINFRA_MBIST_DELSEL14, MMINFRA_MBIST_DELSEL15,
+		MMINFRA_MBIST_DELSEL16, MMINFRA_MBIST_DELSEL17,
+		MMINFRA_MBIST_DELSEL18, MMINFRA_MBIST_DELSEL19,};
+
+	if (engine >= VCP_USER_CNT)
+		return 0;
+
+	return MMINFRA_BASE + offset[engine];
+}
 
 void cmdq_pkt_set_noirq(struct cmdq_pkt *pkt, const bool noirq)
 {
@@ -859,8 +768,7 @@ s32 cmdq_pkt_readback(struct cmdq_pkt *pkt, enum CMDQ_VCP_ENG_ENUM engine,
 	}
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_VCP_SUPPORT)
 	/* vcp irq B_GIPC2_SETCLR_0 */
-	if (cmdq_get_gce_in_vcp())
-		cmdq_pkt_write(pkt, NULL, VCP_TO_SPM_REG_PA, B_GIPC2_SETCLR_0, B_GIPC2_SETCLR_0);
+	//cmdq_pkt_write(pkt, NULL, VCP_TO_SPM_REG_PA, B_GIPC2_SETCLR_0, B_GIPC2_SETCLR_0);
 #endif
 	cmdq_pkt_poll_timeout_reuse(pkt, 0, SUBSYS_NO_SUPPORT,
 		addr, ~0, U16_MAX, reg_gpr, poll_reuse);
@@ -1762,7 +1670,6 @@ static bool cmdq_pkt_is_finalized(struct cmdq_pkt *pkt)
 			return false;
 		}
 	}
-
 	if (expect_eoc && (*expect_eoc & CMDQ_EOC_MASK) == CMDQ_EOC_CMD)
 		return true;
 
@@ -2385,32 +2292,6 @@ s32 cmdq_pkt_copy(struct cmdq_pkt *dst, struct cmdq_pkt *src)
 }
 EXPORT_SYMBOL(cmdq_pkt_copy);
 
-s32 cmdq_pkt_reset(struct cmdq_pkt *pkt)
-{
-	struct cmdq_client *client = pkt->cl;
-
-	cmdq_pkt_free_buf(pkt);
-	INIT_LIST_HEAD(&pkt->buf);
-	init_completion(&pkt->cmplt);
-	pkt->avail_buf_size = 0;
-	pkt->cmd_buf_size = 0;
-	pkt->buf_size = 0;
-	pkt->buf_cnt = 0;
-	pkt->task_alloc = false;
-
-#if IS_ENABLED(CONFIG_MTK_CMDQ_MBOX_EXT)
-	if (!cmdq_util_is_prebuilt_client(client) &&
-		!cmdq_util_is_secure_client(client)) {
-		cmdq_pkt_perf_begin(pkt);
-		cmdq_pkt_hw_trace(pkt, 0);
-	}
-#endif
-	pkt->task_alive = true;
-	pkt->create_instr_cnt = pkt->cmd_buf_size / CMDQ_INST_SIZE;
-
-	return 0;
-}
-EXPORT_SYMBOL(cmdq_pkt_reset);
 
 s32 cmdq_pkt_store_value(struct cmdq_pkt *pkt, u16 indirect_dst_reg_idx,
 	u16 dst_addr_low, u32 value, u32 mask)
@@ -3009,8 +2890,8 @@ s32 cmdq_pkt_poll_timeout_reuse(struct cmdq_pkt *pkt, u32 value, u8 subsys,
 	cmdq_pkt_assign_command(pkt, reg_tmp, 0);
 
 	/* compare and jump to end if equal
-	 * note that end address will fill in later into last instruction
-	 */
+	* note that end address will fill in later into last instruction
+	*/
 	lop.reg = true;
 	lop.idx = reg_poll;
 	rop.reg = true;
@@ -3589,9 +3470,6 @@ static struct cmdq_flush_item *cmdq_prepare_flush_tiem(struct cmdq_pkt *pkt)
 {
 	struct cmdq_flush_item *item;
 
-	if (pkt->flush_item)
-		return pkt->flush_item;
-
 	kfree(pkt->flush_item);
 	pkt->flush_item = NULL;
 
@@ -3989,9 +3867,7 @@ s32 cmdq_pkt_flush_async(struct cmdq_pkt *pkt,
 #endif
 	struct cmdq_client *client = pkt->cl;
 	s32 err;
-// #ifdef OPLUS_FEATURE_CAMERA_COMMON
-	const u16 sleep_time = 1;
-// #endif /* OPLUS_FEATURE_CAMERA_COMMON */
+
 	if (!client) {
 		cmdq_err("client is NULL");
 		dump_stack();
@@ -4079,44 +3955,17 @@ s32 cmdq_pkt_flush_async(struct cmdq_pkt *pkt,
 	end[end_cnt++] = sched_clock();
 #endif
 	mutex_lock(&client->chan_mutex);
-// #ifdef OPLUS_FEATURE_CAMERA_COMMON
-	pkt->retry_cnt = 0;
-// #endif /*OPLUS_FEATURE_CAMERA_COMMON*/
-	do {
-		err = mbox_send_message(client->chan, pkt);
-		if (!pkt->task_alloc) {
+	err = mbox_send_message(client->chan, pkt);
+	if (!pkt->task_alloc) {
 #if IS_ENABLED(CONFIG_MTK_CMDQ_MBOX_EXT)
-			if (!pkt->rec_irq) {
-				err = -ECONNABORTED;
-			}
-			else {
-				mbox_client_txdone(client->chan, 0);
-// #ifdef OPLUS_FEATURE_CAMERA_COMMON
-				err = 0;
-// #endif /*OPLUS_FEATURE_CAMERA_COMMON*/
-				break;
-			}
-#else
+		if (!pkt->rec_irq)
 			err = -ECONNABORTED;
+#else
+		err = -ECONNABORTED;
 #endif
-		} else {
-			mbox_client_txdone(client->chan, 0);
-// #ifdef OPLUS_FEATURE_CAMERA_COMMON
-			err = 0;
-// #endif /*OPLUS_FEATURE_CAMERA_COMMON*/
-			break;
-		}
-
-		/* We can send next packet immediately, so just call txdone. */
-		mbox_client_txdone(client->chan, 0);
-		msleep_interruptible(sleep_time);
-// #ifdef OPLUS_FEATURE_CAMERA_COMMON
-	} while (++pkt->retry_cnt < CMDQ_FLUSH_RETRY_MAX);
-#if IS_ENABLED(CONFIG_MTK_CMDQ_MBOX_EXT)
-	if (pkt->retry_cnt == CMDQ_FLUSH_RETRY_MAX && err < 0)
-		BUG_ON(1);
-#endif
-// #endif /*OPLUS_FEATURE_CAMERA_COMMON*/
+	}
+	/* We can send next packet immediately, so just call txdone. */
+	mbox_client_txdone(client->chan, 0);
 	mutex_unlock(&client->chan_mutex);
 #if IS_ENABLED(CONFIG_MTK_CMDQ_DEBUG)
 	end[end_cnt] = sched_clock();
@@ -4998,6 +4847,16 @@ static int cmdq_record_buffer_usage(void *data)
 	}
 	return 0;
 }
+
+void cmdq_set_gce_in_vcp(bool set)
+{
+	gce_in_vcp = set;
+
+	cmdq_msg("%s set gce_in_vcp as %d", __func__, gce_in_vcp);
+	if (gce_in_vcp)
+		vcp.mminfra_base = ioremap(MMINFRA_BASE, 0x1000);
+}
+EXPORT_SYMBOL(cmdq_set_gce_in_vcp);
 
 int cmdq_helper_init(void)
 {

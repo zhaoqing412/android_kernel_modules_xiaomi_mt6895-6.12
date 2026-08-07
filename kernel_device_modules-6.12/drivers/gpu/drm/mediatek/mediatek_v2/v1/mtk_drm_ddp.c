@@ -38,13 +38,6 @@
 #if IS_ENABLED(CONFIG_MTK_AUDIODSP_SUPPORT)
 #include "mtk-afe-external.h"
 #endif
-#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
-#include "oplus_display_onscreenfingerprint.h"
-#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
-#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
-extern long long mutex_sof_ns;
-#endif /* OPLUS_FEATURE_DISPLAY_APOLLO */
-
 
 #define DISPSYS0	0
 #define DISPSYS1	1
@@ -38794,18 +38787,6 @@ static irqreturn_t mtk_disp_mutex_irq_handler(int irq, void *dev_id)
 					}
 				}
 			}
-#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
-				if (oplus_ofp_is_supported()) {
-					if (oplus_ofp_video_mode_aod_fod_is_enabled()) {
-						oplus_ofp_pressed_icon_status_update(OPLUS_OFP_TE_RDY);
-						/* send ui ready */
-						oplus_ofp_notify_uiready(mtk_crtc0);
-					}
-				}
-#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
-#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
-				mutex_sof_ns = ktime_get();
-#endif /* OPLUS_FEATURE_DISPLAY_APOLLO */
 			if(mtk_crtc0 && atomic_read(&mtk_crtc0->get_data_type)) {
 				temp = mtk_spr_check_postalign_status(mtk_crtc0);
 				if(temp >= 0)

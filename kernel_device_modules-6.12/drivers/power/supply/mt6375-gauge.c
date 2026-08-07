@@ -283,11 +283,6 @@ struct mt6375_priv {
 #define Set_BAT_DISABLE_NAFG _IOW('k', 14, int)
 #define Set_CARTUNE_TO_KERNEL _IOW('k', 15, int)
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-#define Get_FakeOff_Param _IOW('k', 7, int)
-#define Turn_Off_Charging _IOW('k', 9, int)
-#endif
-
 static struct class *bat_cali_class;
 static int bat_cali_major;
 static dev_t bat_cali_devno;
@@ -3696,10 +3691,6 @@ static long compat_adc_cali_ioctl(struct file *file, unsigned int cmd, unsigned 
 	case Get_META_BAT_CAR_TUNE_VALUE:
 	case Set_META_BAT_CAR_TUNE_VALUE:
 	case Set_BAT_DISABLE_NAFG:
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	case Get_FakeOff_Param:
-	case Turn_Off_Charging:
-#endif /*OPLUS_FEATURE_CHG_BASIC*/
 	case Set_CARTUNE_TO_KERNEL:
 		bm_notice(null_gm, "%s, send to unlocked_ioctl cmd=0x%08x (%s)\n",
 			  __func__, cmd, get_cmd_name(cmd));
@@ -3712,53 +3703,6 @@ static long compat_adc_cali_ioctl(struct file *file, unsigned int cmd, unsigned 
 }
 #endif
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-static int update_fakeoff_out_data(int *fakeoff_out_data, struct gauge_kpoc_ops *ops,
-	struct mtk_battery *gm)
-{
-	if (gm && gm->oplus_kpoc_ops) {
-		bm_err(gm, "oplus_kpoc_ops is ok\n");
-	} else {
-		bm_err(gm, "oplus_kpoc_ops is null\n");
-		return -EFAULT;
-	}
-	ops = gm->oplus_kpoc_ops;
-	if (ops->mtk_gauge_get_ui_soc)
-		fakeoff_out_data[DATA_UI_SOC] = ops->mtk_gauge_get_ui_soc();
-	if (ops->mtk_gauge_get_notify_flag)
-		fakeoff_out_data[DATA_NOTIFY_FLAG] = ops->mtk_gauge_get_notify_flag();
-	if (ops->mtk_gauge_get_vbus_status &&
-	    ops->mtk_gauge_get_prop_status) {
-		if (ops->mtk_gauge_get_vbus_status() == true &&
-		    ops->mtk_gauge_get_prop_status() != POWER_SUPPLY_STATUS_NOT_CHARGING) {
-			fakeoff_out_data[DATA_CHR_DET] = POWER_SUPPLY_STATUS_CHARGING;
-		} else {
-			fakeoff_out_data[DATA_CHR_DET] = POWER_SUPPLY_STATUS_UNKNOWN;
-		}
-	}
-	if (ops->mtk_gauge_get_vooc_status)
-		fakeoff_out_data[DATA_FAST_CHG] = ops->mtk_gauge_get_vooc_status();
-	if (ops->mtk_gauge_get_vooc_project &&
-	    ops->mtk_gauge_check_ui_soc_is_ready &&
-	    ops->mtk_gauge_check_chip_is_null) {
-		if (ops->mtk_gauge_get_vooc_project()) {
-			fakeoff_out_data[DATA_CHIP_IS_READY] = (ops->mtk_gauge_check_chip_is_null() == false ?
-								DATA_TRUE: DATA_FALSE);
-			fakeoff_out_data[DATA_UI_SOC_IS_READY] = (ops->mtk_gauge_check_ui_soc_is_ready() == true ?
-								  DATA_TRUE: DATA_FALSE);
-		} else {
-			if (gm->init_flag == 1)
-				fakeoff_out_data[DATA_CHIP_IS_READY] = DATA_TRUE;
-			else
-				fakeoff_out_data[DATA_CHIP_IS_READY] = DATA_FALSE;
-			fakeoff_out_data[DATA_UI_SOC_IS_READY] = (ops->mtk_gauge_check_ui_soc_is_ready() == true ?
-								  DATA_TRUE: DATA_FALSE);
-		}
-	}
-	return 0;
-}
-#endif
-
 static long adc_cali_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct mt6375_priv *priv = file->private_data;
@@ -3767,12 +3711,6 @@ static long adc_cali_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	int adc_in_data[2] = { 1, 1 };
 	int adc_out_data[2] = { 1, 1 };
 	int *user_data_addr;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	int fakeoff_out_data[6] = {0, 0, 0, 0, 0, 0};
-	struct gauge_kpoc_ops *ops = NULL;
-#endif /*OPLUS_FEATURE_CHG_BASIC*/
-
-	bm_err(gm, "%s enter,cmd=%d\n", __func__, cmd);
 
 	mutex_lock(&gm->gauge->fg_mutex);
 	user_data_addr = (int *)arg;
@@ -3860,23 +3798,6 @@ static long adc_cali_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		bm_err(gm, "%s, **** unlocked_ioctl: %s[%d,%d], ret=%d\n",
 		       __func__, get_cmd_name(cmd), adc_in_data[0], adc_in_data[1], ret);
 		break;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	case Get_FakeOff_Param:
-		user_data_addr = (int *)arg;
-		ret = update_fakeoff_out_data(fakeoff_out_data, ops, gm);
-		if (ret < 0)
-			break;
-
-		ret = copy_to_user(user_data_addr, fakeoff_out_data, sizeof(fakeoff_out_data));
-		bm_err(gm, "ioctl : Get_FakeOff_Param: ui_soc:%d, g_NotifyFlag:%d, chr_det:%d, fast_chg:%d\n",
-			fakeoff_out_data[DATA_UI_SOC], fakeoff_out_data[DATA_NOTIFY_FLAG], fakeoff_out_data[DATA_CHR_DET],
-			fakeoff_out_data[DATA_FAST_CHG]);
-		break;
-
-	case Turn_Off_Charging:
-		bm_err(gm, "ioctl : Turn_Off_Charging\n");
-		break;
-#endif
 	default:
 		bm_err(gm, "%s, **** unlocked_ioctl: %s IOCTL: 0x%08x\n",
 		       __func__, get_cmd_name(cmd), cmd);

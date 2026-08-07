@@ -4,8 +4,6 @@ load("@mgk_info//:kernel_version.bzl",
 
 ## WARNING: please keep it sorted
 ack_headers = [
-	"//kernel-{}:arch/arm64/kvm/hyp/include/module/nvhe/define_events.h".format(kernel_version),
-	"//kernel-{}:arch/arm64/kvm/hyp/include/module/nvhe/trace.h".format(kernel_version),
 	"//kernel-{}:arch/arm64/kvm/hyp/include/nvhe/alloc.h".format(kernel_version),
 	"//kernel-{}:arch/arm64/kvm/hyp/include/nvhe/alloc_mgt.h".format(kernel_version),
 	"//kernel-{}:arch/arm64/kvm/hyp/include/nvhe/arm-smccc.h".format(kernel_version),
@@ -23,6 +21,8 @@ ack_headers = [
 	"//kernel-{}:arch/arm64/kvm/hyp/include/nvhe/rwlock.h".format(kernel_version),
 	"//kernel-{}:arch/arm64/kvm/hyp/include/nvhe/serial.h".format(kernel_version),
 	"//kernel-{}:arch/arm64/kvm/hyp/include/nvhe/spinlock.h".format(kernel_version),
+	"//kernel-{}:arch/arm64/kvm/hyp/include/nvhe/trace/define_events.h".format(kernel_version),
+	"//kernel-{}:arch/arm64/kvm/hyp/include/nvhe/trace/trace.h".format(kernel_version),
 	"//kernel-{}:arch/arm64/kvm/hyp/include/nvhe/trap_handler.h".format(kernel_version),
 	"//kernel-{}:drivers/android/binder_alloc.h".format(kernel_version),
 	"//kernel-{}:drivers/android/binder_internal.h".format(kernel_version),

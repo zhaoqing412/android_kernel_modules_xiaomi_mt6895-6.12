@@ -36,9 +36,7 @@
 #if IS_ENABLED(CONFIG_MTK_THERMAL_INTERFACE)
 #include <thermal_interface.h>
 #endif // CONFIG_MTK_THERMAL_INTERFACE
-#ifdef CONFIG_HMBIRD_SCHED_BPF
-#include <hmbird_II/hmbird_II_export.h>
-#endif
+
 DEFINE_PER_CPU(struct sbb_cpu_data *, sbb);
 EXPORT_SYMBOL(sbb);
 static void __iomem *l3ctl_sram_base_addr;
@@ -349,7 +347,6 @@ int dsu_freq_agg(int cpu, int max_freq_in_gear, int quant, int wl,
 }
 EXPORT_SYMBOL_GPL(dsu_freq_agg);
 
-
 void set_dsu_target_freq(struct cpufreq_policy *policy)
 {
 #if IS_ENABLED(CONFIG_MTK_GEARLESS_SUPPORT)
@@ -416,7 +413,6 @@ skip_single_idle_cpu:
 
 	freq_state.dsu_target_freq = dsu_target_freq;
 	c->sb_ch = dsu_target_freq;
-
 	return;
 #endif
 }
@@ -1593,10 +1589,6 @@ int (*mtk_eas_hook)(void);
 EXPORT_SYMBOL(mtk_eas_hook);
 int get_eas_hook(void)
 {
-#ifdef CONFIG_HMBIRD_SCHED_BPF
-	if (hmbird_bypass_hooks())
-		return 0;
-#endif
 	if (mtk_eas_hook)
 		return mtk_eas_hook();
 	return legacy_api_support_get();
@@ -3491,10 +3483,6 @@ EXPORT_SYMBOL_GPL(get_flt_margin);
 int mtk_effective_flt_util_with_margin(int util, int cpu, struct cpumask *sg_cpumask, int source)
 {
 	int flt_util = -1, flt_util_margin = -1;
-	struct rq *rq;
-	struct task_struct *curr_task = NULL;
-	struct dpt_task_struct *dts = NULL;
-	int done = -1;
 
 #if IS_ENABLED(CONFIG_MTK_SCHED_FAST_LOAD_TRACKING)
 	if (flt_sched_get_flt_coef_util_eas_hook) {
@@ -3504,21 +3492,8 @@ int mtk_effective_flt_util_with_margin(int util, int cpu, struct cpumask *sg_cpu
 	}
 #endif
 
-	rq = cpu_rq(cpu);
-	rcu_read_lock();
-	curr_task = rcu_dereference(rq->curr);
-	if (curr_task) {
-		dts = &((struct mtk_task *) android_task_vendor_data(curr_task))->dpt_task;
-
-		if(unlikely(dts->without_DPT_ctrl == 1)) {
-			done = 1;
-			flt_util_margin = -1;
-		}
-	}
-	rcu_read_unlock();
-
 	if (trace_sugov_ext_flt_util_with_coef_margin_enabled())
-		trace_sugov_ext_flt_util_with_coef_margin(cpu, util, flt_util, flt_margin[cpu], done);
+		trace_sugov_ext_flt_util_with_coef_margin(cpu, util, flt_util, flt_margin[cpu]);
 
 	return flt_util_margin;
 }

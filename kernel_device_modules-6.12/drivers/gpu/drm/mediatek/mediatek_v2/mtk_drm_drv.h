@@ -36,7 +36,7 @@
 #endif
 #define MTK_DRM_ASYNC_HANDLE
 
-#define PQ_PATH_9
+#define PQ_PATH_11
 
 struct device;
 struct device_node;
@@ -124,7 +124,6 @@ struct mtk_mmsys_driver_data {
 	bool need_emi_eff;
 	bool larb_ssc_ch_mapping;
 	void (*disable_merge_irq)(struct drm_device *drm);
-	void (*disable_inten)(struct drm_device *drm);
 	void (*gce_event_config)(struct drm_device *drm);
 	void (*vdisp_ao_irq_config)(struct drm_device *drm);
 	void (*vdisp_ao_qos_config)(struct drm_device *drm);
@@ -149,7 +148,6 @@ struct mtk_mmsys_driver_data {
 	struct pwr_clk_map *pwr_clk_map;
 	const enum pwr_clk_id *pwr_on_order;
 	const enum pwr_clk_id *pwr_off_order;
-	unsigned int pwr_on_async_id;
 	int pwr_length;
 	int (*get_dispsys_reg) (struct platform_device *pdev,
 			struct mtk_drm_private *private, unsigned int dispsys_num);
@@ -383,26 +381,6 @@ struct mtk_drm_private {
 
 	unsigned int seg_id;
 
-#ifdef OPLUS_FEATURE_DISPLAY_ADFR
-	struct workqueue_struct *fakeframe_wq;
-	struct hrtimer fakeframe_timer;
-	struct work_struct fakeframe_work;
-	/* add for mux switch control */
-	struct completion switch_te_gate;
-	bool vsync_switch_pending;
-	bool need_vsync_switch;
-	struct workqueue_struct *vsync_switch_wq;
-	struct work_struct vsync_switch_work;
-	/* indicate that whether the current frame backlight has been updated */
-	bool oplus_adfr_backlight_updated;
-	/* need qsync mode recovery after backlight status updated */
-	bool osync_mode_recovery;
-	/* set timer to reset qsync after the backlight is no longer updated */
-	struct hrtimer osync_mode_timer;
-	struct workqueue_struct *osync_mode_wq;
-	struct work_struct osync_mode_work;
-#endif /* OPLUS_FEATURE_DISPLAY_ADFR */
-
 	unsigned int srt_channel_bw_sum[MAX_CRTC][BW_CHANNEL_NR];
 	unsigned int srt_channel_write_bw_sum[MAX_CRTC][BW_CHANNEL_NR];
 	unsigned int total_srt[MAX_CRTC];
@@ -414,8 +392,6 @@ struct mtk_drm_private {
 
 	/* debug top status */
 	struct mtk_dbgtp mtk_dbgtp_sta;
-
-	struct device *attach_share_dev;
 };
 
 struct mtk_drm_property {
@@ -726,5 +702,4 @@ void mtk_request_retrig(struct drm_device *dev,
 		uint32_t crtc_id);
 int mtk_drm_ioctl_retrig(struct drm_device *dev, void *data,
 		struct drm_file *file_priv);
-void mtk_drm_pm_ctrl_async_debug(unsigned int data);
 #endif /* MTK_DRM_DRV_H */

@@ -29,11 +29,6 @@
 #include "ged_eb.h"
 #include "ged_log.h"
 
-#include "ged_perfetto_tracepoint.h"
-#ifndef OPLUS_ARCH_EXTENDS
-#define OPLUS_ARCH_EXTENDS
-#endif
-
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 #include <ged_gpufreq_v2.h>
 #include <gpufreq_v2.h>
@@ -264,17 +259,6 @@ static void ged_eb_dump_norm_loading(void) {
 
 	trace_GPU_DVFS__Loading(gpu_loading, tile_loading,
 		frag_loading, comp_loading, iter_loading, mcu_loading, itet_mcu_union_loading);
-
-	#ifdef OPLUS_ARCH_EXTENDS
-	trace_oplus_tracing_mark_write(5566, "util_active", gpu_loading);
-	trace_oplus_tracing_mark_write(5566, "util_ta", tile_loading);
-	trace_oplus_tracing_mark_write(5566, "util_3d", frag_loading);
-	trace_oplus_tracing_mark_write(5566, "util_compute", comp_loading);
-	trace_oplus_tracing_mark_write(5566, "util_iter", iter_loading);
-	trace_oplus_tracing_mark_write(5566, "util_mcu", mcu_loading);
-	trace_oplus_tracing_mark_write(5566, "util_iter_u_mcu", itet_mcu_union_loading);
-	#endif
-
 }
 #endif /* CONFIG_MTK_GPU_LEGACY */
 
@@ -289,8 +273,6 @@ void ged_eb_dvfs_trace_dump(void)
 	int ged_policy_state =  ged_get_policy_state();
 	int freq_id = ged_get_cur_oppidx();
 	unsigned int is_offscreen = 0;
-	unsigned int is_silence = 0;
-	unsigned int is_gpu_debug_ex_valid = 0;
 	static int pre_eb_policy_state;
 	static int pre_ged_policy_state;
 	static int pre_freq_id;
@@ -302,7 +284,6 @@ void ged_eb_dvfs_trace_dump(void)
 	union combineData tmp_multi = {0};
 	static unsigned int pre_is_offscreen;
 	static unsigned int pre_eb_nor_cnt, eb_nor_cnt;
-	static unsigned int pre_is_silence;
 
 	//struct GpuUtilization_Ex util_ex;
 
@@ -331,10 +312,6 @@ void ged_eb_dvfs_trace_dump(void)
 
 		trace_tracing_mark_write(5566, "gpu_freq",
 			(long long) ged_get_cur_stack_freq() / 1000);
-		#ifdef OPLUS_ARCH_EXTENDS
-		trace_oplus_tracing_mark_write(5566, "gpu_freq",
-			(long long) ged_get_cur_stack_freq() / 1000);
-		#endif /*OPLUS_ARCH_EXTENDS*/
 
 		sc_freq_diff = ged_get_cur_stack_out_freq() > 0 ?
 			ged_get_cur_stack_out_freq() - ged_get_cur_real_stack_freq() : 0;
@@ -356,16 +333,6 @@ void ged_eb_dvfs_trace_dump(void)
 		trace_tracing_mark_write(5566, "limitter_floor",
 			ged_get_cur_limiter_floor());
 		trace_tracing_mark_write(5566, "fix", ged_is_fix_dvfs());
-		#ifdef OPLUS_ARCH_EXTENDS
-		trace_oplus_tracing_mark_write(5566, "gpu_freq_ceil",
-			ged_get_freq_by_idx(ui32CeilingID) / 1000);
-		trace_oplus_tracing_mark_write(5566, "gpu_freq_floor",
-			ged_get_freq_by_idx(ui32FloorID) / 1000);
-		trace_oplus_tracing_mark_write(5566, "limitter_ceil",
-			ged_get_cur_limiter_ceil());
-		trace_oplus_tracing_mark_write(5566, "limitter_floor",
-			ged_get_cur_limiter_floor());
-		#endif /*OPLUS_ARCH_EXTENDS*/
 		if (ged_get_cur_limiter_ceil() == LIMIT_POWERHAL) {
 			custom_ceiling_info = ged_dvfs_get_custom_ceiling_gpu_freq_info();
 			trace_tracing_mark_write(5566, "limitter_ceil_pid",
@@ -374,14 +341,6 @@ void ged_eb_dvfs_trace_dump(void)
 				custom_ceiling_info.user_id);
 			trace_tracing_mark_write(5566, "limitter_ceil_cus_val",
 				custom_ceiling_info.value);
-			#ifdef OPLUS_ARCH_EXTENDS
-			trace_oplus_tracing_mark_write(5566, "limitter_ceil_pid",
-				custom_ceiling_info.pid);
-			trace_oplus_tracing_mark_write(5566, "limitter_ceil_id",
-				custom_ceiling_info.user_id);
-			trace_oplus_tracing_mark_write(5566, "limitter_ceil_cus_val",
-				custom_ceiling_info.value);
-			#endif /*OPLUS_ARCH_EXTENDS*/
 		}
 
 		if (ged_get_cur_limiter_floor() == LIMIT_POWERHAL) {
@@ -408,17 +367,8 @@ void ged_eb_dvfs_trace_dump(void)
 			tmp_multi = mtk_gpueb_sysram_multi_read(fdvfs_v2_table[GPU_LOWPWR_TRACE].addr);
 			trace_GPU_DVFS__EB_LOWPWR(tmp_multi.fourVar.var1, tmp_multi.fourVar.var2,
 										tmp_multi.fourVar.var3, tmp_multi.fourVar.var4);
-
-			is_silence = tmp_multi.fourVar.var4;
-			if (is_silence != pre_is_silence) {
-				trace_tracing_mark_write(5566, "silence", is_silence);
-				pre_is_silence = is_silence;
-			}
-
-			is_gpu_debug_ex_valid = mtk_gpueb_sysram_read(fdvfs_v2_table[GPU_DEBUG_EX_VALID].addr);
-			tmp_multi = mtk_gpueb_sysram_multi_read(fdvfs_v2_table[GPU_DEBUG_EX_ENABLE].addr);
-			trace_GPU_DVFS__G_DEBUG_EX(is_gpu_debug_ex_valid, tmp_multi.value,
-				mtk_gpueb_sysram_read(fdvfs_v2_table[DCS_GOV_CORE_MASK].addr));
+			if(tmp_multi.fourVar.var4 == 1)
+				trace_tracing_mark_write(5566, "silence", tmp_multi.fourVar.var1);
 		}
 	}
 
@@ -427,12 +377,6 @@ void ged_eb_dvfs_trace_dump(void)
 			mtk_gpueb_sysram_read(SYSRAM_GPU_EB_USE_T_GPU));
 		trace_tracing_mark_write(5566, "t_gpu_target",
 			mtk_gpueb_sysram_read(SYSRAM_GPU_EB_USE_TARGET_GPU));
-		#ifdef OPLUS_ARCH_EXTENDS
-		trace_oplus_tracing_mark_write(5566, "t_gpu",
-			mtk_gpueb_sysram_read(SYSRAM_GPU_EB_USE_T_GPU));
-		trace_oplus_tracing_mark_write(5566, "t_gpu_target",
-			mtk_gpueb_sysram_read(SYSRAM_GPU_EB_USE_TARGET_GPU));
-		#endif /* OPLUS_ARCH_EXTENDS */
 		trace_tracing_mark_write(5566, "async_opp_diff",
 			mtk_gpueb_sysram_read(SYSRAM_GPU_EB_USE_ASYNC_OPP_DIFF));
 		if (is_fdvfs_enable() & POLICY_MODE_V2) { // EB side debug
@@ -512,141 +456,6 @@ void ged_eb_dvfs_trace_dump(void)
 #endif
 }
 
-#if defined(OPLUS_ARCH_EXTENDS)
-int oplus_ged_timer_or_trace_enable(void)
-{
-	int originTraceEnable = ged_timer_or_trace_enable();
-	return originTraceEnable ? originTraceEnable : 1;
-}
-
-void oplus_ged_eb_dvfs_trace_dump(void)
-{
-#if !IS_ENABLED(CONFIG_MTK_GPU_LEGACY) /* MTK_GPU_EB_SUPPORT */
-	int ui32CeilingID = ged_get_cur_limit_idx_ceil();
-	int ui32FloorID = ged_get_cur_limit_idx_floor();
-	u64 eb_timeout_value = ged_get_fallback_time();
-	int eb_policy_state = mtk_gpueb_sysram_read(SYSRAM_GPU_EB_USE_POLICY_STATE);// For EB
-	//policy V2, this actually gets "commit type"
-	int ged_policy_state =  ged_get_policy_state();
-	int freq_id = ged_get_cur_oppidx();
-	static int pre_eb_policy_state;
-	static int pre_ged_policy_state;
-	static int pre_freq_id;
-	GED_DVFS_COMMIT_TYPE eCommitType;
-	int top_freq_diff = 0, sc_freq_diff = 0, sc_avg_freq_diff = 0;
-	struct cmd_info custom_ceiling_info ={0};
-	union combineData tmp_multi = {0};
-	static unsigned int pre_eb_nor_cnt, eb_nor_cnt;
-
-	//struct GpuUtilization_Ex util_ex;
-
-	if (!(is_fdvfs_enable() & POLICY_MODE_V2)) {
-		if (ged_policy_state == POLICY_STATE_LB ||
-				ged_policy_state == POLICY_STATE_FORCE_LB)
-			eCommitType = GED_DVFS_LOADING_BASE_COMMIT;
-		else if (ged_policy_state == POLICY_STATE_FB)
-			eCommitType = GED_DVFS_FRAME_BASE_COMMIT;
-		else
-			eCommitType = GED_DVFS_FALLBACK_COMMIT;
-	} else {
-		eCommitType = eb_policy_state;
-	}
-
-	if (ged_policy_state == POLICY_STATE_FB) {
-		ged_eb_dvfs_frame_done_dump();
-	} else if (eb_policy_state != pre_eb_policy_state ||
-		ged_policy_state != pre_ged_policy_state ||
-		pre_freq_id != freq_id) {
-
-		#ifdef OPLUS_ARCH_EXTENDS
-		trace_oplus_tracing_mark_write(5566, "commit_type",
-			eCommitType);
-		trace_oplus_tracing_mark_write(5566, "gpu_freq",
-			(long long) div_u64(ged_get_cur_stack_freq(), 1000));
-		#endif /*OPLUS_ARCH_EXTENDS*/
-
-		sc_freq_diff = ged_get_cur_stack_out_freq() > 0 ?
-			ged_get_cur_stack_out_freq() - ged_get_cur_real_stack_freq() : 0;
-		top_freq_diff = ged_get_cur_top_out_freq() > 0 ?
-			ged_get_cur_top_out_freq() - ged_get_cur_top_freq() : 0;
-		sc_avg_freq_diff = ged_get_cur_stack_avg_freq() > 0 ?
-			ged_get_cur_stack_avg_freq() - ged_get_cur_real_stack_freq() : 0;
-
-		trace_GPU_DVFS__Frequency(ged_get_cur_stack_freq() / 1000,
-			ged_get_cur_real_stack_freq() / 1000, ged_get_cur_top_freq() / 1000,
-			sc_freq_diff / 1000, top_freq_diff / 1000, sc_avg_freq_diff / 1000);
-
-		#ifdef OPLUS_ARCH_EXTENDS
-		trace_oplus_tracing_mark_write(5566, "gpu_freq_ceil",
-			(long long) div_u64(ged_get_freq_by_idx(ui32CeilingID), 1000));
-		trace_oplus_tracing_mark_write(5566, "gpu_freq_floor",
-			(long long) div_u64(ged_get_freq_by_idx(ui32FloorID), 1000));
-		trace_oplus_tracing_mark_write(5566, "limitter_ceil",
-			ged_get_cur_limiter_ceil());
-		trace_oplus_tracing_mark_write(5566, "limitter_floor",
-			ged_get_cur_limiter_floor());
-		#endif /*OPLUS_ARCH_EXTENDS*/
-		if (ged_get_cur_limiter_ceil() == LIMIT_POWERHAL) {
-			custom_ceiling_info = ged_dvfs_get_custom_ceiling_gpu_freq_info();
-			#ifdef OPLUS_ARCH_EXTENDS
-			trace_oplus_tracing_mark_write(5566, "limitter_ceil_pid",
-				custom_ceiling_info.pid);
-			trace_oplus_tracing_mark_write(5566, "limitter_ceil_id",
-				custom_ceiling_info.user_id);
-			trace_oplus_tracing_mark_write(5566, "limitter_ceil_cus_val",
-				custom_ceiling_info.value);
-			#endif /*OPLUS_ARCH_EXTENDS*/
-		}
-
-	}
-
-	if (eb_policy_state != GED_DVFS_FRAME_BASE_COMMIT) {
-		#ifdef OPLUS_ARCH_EXTENDS
-		trace_oplus_tracing_mark_write(5566, "t_gpu",
-			mtk_gpueb_sysram_read(SYSRAM_GPU_T_GPU));
-		trace_oplus_tracing_mark_write(5566, "t_gpu_target",
-			mtk_gpueb_sysram_read(SYSRAM_GPU_T_GPU_TARGET));
-		#endif /* OPLUS_ARCH_EXTENDS */
-		if ((is_fdvfs_enable() & POLICY_MODE_V2)) {
-			trace_GPU_DVFS__Policy__Common__Check_Target(
-				mtk_gpueb_sysram_read(fdvfs_v2_table[GPU_T_GPU_FPS_PID].addr),
-				mtk_gpueb_sysram_read(fdvfs_v2_table[GPU_T_GPU_FPS_Q].addr),
-				mtk_gpueb_sysram_read(fdvfs_v2_table[GPU_T_GPU_FPS].addr),
-				mtk_gpueb_sysram_read(fdvfs_v2_table[GPU_T_GPU_FPS_USE].addr),
-				mtk_gpueb_sysram_read(fdvfs_v2_table[GPU_T_GPU_FPS_TARGET].addr));
-
-			// show LB loading for V2
-			tmp_multi = mtk_gpueb_sysram_multi_read(SYSRAM_GPU_LOADING);
-			eb_nor_cnt = tmp_multi.twoVar.var2;
-			if (eb_nor_cnt != pre_eb_nor_cnt)
-				ged_eb_dump_norm_loading();
-			pre_eb_nor_cnt = eb_nor_cnt;
-		}
-		trace_GPU_DVFS__EB_Loading_dump(
-			mtk_gpueb_sysram_read(SYSRAM_GPU_EB_USE_GPU_LOADING),
-			mtk_gpueb_sysram_read(SYSRAM_GPU_EB_USE_MCU_LOADING),
-			mtk_gpueb_sysram_read(SYSRAM_GPU_EB_USE_ITER_LOADING),
-			mtk_gpueb_sysram_read(SYSRAM_GPU_EB_USE_ITER_U_MCU_LOADING));
-	}
-
-	if (eb_policy_state == GED_DVFS_LOADING_BASE_COMMIT)
-		eb_timeout_value = lb_timeout;
-	else if (eb_policy_state == GED_DVFS_FRAME_BASE_COMMIT) {
-		if (is_fdvfs_enable() & POLICY_MODE_V2)
-			eb_timeout_value = mtk_gpueb_sysram_read(SYSRAM_GPU_T_GPU_TARGET) * 1000;
-		else
-			eb_timeout_value = fb_timeout;
-	}
-
-
-	ged_set_backup_timer_timeout(eb_timeout_value);
-
-	pre_eb_policy_state = eb_policy_state;
-	pre_ged_policy_state = ged_policy_state;
-	pre_freq_id = freq_id;
-#endif
-}
-#endif
 void ged_eb_dvfs_frame_done_dump(void)
 {
 #if !IS_ENABLED(CONFIG_MTK_GPU_LEGACY) /* MTK_GPU_EB_SUPPORT */
@@ -657,7 +466,6 @@ void ged_eb_dvfs_frame_done_dump(void)
 	struct cmd_info custom_boost_info ={0};
 	int ui32CeilingID = ged_get_cur_limit_idx_ceil();
 	int ui32FloorID = ged_get_cur_limit_idx_floor();
-	unsigned int is_gpu_debug_ex_valid = 0;
 	static unsigned int gpu_counter, pre_gpu_counter,last_gpu_npu_hint_ms;
 	static int ultra_loading_flag, pre_ultra_loading_flag;
 
@@ -668,12 +476,6 @@ void ged_eb_dvfs_frame_done_dump(void)
 		mtk_gpueb_sysram_read(SYSRAM_GPU_EB_USE_POLICY_STATE));
 	trace_tracing_mark_write(5566, "gpu_freq",
 		(long long) ged_get_cur_stack_freq() / 1000);
-	#ifdef OPLUS_ARCH_EXTENDS
-	trace_oplus_tracing_mark_write(5566, "commit_type",
-		mtk_gpueb_sysram_read(SYSRAM_GPU_EB_USE_POLICY_STATE));
-	trace_oplus_tracing_mark_write(5566, "gpu_freq",
-		(long long) ged_get_cur_stack_freq() / 1000);
-	#endif /*OPLUS_ARCH_EXTENDS*/
 
 	trace_tracing_mark_write(5566, "gpu_freq_ceil",
 		ged_get_freq_by_idx(ui32CeilingID) / 1000);
@@ -683,16 +485,6 @@ void ged_eb_dvfs_frame_done_dump(void)
 		ged_get_cur_limiter_ceil());
 	trace_tracing_mark_write(5566, "limitter_floor",
 		ged_get_cur_limiter_floor());
-	#ifdef OPLUS_ARCH_EXTENDS
-	trace_oplus_tracing_mark_write(5566, "gpu_freq_ceil",
-		ged_get_freq_by_idx(ui32CeilingID) / 1000);
-	trace_oplus_tracing_mark_write(5566, "gpu_freq_floor",
-		ged_get_freq_by_idx(ui32FloorID) / 1000);
-	trace_oplus_tracing_mark_write(5566, "limitter_ceil",
-		ged_get_cur_limiter_ceil());
-	trace_oplus_tracing_mark_write(5566, "limitter_floor",
-		ged_get_cur_limiter_floor());
-	#endif /*OPLUS_ARCH_EXTENDS*/
 	if (ged_get_cur_limiter_ceil() == LIMIT_POWERHAL) {
 		custom_ceiling_info = ged_dvfs_get_custom_ceiling_gpu_freq_info();
 		trace_tracing_mark_write(5566, "limitter_ceil_pid",
@@ -701,14 +493,6 @@ void ged_eb_dvfs_frame_done_dump(void)
 			custom_ceiling_info.user_id);
 		trace_tracing_mark_write(5566, "limitter_ceil_cus_val",
 			custom_ceiling_info.value);
-		#ifdef OPLUS_ARCH_EXTENDS
-		trace_oplus_tracing_mark_write(5566, "limitter_ceil_pid",
-			custom_ceiling_info.pid);
-		trace_oplus_tracing_mark_write(5566, "limitter_ceil_id",
-			custom_ceiling_info.user_id);
-		trace_oplus_tracing_mark_write(5566, "limitter_ceil_cus_val",
-			custom_ceiling_info.value);
-		#endif /*OPLUS_ARCH_EXTENDS*/
 	}
 
 	if (ged_get_cur_limiter_floor() == LIMIT_POWERHAL) {
@@ -725,12 +509,6 @@ void ged_eb_dvfs_frame_done_dump(void)
 		mtk_gpueb_sysram_read(SYSRAM_GPU_T_GPU));
 	trace_tracing_mark_write(5566, "t_gpu_target",
 		mtk_gpueb_sysram_read(SYSRAM_GPU_T_GPU_TARGET));
-	#ifdef OPLUS_ARCH_EXTENDS
-	trace_oplus_tracing_mark_write(5566, "t_gpu",
-		mtk_gpueb_sysram_read(SYSRAM_GPU_T_GPU));
-	trace_oplus_tracing_mark_write(5566, "t_gpu_target",
-		mtk_gpueb_sysram_read(SYSRAM_GPU_T_GPU_TARGET));
-	#endif /* OPLUS_ARCH_EXTENDS */
 
 	// loading
 	//trace_GPU_DVFS__Loading(ged_dvfs_get_gpu_loading(), 0,
@@ -783,13 +561,7 @@ void ged_eb_dvfs_frame_done_dump(void)
 			mtk_gpueb_sysram_read(fdvfs_v2_table[GPU_FB_MFRC_2].addr) & 0xFF);
 	}
 
-	#ifdef OPLUS_ARCH_EXTENDS
-	if (ged_timer_or_trace_enable())
-		ultra_loading_flag = mtk_gpueb_sysram_read(fdvfs_v2_table[ULTRA_LOADING_FLAG].addr);
-	else
-		ultra_loading_flag = 0;
-	#endif /* OPLUS_ARCH_EXTENDS */
-
+	ultra_loading_flag = mtk_gpueb_sysram_read(fdvfs_v2_table[ULTRA_LOADING_FLAG].addr);
 	if(pre_ultra_loading_flag != ultra_loading_flag) {
 		trace_tracing_mark_write(5566, "fb_ultra", ultra_loading_flag);
 		pre_ultra_loading_flag = ultra_loading_flag;
@@ -813,13 +585,7 @@ void ged_eb_dvfs_frame_done_dump(void)
 	if (!ged_dvfs_get_async_ratio_support())
 		return;
 
-	#ifdef OPLUS_ARCH_EXTENDS
-	if (ged_timer_or_trace_enable())
-		gpu_counter = mtk_gpueb_sysram_read(SYSRAM_GPU_EB_USE_ASYNC_GPU_ACTIVE);
-	else
-		gpu_counter = 0;
-	#endif /* OPLUS_ARCH_EXTENDS */
-
+	gpu_counter = mtk_gpueb_sysram_read(SYSRAM_GPU_EB_USE_ASYNC_GPU_ACTIVE);
 	if (gpu_counter != pre_gpu_counter) {
 		trace_tracing_mark_write(5566, "async_perf_high",
 			mtk_gpueb_sysram_read(SYSRAM_GPU_EB_USE_PERF_IMPROVE));
@@ -844,11 +610,6 @@ void ged_eb_dvfs_frame_done_dump(void)
 		tmp_multi_async.fourVar.var3,
 		tmp_multi_async.fourVar.var4,
 		tmp_multi_async.fourVar.var1);
-
-	is_gpu_debug_ex_valid = mtk_gpueb_sysram_read(fdvfs_v2_table[GPU_DEBUG_EX_VALID].addr);
-	tmp_multi = mtk_gpueb_sysram_multi_read(fdvfs_v2_table[GPU_DEBUG_EX_ENABLE].addr);
-	trace_GPU_DVFS__G_DEBUG_EX(is_gpu_debug_ex_valid, tmp_multi.value,
-		mtk_gpueb_sysram_read(fdvfs_v2_table[DCS_GOV_CORE_MASK].addr));
 #endif
 }
 
@@ -861,7 +622,7 @@ static void ged_notify_sw_sync_work_handle(struct work_struct *psWork)
 	GED_DVFS_COMMIT_TYPE eCommitType;
 	u64 timeout_value;
 	/*only one policy at a time*/
-	if (psNotify && g_HT_hwvsync_emu.function != NULL) {
+	if (psNotify) {
 		mutex_lock(&gsPolicyLock);
 		timeout_value = lb_timeout;
 		psNotify->bUsed = false;
@@ -913,13 +674,6 @@ static void ged_notify_sw_sync_work_handle(struct work_struct *psWork)
 				hrtimer_start(&g_HT_hwvsync_emu,
 					ns_to_ktime(GED_DVFS_TIMER_TIMEOUT), HRTIMER_MODE_REL);
 			}
-		#if defined(OPLUS_ARCH_EXTENDS)
-			else {
-			oplus_ged_eb_dvfs_trace_dump();
-			hrtimer_start(&g_HT_hwvsync_emu,
-				ns_to_ktime(GED_DVFS_TIMER_TIMEOUT), HRTIMER_MODE_REL);
-		}
-		#endif
 		}
 		mutex_unlock(&gsPolicyLock);
 	}
@@ -989,13 +743,7 @@ void ged_cancel_backup_timer(void)
 
 	temp = ged_get_time();
 #if IS_ENABLED(CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT) /* ENABLE_TIMER_BACKUP */
-	#if defined(OPLUS_ARCH_EXTENDS)
-	if ((g_ged_frame_base_optimize == 0 || g_bGPUClock) && (ged_timer_or_trace_enable() || oplus_ged_timer_or_trace_enable())) {
-	#else
-	if ((g_ged_frame_base_optimize == 0 || g_bGPUClock) &&
-		ged_timer_or_trace_enable() &&
-		g_HT_hwvsync_emu.function != NULL) {
-	#endif
+	if ((g_ged_frame_base_optimize == 0 || g_bGPUClock) && ged_timer_or_trace_enable()) {
 		if (hrtimer_try_to_cancel(&g_HT_hwvsync_emu)) {
 			/* Timer is either queued or in cb
 			 * cancel it to ensure it is not bother any way
@@ -1058,7 +806,7 @@ GED_ERROR ged_notify_sw_vsync(GED_VSYNC_TYPE eType,
 	/*critical session begin*/
 	mutex_lock(&gsVsyncStampLock);
 
-	if (eType == GED_VSYNC_SW_EVENT && g_HT_hwvsync_emu.function != NULL) {
+	if (eType == GED_VSYNC_SW_EVENT) {
 		sw_vsync_ts = temp;
 #if IS_ENABLED(CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT) /* ENABLE_TIMER_BACKUP */
 		if (hrtimer_try_to_cancel(&g_HT_hwvsync_emu)) {
@@ -2124,12 +1872,7 @@ void ged_dvfs_gpu_clock_switch_notify(enum ged_gpu_power_state power_state)
 		if (g_timer_on) {
 			ged_log_buf_print(ghLogBuf_DVFS,
 				"[GED_K] Timer Already Start");
-		#if defined(OPLUS_ARCH_EXTENDS)
-		} else if (ged_timer_or_trace_enable() || oplus_ged_timer_or_trace_enable()) {
-			ged_set_backup_timer_timeout(ged_get_fallback_time());
-		#else
-		} else if (ged_timer_or_trace_enable() && g_HT_hwvsync_emu.function != NULL) {
-		#endif
+		} else if (ged_timer_or_trace_enable()) {
 			hrtimer_start(&g_HT_hwvsync_emu,
 				ns_to_ktime(GED_DVFS_TIMER_TIMEOUT), HRTIMER_MODE_REL);
 			ged_log_buf_print(ghLogBuf_DVFS,
@@ -2143,12 +1886,7 @@ void ged_dvfs_gpu_clock_switch_notify(enum ged_gpu_power_state power_state)
 		if (g_ged_frame_base_optimize &&
 			(policy_state == POLICY_STATE_FB ||
 			 policy_state == POLICY_STATE_FB_FALLBACK ||
-			 #if defined(OPLUS_ARCH_EXTENDS)
-						(ged_timer_or_trace_enable() || oplus_ged_timer_or_trace_enable()))) {
-			#else
-			 ged_timer_or_trace_enable()) &&
-			 g_HT_hwvsync_emu.function != NULL) {
-			#endif
+			 ged_timer_or_trace_enable())) {
 			int timer_flag = 0;
 			if (hrtimer_try_to_cancel(&g_HT_hwvsync_emu)) {
 				/* frame base pass power off timer*/
@@ -2164,9 +1902,6 @@ void ged_dvfs_gpu_clock_switch_notify(enum ged_gpu_power_state power_state)
 	}
 	// Update power on/off state
 	trace_tracing_mark_write(5566, "gpu_state", power_state);
-	#ifdef OPLUS_ARCH_EXTENDS
-	trace_oplus_tracing_mark_write(5566, "gpu_state", power_state);
-	#endif /*OPLUS_ARCH_EXTENDS*/
 	//MBrain
 	ged_dvfs_update_power_state_time(power_state);
 }

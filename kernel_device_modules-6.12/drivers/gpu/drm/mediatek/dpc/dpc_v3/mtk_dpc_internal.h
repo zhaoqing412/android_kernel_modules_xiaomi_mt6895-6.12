@@ -34,7 +34,7 @@
 		r = snprintf(str, 199, "DPC:" fmt, ##args);                                      \
 		if (r < 0)                                                                       \
 			pr_info("snprintf error\n");                                             \
-		aee_kernel_exception_api(__FILE__, __LINE__,                                     \
+		aee_kernel_warning_api(__FILE__, __LINE__,                                       \
 				       DB_OPT_DEFAULT | DB_OPT_FTRACE | DB_OPT_MMPROFILE_BUFFER, \
 				       str, fmt, ##args);                                        \
 	} while (0)
@@ -123,41 +123,6 @@ enum GCE_COND_REVERSE_COND {
 	(reuse)->op = CMDQ_CODE_JUMP_C_ABSOLUTE; \
 	(reuse)->offset = _inst_condi_jump; \
 	(reuse)->val = _cond_pkt->cmd_buf_size; \
-} while (0)
-
-/* THIS MACRO ONLY FOR HIGH 16 BITS
- * if ((read_value >> 16) & (mask >> 16)) != 0
- * then block will be executed
- */
-#define GCE_IF_UPPER_NOT_ZERO(pkt, addr, mask, spr, lop, rop) do {            \
-	cmdq_pkt_read_addr(pkt, addr, spr);                                   \
-	rop.reg = false;                                                      \
-	rop.value = 16;                                                       \
-	cmdq_pkt_logic_command(pkt, CMDQ_LOGIC_RIGHT_SHIFT, spr, &lop, &rop); \
-	rop.value = (u16)(mask >> 16);                                        \
-	cmdq_pkt_logic_command(pkt, CMDQ_LOGIC_AND, spr, &lop, &rop);         \
-	rop.value = 0;                                                        \
-	_inst_condi_jump = _cond_pkt->cmd_buf_size;                           \
-	cmdq_pkt_assign_command(_cond_pkt, _reg_jump, 0);                     \
-	cmdq_pkt_cond_jump_abs(_cond_pkt, _reg_jump, &lop, &rop, CMDQ_EQUAL); \
-	_inst_jump_end = _inst_condi_jump;                                    \
-} while (0)
-
-/* THIS MACRO ONLY FOR HIGH 16 BITS
- * if ((read_value >> 16) & (mask >> 16)) != (mask >> 16)
- * then block will be executed
- */
-#define GCE_IF_UPPER_NOT_EQUAL(pkt, addr, mask, spr, lop, rop) do {           \
-	cmdq_pkt_read_addr(pkt, addr, spr);                                   \
-	rop.reg = false;                                                      \
-	rop.value = 16;                                                       \
-	cmdq_pkt_logic_command(pkt, CMDQ_LOGIC_RIGHT_SHIFT, spr, &lop, &rop); \
-	rop.value = (u16)(mask >> 16);                                        \
-	cmdq_pkt_logic_command(pkt, CMDQ_LOGIC_AND, spr, &lop, &rop);         \
-	_inst_condi_jump = _cond_pkt->cmd_buf_size;                           \
-	cmdq_pkt_assign_command(_cond_pkt, _reg_jump, 0);                     \
-	cmdq_pkt_cond_jump_abs(_cond_pkt, _reg_jump, &lop, &rop, CMDQ_EQUAL); \
-	_inst_jump_end = _inst_condi_jump;                                    \
 } while (0)
 
 #define VLP_DISP_SW_VOTE_CON 0x410
@@ -516,9 +481,6 @@ enum GCE_COND_REVERSE_COND {
 #define VOTE_SET 1
 #define VOTE_CLR 0
 
-#define WITH_LOCK 1
-#define NO_LOCK 0
-
 #define DPC_DISP_DT_CNT 32
 #define DPC_MML_DT_CNT 25
 
@@ -579,7 +541,6 @@ struct mtk_dpc_mtcmos_cfg {
 	void __iomem *chk_va;
 	enum mtk_dpc_mtcmos_mode mode;
 	u8 link_bit;
-	u8 dpc_req_bit;
 };
 
 struct mtk_dpc_channel_bw_cfg {
@@ -603,8 +564,6 @@ static void dpc_hwccf_vote(bool on, struct cmdq_pkt *pkt, const enum mtk_vidle_v
 static void process_dbg_opt(const char *opt);
 static int dpc_vidle_power_keep_v3(const enum mtk_vidle_voter_user _user);
 static void dpc_vidle_power_release_v3(const enum mtk_vidle_voter_user _user);
-static void dpc_ap_ref_cnt(bool add, const enum mtk_vidle_voter_user user, bool lock);
-static void dpc_ap_vote_mmpc(bool add, const enum mtk_vidle_voter_user user);
 
 struct mtk_dpc {
 	struct platform_device *pdev;
@@ -616,8 +575,7 @@ struct mtk_dpc {
 	int mml_irq;
 	resource_size_t dpc_pa;
 	void __iomem *mminfra_hangfree;
-	bool enabled;				/* status of dpc_enable */
-	bool ff_blocked;			/* temp block ff, not allow set_mtcmos(true) when ff_blocked is true */
+	bool enabled;
 	bool vcp_is_alive;
 	bool skip_force_power;
 	spinlock_t skip_force_power_lock;
@@ -693,7 +651,6 @@ struct mtk_dpc {
 	void (*power_release_by_gce)(struct cmdq_pkt *pkt, const u32 user, void *reuse);
 	void (*config)(const u32 subsys, bool en);
 	void (*analysis)(void);
-	void (*dsi_pll_set)(const u32 value);
 };
 
 #endif

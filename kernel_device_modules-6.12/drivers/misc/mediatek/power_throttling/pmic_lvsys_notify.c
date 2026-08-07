@@ -6,7 +6,6 @@
 #include <linux/delay.h>
 #include <linux/export.h>
 #include <linux/linear_range.h>
-#include <linux/iio/consumer.h>
 #include <linux/interrupt.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
@@ -14,10 +13,7 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
-#include <linux/ratelimit.h>
 #include <linux/regmap.h>
-#include <linux/timer.h>
-#include <linux/workqueue.h>
 
 #include "pmic_lvsys_notify.h"
 
@@ -173,25 +169,17 @@ struct pmic_lvsys_notify {
 	struct device *dev;
 	struct regmap *regmap;
 	struct mutex lock;
-	struct iio_channel *chan_vsys;
 	const struct pmic_lvsys_info *info;
 	unsigned int *thd_volts_l;
 	unsigned int *thd_volts_h;
 	unsigned int *cur_lv_ptr;
 	unsigned int *cur_hv_ptr;
-	bool *falling_flag;
 	int thd_volts_l_size;
 	int thd_volts_h_size;
 	int bat_type;
 };
 
 struct pmic_lvsys_notify *lvsys_notify;
-static struct timer_list vsys_timer;
-static struct work_struct vsys_work;
-#if !LVSYS_DBG
-static struct ratelimit_state ratelimit_log =
-	RATELIMIT_STATE_INIT("ratelimit_log", 5 * HZ, 2);
-#endif
 
 static BLOCKING_NOTIFIER_HEAD(lvsys_notifier_list);
 
@@ -472,68 +460,6 @@ static unsigned int *get_next_hv_ptr(void)
 	return NULL;
 }
 
-static void vsys_work_handler(struct work_struct *work)
-{
-	unsigned int event;
-	int ret = 0, vsys_voltage = 0;
-
-	mutex_lock(&lvsys_notify->lock);
-	if (lvsys_notify->falling_flag[get_cur_hv_idx()] == false) {
-#if LVSYS_DBG
-		pr_info("[%s] lvsys %d rising is triggered\n", __func__, get_cur_hv_idx() + 1);
-#endif
-		mutex_unlock(&lvsys_notify->lock);
-		return;
-#if LVSYS_DBG
-	} else {
-		pr_info("[%s] lvsys %d falling is triggered\n", __func__, get_cur_hv_idx() + 1);
-#endif
-	}
-	if (IS_ERR(lvsys_notify->chan_vsys)) {
-		mutex_unlock(&lvsys_notify->lock);
-		return;
-	}
-	ret = iio_read_channel_processed(lvsys_notify->chan_vsys, &vsys_voltage);
-	if (ret < 0) {
-		pr_info("[%s] Failed to read VSYS voltage\n", __func__);
-		mutex_unlock(&lvsys_notify->lock);
-		return;
-	}
-
-	if (vsys_voltage > *(lvsys_notify->cur_hv_ptr)) {
-		if (!lvsys_notify->cur_hv_ptr) {
-			mutex_unlock(&lvsys_notify->lock);
-			return;
-		}
-		event = EVENT_LVSYS_R | *(lvsys_notify->cur_hv_ptr);
-		blocking_notifier_call_chain(&lvsys_notifier_list, event, NULL);
-#if !LVSYS_DBG
-		if (__ratelimit(&ratelimit_log))
-#endif
-			dev_notice(lvsys_notify->dev,
-				   "[%s] event: rising %dmV(VSYS), %dmV(HV THRESHOLD)\n",
-				   __func__, vsys_voltage, *(lvsys_notify->cur_hv_ptr));
-		lvsys_notify->falling_flag[get_cur_hv_idx()] = false;
-		lvsys_notify->cur_lv_ptr = get_next_lv_ptr();
-		if (lvsys_notify->cur_hv_ptr - 1 &&
-			(lvsys_notify->cur_hv_ptr - 1 >= lvsys_notify->thd_volts_h)) {
-			lvsys_notify->cur_hv_ptr--;
-		}
-	}
-	mutex_unlock(&lvsys_notify->lock);
-}
-
-static void vsys_timer_callback(struct timer_list *timer)
-{
-	schedule_work(&vsys_work);
-}
-
-static void setup_vsys_timer(void)
-{
-	del_timer_sync(&vsys_timer);
-	mod_timer(&vsys_timer, jiffies + msecs_to_jiffies(50));
-}
-
 static irqreturn_t lvsys_f_int_handler(int irq, void *data)
 {
 	unsigned int event;
@@ -548,7 +474,6 @@ static irqreturn_t lvsys_f_int_handler(int irq, void *data)
 		return IRQ_HANDLED;
 	}
 	int_notify = lvsys_notify->info->lvsys_int_notify[(get_cur_lv_idx() * LVSYS_EDGE_NUM) + 1];
-	lvsys_notify->falling_flag[get_cur_lv_idx()] = true;
 #if LVSYS_DBG
 	dev_notice(lvsys_notify->dev, "lvsys_int_notify[%d]: %d\n",
 		   (get_cur_lv_idx() * LVSYS_EDGE_NUM) + 1, int_notify);
@@ -556,11 +481,7 @@ static irqreturn_t lvsys_f_int_handler(int irq, void *data)
 	event = EVENT_LVSYS_F | *(lvsys_notify->cur_lv_ptr);
 	if (int_notify == SPMI_RCS) {
 		blocking_notifier_call_chain(&lvsys_notifier_list, event, NULL);
-#if !LVSYS_DBG
-		if (__ratelimit(&ratelimit_log))
-#endif
-			dev_notice(lvsys_notify->dev, "event: falling %dmV(SPMI RCS)\n",
-				   *(lvsys_notify->cur_lv_ptr));
+		dev_notice(lvsys_notify->dev, "event: falling %dmV(SPMI RCS)\n", *(lvsys_notify->cur_lv_ptr));
 	} else if (int_notify == GPIO)
 		dev_notice(lvsys_notify->dev, "event: falling %dmV(GPIO)\n", *(lvsys_notify->cur_lv_ptr));
 
@@ -574,7 +495,6 @@ static irqreturn_t lvsys_f_int_handler(int irq, void *data)
 		   *(lvsys_notify->cur_hv_ptr), *(lvsys_notify->cur_lv_ptr));
 #endif
 	mutex_unlock(&lvsys_notify->lock);
-	setup_vsys_timer();
 
 	return IRQ_HANDLED;
 }
@@ -593,7 +513,6 @@ static irqreturn_t lvsys_r_int_handler(int irq, void *data)
 		return IRQ_HANDLED;
 	}
 	int_notify = lvsys_notify->info->lvsys_int_notify[get_cur_hv_idx() * LVSYS_EDGE_NUM];
-	lvsys_notify->falling_flag[get_cur_hv_idx()] = false;
 #if LVSYS_DBG
 	dev_notice(lvsys_notify->dev, "lvsys_int_notify[%d]: %d\n",
 		   get_cur_hv_idx() * LVSYS_EDGE_NUM, int_notify);
@@ -601,11 +520,7 @@ static irqreturn_t lvsys_r_int_handler(int irq, void *data)
 	event = EVENT_LVSYS_R | *(lvsys_notify->cur_hv_ptr);
 	if (int_notify == SPMI_RCS) {
 		blocking_notifier_call_chain(&lvsys_notifier_list, event, NULL);
-#if !LVSYS_DBG
-		if (__ratelimit(&ratelimit_log))
-#endif
-			dev_notice(lvsys_notify->dev, "event: rising %dmV(SPMI RCS)\n",
-				   *(lvsys_notify->cur_hv_ptr));
+		dev_notice(lvsys_notify->dev, "event: rising %dmV(SPMI RCS)\n", *(lvsys_notify->cur_hv_ptr));
 	} else if (int_notify == GPIO)
 		dev_notice(lvsys_notify->dev, "event: rising %dmV(GPIO)\n", *(lvsys_notify->cur_hv_ptr));
 
@@ -619,7 +534,6 @@ static irqreturn_t lvsys_r_int_handler(int irq, void *data)
 		   *(lvsys_notify->cur_hv_ptr), *(lvsys_notify->cur_lv_ptr));
 #endif
 	mutex_unlock(&lvsys_notify->lock);
-	setup_vsys_timer();
 
 	return IRQ_HANDLED;
 }
@@ -807,12 +721,6 @@ static int pmic_lvsys_parse_dt(struct device_node *lvsys_np)
 	lvsys_notify->cur_lv_ptr = lvsys_notify->thd_volts_l;
 	lvsys_notify->cur_hv_ptr = lvsys_notify->thd_volts_h;
 
-	lvsys_notify->falling_flag = devm_kmalloc_array(lvsys_notify->dev,
-							lvsys_notify->thd_volts_l_size,
-							sizeof(bool), GFP_KERNEL);
-	for (i = 0; i < lvsys_notify->thd_volts_l_size; i++)
-		lvsys_notify->falling_flag[i] = false;
-
 	thd_volt_size = lvsys_notify->thd_volts_l_size + lvsys_notify->thd_volts_h_size;
 	thd_volt_arr = devm_kmalloc_array(lvsys_notify->dev, thd_volt_size,
 					  sizeof(u32), GFP_KERNEL);
@@ -893,16 +801,6 @@ static int pmic_lvsys_notify_probe(struct platform_device *pdev)
 		dev_notice(&pdev->dev, "failed to get regmap\n");
 		return -ENODEV;
 	}
-
-	lvsys_notify->chan_vsys = devm_iio_channel_get(&pdev->dev, "pmic_vsys");
-	ret = PTR_ERR_OR_ZERO(lvsys_notify->chan_vsys);
-	if (ret) {
-		if (ret != -EPROBE_DEFER)
-			pr_notice("%s pmic_vsys fail, ret=%d\n", __func__, ret);
-		return ret;
-	}
-	INIT_WORK(&vsys_work, vsys_work_handler);
-	timer_setup(&vsys_timer, vsys_timer_callback, 0);
 
 	gauge_np = of_find_node_by_name(NULL, "mtk-gauge");
 	if (!gauge_np)

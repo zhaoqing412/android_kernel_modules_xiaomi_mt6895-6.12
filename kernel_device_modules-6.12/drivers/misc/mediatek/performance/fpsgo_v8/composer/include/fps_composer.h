@@ -65,7 +65,6 @@ int fpsgo_ctrl2comp_get_receive_fw_info_enable(void);
 int fpsgo_ctrl2comp_wait_receive_fw_info_enable(int tgid, int *ret);
 void fpsgo_ctrl2comp_producer_info(int ipc_tgid, int pid, int api, int queue_SF,
 	unsigned long long buffer_id);
-int fpsgo_game2fpsgo_get_game_cb_active(void);
 
 #endif
 

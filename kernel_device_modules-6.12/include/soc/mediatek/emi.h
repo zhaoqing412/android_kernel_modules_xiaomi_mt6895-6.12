@@ -37,7 +37,6 @@
 #define MTK_SLC_DFD_DATA_SELECT		16
 #define MTK_SLC_TAG_ECC_SELECT		17
 #define MTK_SLC_TAG_ECC_CLEAR		18
-#define MTK_SLC_EMI_REQ		        20
 
 #define MTK_EMIMPU_READ_SA		0
 #define MTK_EMIMPU_READ_EA		1

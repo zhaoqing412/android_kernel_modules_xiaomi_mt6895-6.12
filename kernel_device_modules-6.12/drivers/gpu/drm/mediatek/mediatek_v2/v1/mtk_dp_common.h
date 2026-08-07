@@ -346,9 +346,6 @@ struct mtk_dp {
 
 	/* cfg ver for diff platform*/
 	int cfg_ver;
-#ifdef OPLUS_FEATURE_DISPLAY
-	bool oplus_dp_support;
-#endif /* OPLUS_FEATURE_DISPLAY */
 };
 
 #endif /*__DRTX_TYPE_H__*/

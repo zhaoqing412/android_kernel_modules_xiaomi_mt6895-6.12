@@ -355,9 +355,6 @@ int msg_thread_send_wait_4(struct msg_thread_ctx *ctx, int opid, int timeout, si
 	op->op.op_data[2] = param3;
 	op->op.op_data[3] = param4;
 
-	pr_info("[%s] >>>> type=[%zu] id=[%zu] sz=[%zu]", __func__,
-		op->op.op_data[0], op->op.op_data[1], op->op.op_data[3]);
-
 	signal = &op->signal;
 	signal->timeoutValue = timeout > 0 ? timeout : MSG_OP_TIMEOUT;
 	ret = msg_evt_put_op_to_active(ctx, op);

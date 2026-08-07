@@ -1388,7 +1388,7 @@ int vcp_enc_encode(struct venc_inst *inst, unsigned int bs_mode,
 			vsi->qprects_meta_size = 0;
 		}
 
-		if (frm_buf->dyparams_dma_addr) {
+		if (frm_buf->dyparams_dma) {
 			vsi->dynamicparams_addr = frm_buf->dyparams_dma_addr;
 			vsi->dynamicparams_size = sizeof(struct inputqueue_dynamic_info);
 			vsi->dynamicparams_offset = frm_buf->dyparams_offset;
@@ -2053,16 +2053,12 @@ int vcp_enc_set_param(struct venc_inst *inst,
 		out.data[0] = enc_param->highquality;
 		break;
 	case VENC_SET_PARAM_ADJUST_MAX_QP:
-		out.data_item = 3;
-		out.data[0] = enc_param->i_max_qp;
-		out.data[1] = enc_param->p_max_qp;
-		out.data[2] = enc_param->b_max_qp;
+		out.data_item = 1;
+		out.data[0] = enc_param->max_qp;
 		break;
 	case VENC_SET_PARAM_ADJUST_MIN_QP:
-		out.data_item = 3;
-		out.data[0] = enc_param->i_min_qp;
-		out.data[1] = enc_param->p_min_qp;
-		out.data[2] = enc_param->b_min_qp;
+		out.data_item = 1;
+		out.data[0] = enc_param->min_qp;
 		break;
 	case VENC_SET_PARAM_ADJUST_I_P_QP_DELTA:
 		out.data_item = 1;
@@ -2203,12 +2199,8 @@ static int venc_vcp_set_param(unsigned long handle,
 		inst->vsi->config.svp_mode = enc_prm->svp_mode;
 		inst->vsi->config.tsvc = enc_prm->tsvc;
 		inst->vsi->config.highquality = enc_prm->highquality;
-		inst->vsi->config.i_max_qp = enc_prm->i_max_qp;
-		inst->vsi->config.i_min_qp = enc_prm->i_min_qp;
-		inst->vsi->config.p_max_qp = enc_prm->p_max_qp;
-		inst->vsi->config.p_min_qp = enc_prm->p_min_qp;
-		inst->vsi->config.b_max_qp = enc_prm->b_max_qp;
-		inst->vsi->config.b_min_qp = enc_prm->b_min_qp;
+		inst->vsi->config.max_qp = enc_prm->max_qp;
+		inst->vsi->config.min_qp = enc_prm->min_qp;
 		inst->vsi->config.i_p_qp_delta = enc_prm->ip_qpdelta;
 		inst->vsi->config.qp_control_mode = enc_prm->qp_control_mode;
 		inst->vsi->config.frame_level_qp = enc_prm->framelvl_qp;

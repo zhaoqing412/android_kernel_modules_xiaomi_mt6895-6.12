@@ -52,9 +52,6 @@
 #define RT1711H_DID_C		0x2172
 
 #define RT1715_DID_D			0x2173
-#ifdef OPLUS_FEATURE_CHG_BASIC
-#define SC6607_DID		0x0001
-#endif
 
 /*
  * RT1711H_REG_PHY_CTRL1			(0x80)

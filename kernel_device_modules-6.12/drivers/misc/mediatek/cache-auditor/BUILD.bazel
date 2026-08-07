@@ -33,19 +33,14 @@ define_mgk_ddk_ko(
     includes = [
         ".",
     ],
-    conditional_defines = {
-        "k6993v1_64":  ["CONFIG_OPLUS_FEATURE_SLC"],
-    },
     hdrs = glob(["**/*.h"]),
-	ko_deps = ["//kernel_device_modules-{}/drivers/misc/mediatek/sched:cpufreq_sugov_ext".format(kernel_version),
-		"//kernel_device_modules-{}/drivers/misc/mediatek/cm_mgr:mtk_cm_mgr".format(kernel_version),],
+	ko_deps = ["//kernel_device_modules-{}/drivers/misc/mediatek/sched:cpufreq_sugov_ext".format(kernel_version),],
     copts = [
         "-Wall",
         "-Werror",
         "-I$(srctree)/include",
 	"-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/cache-auditor",
 	"-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/cache-auditor/cpuqos_v3",
-	"-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/cm_mgr",
 	"-I$(srctree)/kernel",
 	"-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/sched"
     ],

@@ -116,7 +116,7 @@ static void giveback_urb(struct urb *urb, int actual_length, int status);
 static struct dsp_payload *new_payload(int length);
 static void free_payload(struct dsp_payload *payload);
 static void clear_payload_list(struct hid_ep_info *ep);
-static bool is_valid_hid_urb(struct urb *urb, struct usb_interface_descriptor *intf_desc,
+static bool is_hid_urb(struct urb *urb, struct usb_interface_descriptor *intf_desc,
 	struct usb_endpoint_descriptor *ep_desc);
 
 /* hid ep helper */
@@ -153,7 +153,8 @@ static void hid_trace_dequeue(void *unused, struct urb *urb)
 	dir = usb_endpoint_dir_in(&urb->ep->desc);
 	hid = get_hid_ep(dir);
 
-	if (is_valid_hid_urb(urb, &hid->intf_desc, &hid->ep_desc)) {
+	if (is_hid_urb(urb, &hid->intf_desc, &hid->ep_desc)) {
+
 		/* to check if previous round finished or not
 		 * example: hold key would cause duration between dsp irq too long,
 		 *          a dequeue event might be involved between them
@@ -200,7 +201,7 @@ bool usb_offload_trace_hid_enqueue(struct xhci_hcd *xhci, struct urb *urb)
 	struct hid_ep_info *hid;
 	int delay_ms = 3;
 
-	if (!is_valid_hid_urb(urb, &intf_desc, &ep_desc))
+	if (!is_hid_urb(urb, &intf_desc, &ep_desc))
 		return false;
 
 	hid = get_hid_ep_safe(usb_endpoint_dir_in(&urb->ep->desc),
@@ -256,11 +257,6 @@ static int hid_dsp_irq(struct hid_ep_info *hid, struct usb_offload_urb_complete 
 		urb_complete->urb_start_addr, urb_complete->actual_length,
 		urb_complete->status, urb_complete->more_complete);
 
-	if (urb_complete->status < 0) {
-		hid_info("no need to handle URB in this case\n");
-		goto error;
-	}
-
 	/* create a new payload */
 	payload = new_payload(urb_complete->actual_length);
 	if (payload) {
@@ -285,6 +281,7 @@ static int hid_dsp_irq(struct hid_ep_info *hid, struct usb_offload_urb_complete 
 	}
 
 	hid_lock(hid, __func__);
+
 	hid_dump_ep(hid, "<DSP IRQ Start>");
 	if (test_bit(HID_ON_RESET, &hid->sync_flag)) {
 		hid_info("driver's on resetting (might be EP_STOP event), clear payload:%p\n", payload);
@@ -689,9 +686,6 @@ skip_stop_ep:
 		hid_dump_ep(hid, "<End DSP>");
 	}
 
-	/* wait for dsp */
-	mdelay(10);
-
 	/* UO_PROV_NUM would identify as moving transfer ring back to ap view */
 	xhci_realloc_hid_ring(hid, UO_PROV_NUM);
 
@@ -807,14 +801,13 @@ static void clear_payload_list(struct hid_ep_info *hid)
 	}
 }
 
-static bool is_valid_hid_urb(struct urb *urb, struct usb_interface_descriptor *intf_desc,
+static bool is_hid_urb(struct urb *urb, struct usb_interface_descriptor *intf_desc,
 	struct usb_endpoint_descriptor *ep_desc)
 {
 	struct usb_host_config *actconfig = NULL;
 	struct usb_host_endpoint *ep;
 	struct usb_device *dev;
 	struct usb_host_interface *intf;
-	struct usb_audio_dev *audio_dev;
 	int intf_num, i;
 	bool found_hid_req = false;
 
@@ -822,12 +815,6 @@ static bool is_valid_hid_urb(struct urb *urb, struct usb_interface_descriptor *i
 		return found_hid_req;
 
 	dev = urb->dev;
-	audio_dev = usb_offload_get_uadev(dev->slot_id);
-	if (!audio_dev) {
-		hid_dbg("not our audio device, slot:%d\n", dev->slot_id);
-		return false;
-	}
-
 	ep = urb->ep;
 	actconfig = dev->actconfig;
 
@@ -848,7 +835,6 @@ static bool is_valid_hid_urb(struct urb *urb, struct usb_interface_descriptor *i
 			break;
 		}
 	}
-
 	return found_hid_req;
 }
 

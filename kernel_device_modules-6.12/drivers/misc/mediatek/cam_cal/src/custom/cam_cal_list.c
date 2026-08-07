@@ -43,20 +43,6 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{IMX499_SENSOR_ID, 0xA0, Common_read_region},
 	{IMX06C_SENSOR_ID, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
 	{S5KJN1SQ03_SENSOR_ID, 0xA8, Common_read_region, MAX_EEPROM_SIZE_16K},
-	/*24267*/
-	{OV50D40_SENSOR_ID_24267, 0xA0, Common_read_region},
-	{GC32E2_SENSOR_ID_24267, 0xA8, Common_read_region},
-	{OV08D10_SENSOR_ID_24267, 0xA2, Common_read_region},
-	{OV02B10_SENSOR_ID_24267, 0xA4, Common_read_region},
-	/*CRUISERL4*/
-	{OV50D40_SENSOR_ID_CRUISERL4, 0xA0, Common_read_region,MAX_EEPROM_SIZE_16K},
-	{GC50F6_SENSOR_ID_CRUISERL4, 0xA8, Common_read_region, MAX_EEPROM_SIZE_16K},
-	{IMX480_SENSOR_ID_CRUISERL4, 0xA8, Common_read_region,MAX_EEPROM_SIZE_16K},
-	{OV08F10_SENSOR_ID_CRUISERL4, 0xA2, Common_read_region,MAX_EEPROM_SIZE_16K},
-	{SC201CS_SENSOR_ID_CRUISERL4, 0xA4, Common_read_region},
-	/*fiji*/
-	{SC520CS_SENSOR_ID_MAIN_FIJI, 0xA0, Common_read_region},
-	{SC520CSSUB_SENSOR_ID_FRONT_FIJI, 0x20, sc520cs_read_region},
 	/*  ADD before this line */
 	{0, 0, 0}       /*end of list */
 };

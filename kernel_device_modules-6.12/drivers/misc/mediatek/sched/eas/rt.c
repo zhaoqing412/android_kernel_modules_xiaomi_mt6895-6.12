@@ -13,12 +13,6 @@
 #include "vip.h"
 #include "shortcut/compress.h"
 #include <mt-plat/mtk_irq_mon.h>
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-#include <linux/sa_common.h>
-#endif
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
-#include <linux/sa_pipeline.h>
-#endif
 
 bool skip_hiIRQ_enable;
 void init_skip_hiIRQ(void)
@@ -93,9 +87,6 @@ static inline bool task_may_not_preempt(struct task_struct *task, int cpu)
 static inline bool should_honor_rt_sync(struct rq *rq, struct task_struct *p,
 					bool sync)
 {
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-        sa_skip_rt_sync(rq, p, &sync);
-#endif
 	/*
 	 * If the waker is CFS, then an RT sync wakeup would preempt the waker
 	 * and force it to run for a likely small time after the RT wakee is
@@ -356,11 +347,6 @@ inline unsigned int mtk_get_idle_exit_latency(int cpu,
 	struct cpuidle_state *idle;
 	struct task_struct *curr;
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
-	if (oplus_pipeline_rt_skip_prime_cpu(cpu))
-		return UINT_MAX;
-#endif
-
 	/* CPU is idle */
 	if (mtk_available_idle_cpu(cpu)) {
 		if (rt_ea_output)
@@ -493,9 +479,6 @@ static void mtk_rt_energy_aware_wake_cpu(struct task_struct *p,
 				||  sum_num_vip_in_cpu(cpu);
 #else
 			cpu_has_lt = is_task_latency_sensitive(cpu_rq(cpu)->curr);
-#endif
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-			cpu_has_lt = cpu_has_lt || sa_rt_skip_ux_cpu(cpu);
 #endif
 
 			/*

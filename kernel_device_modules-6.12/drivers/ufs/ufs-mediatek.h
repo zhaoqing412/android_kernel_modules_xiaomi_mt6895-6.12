@@ -298,7 +298,6 @@ struct ufs_mtk_host {
 	atomic_t clkscale_control;
 	atomic_t skip_btag;
 	atomic_t dbg_tp_unregister;
-	atomic_t irq_affinity_boost;
 	u16 ref_clk_ungating_wait_us;
 	u16 ref_clk_gating_wait_us;
 	u32 ip_ver;
@@ -356,7 +355,6 @@ struct ufs_mtk_host {
 	u32 ufs_mtk_qcmd_w_cmd_cnt;
 	struct work_struct err_handle_work; // mtk specific err handling work
 	bool read_write_hw_err;  // boolean flag to capture hw error
-	struct delayed_work iostack_work;
 };
 
 #define UFSHCD_MAX_TAG	256

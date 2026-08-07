@@ -64,9 +64,6 @@ define_mgk_ddk_ko(
 	includes = [
 		".",
 	],
-	conditional_defines = {
-		"k6993v1_64":  ["CONFIG_OPLUS_FEATURE_SLC"],
-	},
 	hdrs = [
 		"mtk_cm_mgr_common.h",
 	] + glob([

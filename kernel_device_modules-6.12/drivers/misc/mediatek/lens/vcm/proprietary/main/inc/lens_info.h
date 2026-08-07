@@ -12,7 +12,7 @@
 #include "lens_list.h"
 #include <linux/ioctl.h>
 
-#define MAX_NUM_OF_LENS 40
+#define MAX_NUM_OF_LENS 32
 
 #define AF_MAGIC 'A'
 
@@ -64,10 +64,6 @@
 #define AFDRV_DW9718TAF "DW9718TAF"
 #define AFDRV_GT9772AF "GT9772AF"
 #define AFDRV_GT9768AF "GT9768AF"
-#define AFDRV_GT9772AF_24267 "GT9772AF_24267"
-#define AFDRV_GT9772AF_CL4 "GT9772AF_CL4"
-#define AFDRV_AW86017AF "AW86017AF"
-
 
 #define CONVERT_CCU_TIMESTAMP 0x1000
 

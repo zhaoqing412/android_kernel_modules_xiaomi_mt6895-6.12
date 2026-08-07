@@ -15,14 +15,6 @@
 #include "mt6993-afe-common.h"
 #include "mt6993-afe-clk.h"
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-#include "../feedback/oplus_audio_kernel_fb.h"
-#ifdef dev_info
-#undef dev_info
-#define dev_info dev_err_fb
-#endif
-#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
-
 #if defined(IS_FPGA_EARLY_PORTING)
 int mt6993_init_clock(struct mtk_base_afe *afe) { return 0; }
 int mt6993_afe_apll_init(struct mtk_base_afe *afe) { return 0; }

@@ -26,10 +26,6 @@
 
 #include "mtk-sp-spk-amp.h"
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-#include "../feedback/oplus_audio_kernel_fb.h"
-#endif
-
 static int adsp_standby_flag;
 static struct wait_queue_head waitq;
 
@@ -51,16 +47,12 @@ static char *dsp_task_name[AUDIO_TASK_DAI_NUM] = {
 	[AUDIO_TASK_BLEUL_ID]        = "bleul",
 	[AUDIO_TASK_BTDL_ID]         = "btdl",
 	[AUDIO_TASK_BTUL_ID]         = "btul",
-	[AUDIO_TASK_HFCALL_DL_ID]    = "hfcall_dl",
-	[AUDIO_TASK_HFCALL_UL_ID]    = "hfcall_ul",
-	[AUDIO_TASK_HFCALL_MUSIC_ID] = "hfcall_music",
 	[AUDIO_TASK_DATAPROVIDER_ID] = "dataprovider",
 	[AUDIO_TASK_CALL_FINAL_ID]   = "call_final",
 	[AUDIO_TASK_FAST_ID]         = "fast",
 	[AUDIO_TASK_KTV_ID]          = "ktv",
 	[AUDIO_TASK_FM_ADSP_ID]      = "fm",
 	[AUDIO_TASK_UL_PROCESS_ID]   = "ulproc",
-	[AUDIO_TASK_UL_PROCESS2_ID]  = "ulproc2",
 	[AUDIO_TASK_ECHO_REF_ID]     = "echoref",
 	[AUDIO_TASK_ECHO_REF_DL_ID]  = "echodl",
 	[AUDIO_TASK_USBDL_ID]        = "usbdl",
@@ -122,16 +114,12 @@ static int dsp_task_scence[AUDIO_TASK_DAI_NUM] = {
 	[AUDIO_TASK_BLEUL_ID]       = TASK_SCENE_BLEUL,
 	[AUDIO_TASK_BTDL_ID]        = TASK_SCENE_BTDL,
 	[AUDIO_TASK_BTUL_ID]        = TASK_SCENE_BTUL,
-	[AUDIO_TASK_HFCALL_DL_ID]   = TASK_SCENE_HFCALL_DL,
-	[AUDIO_TASK_HFCALL_UL_ID]   = TASK_SCENE_HFCALL_UL,
-	[AUDIO_TASK_HFCALL_MUSIC_ID] = TASK_SCENE_HFCALL_MUSIC,
 	[AUDIO_TASK_DATAPROVIDER_ID] = TASK_SCENE_DATAPROVIDER,
 	[AUDIO_TASK_CALL_FINAL_ID]  = TASK_SCENE_CALL_FINAL,
 	[AUDIO_TASK_FAST_ID]        = TASK_SCENE_FAST,
 	[AUDIO_TASK_KTV_ID]         = TASK_SCENE_KTV,
 	[AUDIO_TASK_FM_ADSP_ID]     = TASK_SCENE_FM_ADSP,
 	[AUDIO_TASK_UL_PROCESS_ID]  = TASK_SCENE_UL_PROCESS,
-	[AUDIO_TASK_UL_PROCESS2_ID] = TASK_SCENE_UL_PROCESS2,
 	[AUDIO_TASK_ECHO_REF_ID]    = TASK_SCENE_ECHO_REF_UL,
 	[AUDIO_TASK_ECHO_REF_DL_ID] = TASK_SCENE_ECHO_REF_DL,
 	[AUDIO_TASK_USBDL_ID]       = TASK_SCENE_USB_DL,
@@ -220,13 +208,9 @@ void update_pcm_cpu_qos(struct snd_pcm_substream *substream, const int task_id)
 	usecs = (750000 / dynamic_rate) * dynamic_irq;
 	usecs += ((750000 % dynamic_rate) * dynamic_irq) / dynamic_rate;
 
-	if (cpu_latency_qos_request_active(&substream->latency_pm_qos_req)) {
-		if (usecs >= 0)
-			cpu_latency_qos_update_request(&substream->latency_pm_qos_req,
-						       usecs);
-	} else {
-		pr_info("%s latency_pm_qos_req is non-active", __func__);
-	}
+	if (usecs >= 0)
+		cpu_latency_qos_update_request(&substream->latency_pm_qos_req,
+					       usecs);
 }
 EXPORT_SYMBOL(update_pcm_cpu_qos);
 
@@ -304,13 +288,6 @@ int mtk_scp_ipi_send(int task_scene, int data_type, int ack_type,
 		(char *)payload);
 	if (send_result)
 		pr_info("%s(),scp_ipi send fail\n", __func__);
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-	if (send_result) {
-		pr_err_fb("scp_ipi send fail,ret=%d,task_scene=%d,msg_id=%u", \
-				send_result, get_dspdaiid_by_dspscene(task_scene), msg_id);
-	}
-#endif
 
 	return send_result;
 }

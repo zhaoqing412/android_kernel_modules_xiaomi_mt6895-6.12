@@ -306,7 +306,7 @@ static const struct aal_data mt6895_aal0_data = {
 	.cpr = {CMDQ_CPR_MML_PQ0_ADDR, CMDQ_CPR_MML_PQ1_ADDR},
 	.reg_table = aal_reg_table_mt6983,
 	.crop = true,
-	.vcp_readback = true,
+	.vcp_readback = false,
 	.rb_mode = RB_EOF_MODE,
 	.curve_ready_bit = 16,
 };
@@ -319,7 +319,7 @@ static const struct aal_data mt6895_aal1_data = {
 	.cpr = {CMDQ_CPR_MML_PQ0_ADDR, CMDQ_CPR_MML_PQ1_ADDR},
 	.reg_table = aal_reg_table_mt6983,
 	.crop = true,
-	.vcp_readback = true,
+	.vcp_readback = false,
 	.rb_mode = RB_EOF_MODE,
 	.curve_ready_bit = 16,
 };
@@ -458,8 +458,6 @@ struct mml_comp_aal {
 	u32 dre_blk_width;
 	u32 dre_blk_height;
 	u32 cut_pos_x;
-
-	u16 event_vcp_readback_done; /* specific to mt6895 */
 };
 
 enum aal_label_index {
@@ -836,14 +834,11 @@ static s32 aal_hist_ctrl(struct mml_comp *comp, struct mml_task *task,
 			aal->dpc = task->config->dpc;
 			aal->mmlsys_comp = task->config->path[0]->mmlsys;
 
-			if (is_config){
-				mml_write(comp->id, pkt, base_pa + aal->data->reg_table[AAL_INTEN],
-					0x0, U32_MAX, reuse, cache,
-					&aal_frm->labels[1]);
+			if (is_config)
 				mml_write(comp->id, pkt, base_pa + aal->data->reg_table[AAL_INTEN],
 					0x2, U32_MAX, reuse, cache,
 					&aal_frm->labels[1]);
-			} else
+			else
 				mml_update(comp->id, reuse, aal_frm->labels[1], 0x2);
 		}
 		if (is_config)
@@ -1065,8 +1060,14 @@ static s32 aal_config_frame(struct mml_comp *comp, struct mml_task *task,
 	aal_hist_ctrl(comp, task, ccfg, true);
 
 	if (mml_isdc(mode)) {
-		cmdq_pkt_write(pkt, NULL, base_pa + aal->data->reg_table[AAL_INTSTA], 0x0, U32_MAX);
-		cmdq_pkt_write(pkt, NULL, base_pa + aal->data->reg_table[AAL_INTEN], 0x0, U32_MAX);
+		cmdq_pkt_write(pkt, NULL, base_pa + aal->data->reg_table[AAL_INTSTA],
+			0x0, U32_MAX);
+		cmdq_pkt_write(pkt, NULL, base_pa + aal->data->reg_table[AAL_INTEN],
+			0x0, U32_MAX);
+		cmdq_pkt_write(pkt, NULL,
+			base_pa + aal->data->reg_table[AAL_INTSTA], 0x0, U32_MAX);
+		cmdq_pkt_write(pkt, NULL,
+			base_pa + aal->data->reg_table[AAL_INTEN], 0x0, U32_MAX);
 		cmdq_pkt_write(pkt, NULL,
 			base_pa + aal->data->reg_table[AAL_SRAM_RW_IF_0], addr, U32_MAX);
 		cmdq_pkt_poll(pkt, NULL, (0x1 << aal->data->curve_ready_bit),
@@ -1507,6 +1508,8 @@ static void aal_readback_vcp(struct mml_comp *comp, struct mml_task *task,
 	struct mml_task_reuse *reuse = &task->reuse[ccfg->pipe];
 	u8 pipe = ccfg->pipe;
 	struct aal_frame_data *aal_frm = aal_frm_data(ccfg);
+
+
 	u32 gpr = aal->data->gpr[ccfg->pipe];
 	u32 engine = CMDQ_VCP_ENG_MML_AAL0 + pipe;
 
@@ -1530,12 +1533,10 @@ static void aal_readback_vcp(struct mml_comp *comp, struct mml_task *task,
 
 	cmdq_vcp_enable(true);
 
-	cmdq_pkt_acquire_event(pkt, aal->event_vcp_readback_done);
 	cmdq_pkt_readback(pkt, engine, task->pq_task->aal_hist[pipe]->va_offset,
 		 AAL_HIST_NUM+AAL_DUAL_INFO_NUM, gpr,
 		&reuse->labels[reuse->label_idx],
 		&aal_frm->polling_reuse);
-	cmdq_pkt_clear_event(pkt, aal->event_vcp_readback_done);
 
 	mml_add_reuse_label(comp->id, reuse, &aal_frm->labels[AAL_POLLGPR_0],
 		task->pq_task->aal_hist[pipe]->va_offset);
@@ -2480,8 +2481,7 @@ static void clarity_hist_work(struct work_struct *work_item)
 		goto aal_hist_cmd_done;
 	}
 
-	if (aal->event_eof)
-		cmdq_pkt_wfe(pkt, aal->event_eof);
+	cmdq_pkt_wfe(pkt, aal->event_eof);
 
 	pa = aal->clarity_hist[pipe]->pa;
 
@@ -2581,14 +2581,6 @@ static int probe(struct platform_device *pdev)
 
 	if (of_property_read_u8(dev->of_node, "hist-read-mode", &priv->force_rb_mode))
 		priv->force_rb_mode = -1;
-
-	if (priv->data->vcp_readback) {
-		if (of_property_read_u16(dev->of_node, "event-vcp-readback-done",
-				&priv->event_vcp_readback_done)) {
-			dev_err(dev, "read event-vcp-readback-done fail\n");
-			return -ENOENT;
-		}
-	}
 
 	/* assign ops */
 	priv->comp.tile_ops = &aal_tile_ops;

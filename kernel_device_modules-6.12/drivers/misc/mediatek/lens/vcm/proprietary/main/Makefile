@@ -69,6 +69,4 @@
 #mainaf-y  += common/bu64253gwzaf/BU64253GWZAF.o
 #mainaf-y  += common/gt9768af/GT9768AF.o
 #mainaf-y  += common/gt9772af/GT9772AF.o
-mainaf-y  += common/gt9772af_24267/GT9772AF_24267.o
-mainaf-y  += common/gt9772af_CL4/GT9772AF_CL4.o
-mainaf-y  += common/aw86017af/AW86017AF.o
+

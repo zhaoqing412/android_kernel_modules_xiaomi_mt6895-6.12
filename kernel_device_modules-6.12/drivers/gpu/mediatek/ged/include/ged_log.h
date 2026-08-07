@@ -64,7 +64,6 @@ int ged_log_buf_write(GED_LOG_BUF_HANDLE hLogBuf,
 void ged_log_dump(GED_LOG_BUF_HANDLE hLogBuf);
 int ged_timer_or_trace_enable(void);
 
-
 #if defined(CONFIG_GPU_MT8167) || defined(CONFIG_GPU_MT8173) ||\
 defined(CONFIG_GPU_MT6739) || defined(CONFIG_GPU_MT6761)\
 || defined(CONFIG_GPU_MT6765)

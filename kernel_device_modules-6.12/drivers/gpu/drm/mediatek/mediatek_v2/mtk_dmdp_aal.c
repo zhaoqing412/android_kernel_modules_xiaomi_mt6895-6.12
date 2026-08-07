@@ -86,9 +86,7 @@ struct mtk_dmdp_aal {
 	unsigned int set_partial_update;
 	unsigned int roi_height;
 };
-//#ifdef OPLUS_DISPLAY
-static int oplus_disable_local_curve = 0;
-//#endif
+
 static inline struct mtk_dmdp_aal *comp_to_dmdp_aal(struct mtk_ddp_comp *comp)
 {
 	return container_of(comp, struct mtk_dmdp_aal, ddp_comp);
@@ -145,20 +143,13 @@ static void disp_mdp_aal_config_overhead(struct mtk_ddp_comp *comp,
 	struct mtk_ddp_config *cfg)
 {
 	struct mtk_dmdp_aal *data = comp_to_dmdp_aal(comp);
-	struct mtk_drm_crtc *mtk_crtc = comp->mtk_crtc;
-	struct drm_crtc *crtc = &mtk_crtc->base;
-	struct mtk_drm_private *priv = crtc->dev->dev_private;
 
 	DDPINFO("line: %d\n", __LINE__);
 
 	if (cfg->tile_overhead.is_support) {
 		/*set component overhead*/
 		if (!data->is_right_pipe) {
-			if (priv->data->mmsys_id == MMSYS_MT6991 ||
-			    priv->data->mmsys_id == MMSYS_MT6993)
-				data->tile_overhead.comp_overhead = 8;
-			else
-				data->tile_overhead.comp_overhead = 0;
+			data->tile_overhead.comp_overhead = 0;
 			/*add component overhead on total overhead*/
 			cfg->tile_overhead.left_overhead +=
 				data->tile_overhead.comp_overhead;
@@ -168,11 +159,7 @@ static void disp_mdp_aal_config_overhead(struct mtk_ddp_comp *comp,
 			data->tile_overhead.width =
 				cfg->tile_overhead.left_in_width;
 		} else {
-			if (priv->data->mmsys_id == MMSYS_MT6991 ||
-			    priv->data->mmsys_id == MMSYS_MT6993)
-				data->tile_overhead.comp_overhead = 8;
-			else
-				data->tile_overhead.comp_overhead = 0;
+			data->tile_overhead.comp_overhead = 0;
 			/*add component overhead on total overhead*/
 			cfg->tile_overhead.right_overhead +=
 				data->tile_overhead.comp_overhead;
@@ -278,14 +265,7 @@ static void disp_mdp_aal_init_primary_data(struct mtk_ddp_comp *comp)
 	}
 
 	// init primary data
-	//aal_data->primary_data->relay_state = 0x0 << PQ_FEATURE_DEFAULT;
-	//#ifdef OPLUS_DISPLAY
-	if (oplus_disable_local_curve == 1) {
-		aal_data->primary_data->relay_state = 0x1 << PQ_FEATURE_DEFAULT;
-	} else {
-		aal_data->primary_data->relay_state = 0x0 << PQ_FEATURE_DEFAULT;
-	}
-	//#endif
+	aal_data->primary_data->relay_state = 0x0 << PQ_FEATURE_DEFAULT;
 }
 
 void disp_mdp_aal_first_cfg(struct mtk_ddp_comp *comp,
@@ -596,15 +576,6 @@ static int disp_mdp_aal_probe(struct platform_device *pdev)
 		ret = -EINVAL;
 		goto error_primary;
 	}
-
-	//#ifdef OPLUS_DISPLAY
-	if (of_property_read_u32(aal_node, "oplus-disable-local_curve",
-		&oplus_disable_local_curve)) {
-		DDPMSG("comp_id: %d, oplus_disable_local_curve = %d\n",
-			comp_id, oplus_disable_local_curve);
-	}
-	DDPMSG("oplus_disable_local_curve:%d",oplus_disable_local_curve);
-	//#endif
 
 	priv->data = of_device_get_match_data(dev);
 	platform_set_drvdata(pdev, priv);

@@ -44,8 +44,6 @@ filegroup(
 		"mdee_dumper_v6.c",
 		"md_sys1_platform.c",
 		"modem_sys1.c",
-		"criticallog_class.c",
-		"oplus_criticallog.c",
 	]
 )
 

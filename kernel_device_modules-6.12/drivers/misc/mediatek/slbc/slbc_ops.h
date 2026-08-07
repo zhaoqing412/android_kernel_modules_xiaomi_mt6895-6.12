@@ -147,22 +147,6 @@ enum slc_ach_uid {
 	ID_MAX,
 };
 
-/* slc api priority */
-enum slc_api_lvl {
-	API_LVL_BASE = 0,
-	API_LVL_NORMAL,
-	API_LVL_SDK,
-};
-enum slc_api_id {
-	API_ID_FORCE_CMD = 0,
-	API_ID_CEIL,
-	API_ID_TOTAL_CEIL,
-	API_ID_WINDOW,
-	API_ID_CG_PRIORITY,
-	API_ID_ENABLE_GPU_DC,
-	API_ID_MAX,
-};
-
 #define FG_ACP_BITS (FG_ACP_1_4 | FG_ACP_2_4 | FG_ACP_3_4 | FG_ACP_4_4)
 
 #define SLBC_TRY_FLAG_BIT(d, bit) (((d)->flag & (bit)) == (bit))

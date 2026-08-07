@@ -65,10 +65,6 @@
 #define Set_BAT_DISABLE_NAFG _IOW('k', 14, int)
 #define Set_CARTUNE_TO_KERNEL _IOW('k', 15, int)
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-#define Get_FakeOff_Param _IOW('k', 7, int)
-#endif
-
 #define MT6359_AUXADC_BAT_TEMP_1	0x1228
 #define PMIC_AUXADC_BAT_TEMP_FROZE_EN_ADDR	\
 	MT6359_AUXADC_BAT_TEMP_1
@@ -3560,52 +3556,7 @@ struct file *filp, unsigned int cmd, unsigned long arg)
 }
 #endif
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-static int update_fakeoff_out_data(int *fakeoff_out_data, struct gauge_kpoc_ops *ops,
-	struct mtk_battery *gm)
-{
-	if (gm && gm->oplus_kpoc_ops) {
-		bm_err(gm, "oplus_kpoc_ops is ok\n");
-	} else {
-		bm_err(gm, "oplus_kpoc_ops is null\n");
-		return -EFAULT;
-	}
-	ops = gm->oplus_kpoc_ops;
-	if (ops->mtk_gauge_get_ui_soc)
-		fakeoff_out_data[DATA_UI_SOC] = ops->mtk_gauge_get_ui_soc();
-	if (ops->mtk_gauge_get_notify_flag)
-		fakeoff_out_data[DATA_NOTIFY_FLAG] = ops->mtk_gauge_get_notify_flag();
-	if (ops->mtk_gauge_get_vbus_status &&
-	    ops->mtk_gauge_get_prop_status) {
-		if (ops->mtk_gauge_get_vbus_status() == true &&
-		    ops->mtk_gauge_get_prop_status() != POWER_SUPPLY_STATUS_NOT_CHARGING) {
-			fakeoff_out_data[DATA_CHR_DET] = POWER_SUPPLY_STATUS_CHARGING;
-		} else {
-			fakeoff_out_data[DATA_CHR_DET] = POWER_SUPPLY_STATUS_UNKNOWN;
-		}
-	}
-	if (ops->mtk_gauge_get_vooc_status)
-		fakeoff_out_data[DATA_FAST_CHG] = ops->mtk_gauge_get_vooc_status();
-	if (ops->mtk_gauge_get_vooc_project &&
-	    ops->mtk_gauge_check_ui_soc_is_ready &&
-	    ops->mtk_gauge_check_chip_is_null) {
-		if (ops->mtk_gauge_get_vooc_project()) {
-			fakeoff_out_data[DATA_CHIP_IS_READY] = (ops->mtk_gauge_check_chip_is_null() == false ?
-								DATA_TRUE: DATA_FALSE);
-			fakeoff_out_data[DATA_UI_SOC_IS_READY] = (ops->mtk_gauge_check_ui_soc_is_ready() == true ?
-								  DATA_TRUE: DATA_FALSE);
-		} else {
-			if (gm->init_flag == 1)
-				fakeoff_out_data[DATA_CHIP_IS_READY] = DATA_TRUE;
-			else
-				fakeoff_out_data[DATA_CHIP_IS_READY] = DATA_FALSE;
-			fakeoff_out_data[DATA_UI_SOC_IS_READY] = (ops->mtk_gauge_check_ui_soc_is_ready() == true ?
-								  DATA_TRUE: DATA_FALSE);
-		}
-	}
-	return 0;
-}
-#endif
+
 
 static long adc_cali_ioctl(
 	struct file *file, unsigned int cmd, unsigned long arg)
@@ -3617,13 +3568,8 @@ static long adc_cali_ioctl(
 	int temp_car_tune;
 	int isdisNAFG = 0;
 	struct mtk_battery *gm;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	int fakeoff_out_data[6] = {0, 0, 0, 0, 0, 0};
-	struct gauge_kpoc_ops *ops = NULL;
-#endif
 
 	gm = get_mtk_battery();
-	bm_err(gm, "%s enter,cmd=%d\n", __func__, cmd);
 
 	mutex_lock(&gm->gauge->fg_mutex);
 	user_data_addr = (int *)arg;
@@ -3728,19 +3674,6 @@ static long adc_cali_ioctl(
 		bm_err(gm, "**** unlocked_ioctl Set_CARTUNE_TO_KERNEL[%d,%d], ret=%d\n",
 			adc_in_data[0], adc_in_data[1], ret);
 		break;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	case Get_FakeOff_Param:
-		user_data_addr = (int *)arg;
-		ret = update_fakeoff_out_data(fakeoff_out_data, ops, gm);
-		if (ret < 0)
-			break;
-
-		ret = copy_to_user(user_data_addr, fakeoff_out_data, sizeof(fakeoff_out_data));
-		bm_err(gm, "ioctl : Get_FakeOff_Param: ui_soc:%d, g_NotifyFlag:%d, chr_det:%d, fast_chg:%d\n",
-			fakeoff_out_data[DATA_UI_SOC], fakeoff_out_data[DATA_NOTIFY_FLAG], fakeoff_out_data[DATA_CHR_DET],
-			fakeoff_out_data[DATA_FAST_CHG]);
-		break;
-#endif
 	default:
 		bm_err(gm, "**** unlocked_ioctl unknown IOCTL: 0x%08x\n", cmd);
 		mutex_unlock(&gm->gauge->fg_mutex);

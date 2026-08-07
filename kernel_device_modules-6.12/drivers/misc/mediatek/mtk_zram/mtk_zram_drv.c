@@ -38,18 +38,11 @@
 #include <linux/cpuhotplug.h>
 #include <linux/part_stat.h>
 #include <linux/kcompressd.h>
-#include <linux/mempool.h>
 #include <linux/tracepoint.h>
 
 #include "hwcomp_bridge.h"
 
 #include <trace/hooks/mm.h>
-
-#ifdef CONFIG_HYBRIDSWAP
-#include "hybridswap_zram_drv.h"
-#include "hybridswap/hybridswap.h"
-#include "hybridswap/internal.h"
-#endif
 
 static DEFINE_IDR(zram_index_idr);
 /* idr index must be protected */
@@ -62,10 +55,6 @@ static const char *default_mode = "hwonly";
 #else
 static const char *default_mode = "swonly";
 #endif
-
-#define MAX_MEMPOOL_SIZE	(8192)
-#define MEMPOOL_NEW_SIZE	(128)
-static int mempool_min_size = MEMPOOL_NEW_SIZE; /* For non swonly modes */
 
 static DEFINE_STATIC_KEY_FALSE(kcompressd_enabled);
 static inline bool is_kcompressd_enabled(void)
@@ -107,8 +96,6 @@ static void zram_free_page(struct zram *zram, size_t index);
 static int zram_read_page(struct zram *zram, struct page *page, u32 index,
 			  struct bio *parent);
 
-/* user hybridswap_zram_drv.h instead of this. */
-#ifndef CONFIG_HYBRIDSWAP_CORE
 static int zram_slot_trylock(struct zram *zram, u32 index)
 {
 	return bit_spin_trylock(ZRAM_LOCK, &(ZRAM_TE(zram, index))->flags);
@@ -186,7 +173,6 @@ static void zram_set_obj_size(struct zram *zram,
 
 	(ZRAM_TE(zram, index))->flags = (flags << ZRAM_FLAG_SHIFT) | size;
 }
-#endif /* CONFIG_HYBRIDSWAP_CORE */
 
 static inline bool zram_allocated(struct zram *zram, u32 index)
 {
@@ -1338,9 +1324,6 @@ static void zram_free_page(struct zram *zram, size_t index)
 		zram_clear_flag(zram, index, ZRAM_INCOMPRESSIBLE);
 
 	zram_set_priority(zram, index, 0);
-#ifdef CONFIG_HYBRIDSWAP_CORE
-	hybridswap_untrack(zram, index);
-#endif
 
 	if (zram_test_flag(zram, index, ZRAM_WB)) {
 		zram_clear_flag(zram, index, ZRAM_WB);
@@ -1601,10 +1584,6 @@ out:
 		zram_set_handle(zram, index, handle);
 		zram_set_obj_size(zram, index, comp_len);
 	}
-#ifdef CONFIG_HYBRIDSWAP_CORE
-	/* zram write page by default */
-	hybridswap_track(zram, index, folio_memcg(page_folio(page)));
-#endif
 	zram_slot_unlock(zram, index);
 
 	/* Update stats */
@@ -2526,10 +2505,6 @@ static int zram_hw_bvec_write_ndc(struct zram *zram, struct bio_vec *bvec,
 		return -EINVAL;
 	}
 
-	/* Only allow kswapd */
-	if (!current_is_kswapd())
-		return -EBUSY;
-
 	/* Same page detection */
 	if (zram_detect_samepage(bvec->bv_page, &element)) {
 		atomic64_inc(&zram->stats.same_pages);
@@ -2760,10 +2735,6 @@ static void hwcomp_compress_post_process_dc(int err, void *buffer, unsigned int 
 		/* Common setting */
 		zram_set_obj_size(zram, index, comp_len);
 		atomic64_add(comp_len, &zram->stats.compr_data_size);
-#ifdef CONFIG_HYBRIDSWAP_CORE
-		/* zram write page by mtk hardware, no need to track same page */
-		hybridswap_track(zram, index, folio_memcg(page_folio(pp_info->page)));
-#endif
 
 	} else if (flag == HWCOMP_SAME) {
 
@@ -2897,10 +2868,6 @@ static int zram_hw_bvec_write_dc(struct zram *zram, struct bio_vec *bvec,
 		pr_info("%s: Partial IO is not supported.\n", __func__);
 		return -EINVAL;
 	}
-
-	/* Only allow kswapd */
-	if (!current_is_kswapd())
-		return -EBUSY;
 
 	/* Same page detection */
 	if (zram_detect_samepage(bvec->bv_page, &element)) {
@@ -3340,52 +3307,6 @@ const struct zram_mode_operations mode_ops[] = {
 };
 
 /*
- * mempool will be resized only when updating comp_mode.
- * So please update mempool_size before setting comp_mode as follows,
- *
- * 	echo [size] > /sys/block/zram0/mempool_size
- * 	echo [mode] > /sys/block/zram0/comp_mode
- */
-
-static ssize_t mempool_size_show(struct device *dev,
-				   struct device_attribute *attr,
-				   char *buf)
-{
-	return scnprintf(buf, PAGE_SIZE, "%d\n", mempool_min_size);
-}
-
-static ssize_t mempool_size_store(struct device *dev,
-				    struct device_attribute *attr,
-				    const char *buf,
-				    size_t len)
-{
-	u64 pool_size;
-	struct zram *zram = dev_to_zram(dev);
-	int err;
-
-	pool_size = memparse(buf, NULL);
-	if (!pool_size || pool_size > MAX_MEMPOOL_SIZE)
-		return -EINVAL;
-
-	down_write(&zram->init_lock);
-	if (init_done(zram)) {
-		pr_info("Cannot change mempool_size for initialized device\n");
-		err = -EBUSY;
-		goto out_unlock;
-	}
-
-	mempool_min_size = (int)pool_size;
-	pr_info("%s: new min mempool size %d\n", __func__, mempool_min_size);
-	up_write(&zram->init_lock);
-
-	return len;
-
-out_unlock:
-	up_write(&zram->init_lock);
-	return err;
-}
-
-/*
  * Compression mode -
  * hybrid: HW compression first, fallback to SW compression if necessary.
  * hwonly: No fallback to SW except !zram_hw_compress.
@@ -3459,20 +3380,8 @@ retry:
 	zram->ops = &mode_ops[i];
 
 	/* Support BLK_FEAT_SYNCHRONOUS when it's swonly */
-	if (!strcmp(mode, "swonly")) {
+	if (!strcmp(mode, "swonly"))
 		zram->disk->queue->limits.features |= BLK_FEAT_SYNCHRONOUS;
-		/* Restore mempool size for fs_bio_set */
-		if (mempool_resize(&fs_bio_set.bio_pool, BIO_POOL_SIZE))
-			pr_info("%s: failed to restore mempool size!\n", __func__);
-		else
-			pr_info("%s: Restore mempool size successfully!\n", __func__);
-	} else {
-		/* Resize mempool size for fs_bio_set */
-		if (mempool_resize(&fs_bio_set.bio_pool, mempool_min_size))
-			pr_info("%s: failed to resize mempool size!\n", __func__);
-		else
-			pr_info("%s: Resize mempool size successfully!\n", __func__);
-	}
 
 	/* Turn on kcompressd_enabled if necessary */
 	if (!strcmp(mode, "kcompressd:hw") || !strcmp(mode, "kcompressd"))
@@ -3538,19 +3447,10 @@ static void probe_android_vh_rmqueue_pcplist_override_batch(void *ignore, int *b
 		*batch = MAX_ALLOWABLE_BATCH_ALLOCATION_SIZE;
 }
 
-#define ZRAM_SWP_WRITE_SYNCHRONOUS_IO	(1 << 13)	/* __SWP_WRITE_SYNCHRONOUS_IO */
-static void probe_android_vh_swap_writepage(void *ignore, unsigned long *flags, struct page *page)
-{
-	/* Synchronous IO from non kswapd requests */
-	if (!current_is_kswapd())
-		*flags |= ZRAM_SWP_WRITE_SYNCHRONOUS_IO;
-}
-
 static struct tracepoints_table zram_tracepoints[] = {
 {.name = "android_vh_adjust_swap_info_flags", .func = probe_android_vh_adjust_swap_info_flags, .tp = NULL},
 {.name = "android_vh_rmqueue_pcplist_override_batch", .func = probe_android_vh_rmqueue_pcplist_override_batch,
 	.tp = NULL},
-{.name = "android_vh_swap_writepage", .func = probe_android_vh_swap_writepage, .tp = NULL},
 };
 
 #define FOR_EACH_INTEREST(i) \
@@ -3659,13 +3559,7 @@ static void zram_slot_free_notify(struct block_device *bdev,
 		atomic64_inc(&zram->stats.miss_free);
 		return;
 	}
-#ifdef CONFIG_HYBRIDSWAP_CORE
-	if (!hybridswap_delete(zram, index)) {
-		zram_slot_unlock(zram, index);
-		atomic64_inc(&zram->stats.miss_free);
-		return;
-	}
-#endif
+
 	zram_free_page(zram, index);
 	zram_slot_unlock(zram, index);
 }
@@ -3705,9 +3599,7 @@ static void zram_reset_device(struct zram *zram)
 	zram_destroy_comps(zram);
 	memset(&zram->stats, 0, sizeof(zram->stats));
 	reset_bdev(zram);
-#ifdef CONFIG_HYBRIDSWAP_CORE
-	hybridswap_unbind(zram);
-#endif
+
 	comp_algorithm_set(zram, ZRAM_PRIMARY_COMP, default_compressor);
 
 	/* Destroy HW instance if necessary */
@@ -3872,26 +3764,6 @@ static DEVICE_ATTR_RW(recomp_algorithm);
 static DEVICE_ATTR_WO(recompress);
 #endif
 static DEVICE_ATTR_RW(comp_mode);
-static DEVICE_ATTR_RW(mempool_size);
-#ifdef CONFIG_HYBRIDSWAP
-static DEVICE_ATTR_RO(hybridswap_vmstat);
-static DEVICE_ATTR_RW(hybridswap_loglevel);
-static DEVICE_ATTR_RW(hybridswap_enable);
-#endif
-#ifdef CONFIG_HYBRIDSWAP_SWAPD
-static DEVICE_ATTR_RW(hybridswap_swapd_pause);
-#endif
-#ifdef CONFIG_HYBRIDSWAP_CORE
-static DEVICE_ATTR_RW(hybridswap_core_enable);
-static DEVICE_ATTR_RW(hybridswap_loop_device);
-static DEVICE_ATTR_RW(hybridswap_dev_life);
-static DEVICE_ATTR_RW(hybridswap_quota_day);
-static DEVICE_ATTR_RO(hybridswap_report);
-static DEVICE_ATTR_RO(hybridswap_stat_snap);
-static DEVICE_ATTR_RO(hybridswap_meminfo);
-static DEVICE_ATTR_RW(hybridswap_zram_increase);
-#endif
-
 
 static struct attribute *zram_disk_attrs[] = {
 	&dev_attr_disksize.attr,
@@ -3920,25 +3792,6 @@ static struct attribute *zram_disk_attrs[] = {
 	&dev_attr_recompress.attr,
 #endif
 	&dev_attr_comp_mode.attr,
-	&dev_attr_mempool_size.attr,
-#ifdef CONFIG_HYBRIDSWAP
-	&dev_attr_hybridswap_vmstat.attr,
-	&dev_attr_hybridswap_loglevel.attr,
-	&dev_attr_hybridswap_enable.attr,
-#endif
-#ifdef CONFIG_HYBRIDSWAP_SWAPD
-	&dev_attr_hybridswap_swapd_pause.attr,
-#endif
-#ifdef CONFIG_HYBRIDSWAP_CORE
-	&dev_attr_hybridswap_core_enable.attr,
-	&dev_attr_hybridswap_report.attr,
-	&dev_attr_hybridswap_meminfo.attr,
-	&dev_attr_hybridswap_stat_snap.attr,
-	&dev_attr_hybridswap_loop_device.attr,
-	&dev_attr_hybridswap_dev_life.attr,
-	&dev_attr_hybridswap_quota_day.attr,
-	&dev_attr_hybridswap_zram_increase.attr,
-#endif
 	NULL,
 };
 
@@ -4203,11 +4056,6 @@ static int __init zram_init(void)
 	/* Hook up related tracepoints */
 	zram_hookup_tracepoints();
 
-#ifdef CONFIG_HYBRIDSWAP
-	ret = hybridswap_pre_init();
-	if (ret)
-		goto out_error;
-#endif
 	return 0;
 
 out_error:
@@ -4232,6 +4080,3 @@ MODULE_PARM_DESC(num_devices, "Number of pre-created zram devices");
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Nitin Gupta <ngupta@vflare.org>");
 MODULE_DESCRIPTION("Compressed RAM Block Device");
-#ifdef CONFIG_HYBRIDSWAP
-MODULE_IMPORT_NS(MINIDUMP);
-#endif

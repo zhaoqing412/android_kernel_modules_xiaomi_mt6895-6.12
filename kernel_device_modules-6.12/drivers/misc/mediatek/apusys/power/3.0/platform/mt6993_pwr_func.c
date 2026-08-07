@@ -7,15 +7,10 @@
 #include "aputop_log.h"
 #include "aputop_rpmsg.h"
 #include <linux/delay.h>
-#include <linux/iopoll.h>
-#include <linux/sched/clock.h>
 #include "mt6993_apupwr.h"
 #include "mt6993_apupwr_prot.h"
-#include "apusys_secure.h"
-
-#define LOCAL_DBG	(0)
+#define LOCAL_DBG	(1)
 static void __iomem *spare_reg_base;
-static void __iomem *are_sram_base;
 // for saving data after sync with remote site
 static struct tiny_dvfs_opp_tbl opp_tbl;
 static struct tiny_dvfs_opp_tbl opp_tbl2;
@@ -23,19 +18,12 @@ static struct apu_pwr_curr_info curr_info;
 int mt6993_mdla_pll_freq[OPP_TABLE_SIZE];
 int mt6993_mvpu_pll_freq[OPP_TABLE_SIZE];
 int opp_request_bit;
-static int first_dump;
 static const char * const pll_name[] = {
 				"PLL_CONN", "PLL_RV33", "PLL_MVPU", "PLL_MDLA"};
 static const char * const buck_name[] = {
 				"BUCK_VAPU", "BUCK_VSRAM", "BUCK_VCORE"};
 #define _OPP_LMT_TBL(_opp_lmt_reg) {    \
 	.opp_lmt_reg = _opp_lmt_reg,    \
-}
-
-#define APUPW_READQ(_addr)         ((uint64_t)(apu_readl(_addr)) + ((uint64_t)(apu_readl(_addr + 0x4)) << 32))
-#define APUPW_WRITEQ(_val, _addr)  { \
-	apu_writel((uint32_t)(_val & 0xFFFFFFFF), _addr); \
-	apu_writel((uint32_t)(_val >> 32), _addr + 0x4); \
 }
 
 static struct cluster_dev_opp_info opp_limit_tbl[CLUSTER_NUM] = {
@@ -61,16 +49,15 @@ static void _opp_limiter(int vpu_max, int vpu_min, int dla_max, int dla_min,
 	int i;
 	unsigned int reg_data;
 	unsigned int reg_offset;
-	struct arm_smccc_res res;
 
 	vpu_max = over_range_check(vpu_max);
 	vpu_min = over_range_check(vpu_min);
 	dla_max = over_range_check(dla_max);
 	dla_min = over_range_check(dla_min);
-
+#if LOCAL_DBG
 	pr_info("%s type:%d, %d/%d/%d/%d\n", __func__, type,
 			vpu_max, vpu_min, dla_max, dla_min);
-
+#endif
 
 	for (i = 0 ; i < CLUSTER_NUM ; i++) {
 		opp_limit_tbl[i].dev_opp_lmt.vpu_max = vpu_max & 0x3f;
@@ -87,10 +74,8 @@ static void _opp_limiter(int vpu_max, int vpu_min, int dla_max, int dla_min,
 			((type & 0xff) << 24));		// dedicate 1 byte
 		reg_offset = opp_limit_tbl[i].opp_lmt_reg;
 		apu_writel(reg_data, spare_reg_base + reg_offset);
-		arm_smccc_smc(MTK_SIP_APUSYS_CONTROL, MTK_APUSYS_KERNEL_OP_APUSYS_PWR_WRITE_OPP_LIMIT,
-			reg_data, 0, 0, 0, 0, 0, &res);
 #if LOCAL_DBG
-		apu_pr_info_ratelimited("%s cluster%d write:0x%08x, readback:0x%08x\n",
+		pr_info("%s cluster%d write:0x%08x, readback:0x%08x\n",
 				__func__, i, reg_data,
 				apu_readl(spare_reg_base + reg_offset));
 #endif
@@ -516,21 +501,16 @@ out:
 void mt6993_request_opp_table(void)
 {
 	struct aputop_rpmsg_data rpmsg_data;
-	int retry = 10, ret = 0, timeout = 0;
+	int retry = 10, ret = 0;
 
 	opp_request_bit = 1;
 	memset(&rpmsg_data, 0, sizeof(struct aputop_rpmsg_data));
-	/* set rpmsg timeout to 1s for opp dump in the first time */
-	if (first_dump == 0)
-		timeout = 1000;
-	else
-		timeout = 200;
 
 	rpmsg_data.cmd = APUTOP_DUMP_OPP_TBL;
 	rpmsg_data.data0 = 1; // pseudo data
 	do {
-		ret = aputop_send_rpmsg(&rpmsg_data, timeout);
-		if (mt6993_mdla_pll_freq[USER_MID_OPP_VAL - 1] != 0 && mt6993_mvpu_pll_freq[USER_MID_OPP_VAL - 1] != 0)
+		ret = aputop_send_rpmsg(&rpmsg_data, 100);
+		if (mt6993_mdla_pll_freq[USER_MID_OPP_VAL - 1] != 0)
 			break;
 		udelay(1000);
 	} while (--retry);
@@ -539,11 +519,9 @@ void mt6993_request_opp_table(void)
 	rpmsg_data.cmd = APUTOP_DUMP_OPP_TBL2;
 	rpmsg_data.data0 = 1; // pseudo data
 	do {
-		ret = aputop_send_rpmsg(&rpmsg_data, timeout);
-		if (mt6993_mdla_pll_freq[OPP_TABLE_SIZE - 1] != 0 && mt6993_mvpu_pll_freq[OPP_TABLE_SIZE - 1] != 0) {
-			first_dump = 1;
+		ret = aputop_send_rpmsg(&rpmsg_data, 100);
+		if (mt6993_mdla_pll_freq[OPP_TABLE_SIZE - 1] != 0)
 			break;
-		}
 		udelay(1000);
 	} while (--retry);
 
@@ -571,6 +549,7 @@ static void save_opp_table(struct tiny_dvfs_opp_tbl *tbl, int start_index)
 	for (i = 0; i < size; i++) {
 		if (i + start_index < OPP_TABLE_SIZE)
 			mt6993_mvpu_pll_freq[i + start_index] = mytbl.opp[i].pll_freq[PLL_VPU];
+		pr_info("\n");
 	}
 }
 
@@ -657,13 +636,12 @@ int mt6993_drv_cfg_remote_sync(struct aputop_func_param *aputop)
 	return 0;
 }
 
-int mt6993_init_remote_data_sync(void __iomem *reg_base, void __iomem *are_base)
+int mt6993_init_remote_data_sync(void __iomem *reg_base)
 {
 	int i;
 	uint32_t reg_offset = 0x0;
 
 	spare_reg_base = reg_base;
-	are_sram_base = are_base;
 	for (i = 0 ; i < CLUSTER_NUM ; i++) {
 		// 0xffff_ffff means no limit
 		memset(&opp_limit_tbl[i].dev_opp_lmt, -1,
@@ -681,124 +659,4 @@ int mt6993_init_remote_data_sync(void __iomem *reg_base, void __iomem *are_base)
 	apu_writel(0x0, spare_reg_base + FEATURE_OPTION_1_SYNC_REG);
 
 	return 0;
-}
-
-#define DECODE_READ_POINTER(_r_w_code)     (((_r_w_code) & 0x00003FFF) << 2)
-#define DECODE_WRITE_POINTER(_r_w_code)    (((_r_w_code) & 0x3FFF0000) >> 14)
-#define OPP_STTS_BUF_FOOTPRINT(_r_ptr)     ((uint32_t)(_r_ptr) + 0x4)
-#define OPP_STTS_BUF_CURR_OPP_TS(_r_ptr)   ((uint32_t)(_r_ptr) + 0x8)
-#define OPP_STTS_BUF_OPPS_TS(_r_ptr, _opp) ((uint32_t)(_r_ptr) + 0x10 + (0x8 * _opp))
-#define ENG_ON_BUF_ENG_TS(_r_ptr, _eng_id) ((uint32_t)(_r_ptr) + 0x08 + (0x8 * _eng_id))
-
-int mt6993_request_npu_pwr_stats(
-	enum NPUPW_STTS_REQ_TYPE req_type, enum NPUPW_STTS_REQ_MODE mode,
-	struct npupw_stts *p_npupw_stts)
-{
-	int ret = 0;
-	uint32_t val = 0;
-	uint32_t r_ptr_ofst = 0;
-	uint64_t npu_on_ts = 0, npu_on_stats = 0;
-	uint32_t opp_footprint = 0;
-	uint64_t opp_time_stats[OPP_TABLE_SIZE] = {0}, curr_opp_ts0 = 0;
-	uint64_t engine_on_time[NPU_ENGINES_MAX] = {0};
-	void __iomem *mbox_pwr_idx_sync_reg = spare_reg_base + APU_PWR_INDXER_SYNC_REG;
-
-	/* check if FO on */
-	if ((apu_readl(are_sram_base + ARE_NDM_ENALBE_HINT) &
-		BIT(APUPW_FO_HINT_PWR_IDX_BIT)) == 0) {
-		ret = 1;
-		goto out;
-	}
-
-	/* hold mbox */
-	// FIXME: use mbox sema
-	ret = readl_relaxed_poll_timeout_atomic(mbox_pwr_idx_sync_reg, val, (!val), 50, 2000);
-	if (ret) {
-		pr_info("%s polling mbox clear timeout, val = 0x%x, ret %d\n", __func__, val, ret);
-		ret = 2;
-		goto out;
-	}
-	apu_writel(0x1, mbox_pwr_idx_sync_reg);
-
-	// pr_info("%s get mbox!\n", __func__);
-
-	switch (req_type) {
-	case NPU_STTS_NPU_ON:
-		// TODO: overwrite read and write ptr, and clear write buffer
-		r_ptr_ofst = apu_readl(are_sram_base + ARE_PWR_IDX_NPU_ON_R_W_PTR);
-		r_ptr_ofst = DECODE_READ_POINTER(r_ptr_ofst);
-
-		npu_on_ts = APUPW_READQ(are_sram_base + r_ptr_ofst);
-		npu_on_stats = APUPW_READQ(are_sram_base + r_ptr_ofst + 0x8);
-
-		break;
-	case NPU_STTS_NPUFREQ:
-		// TODO: overwrite read and write ptr, and clear write buffer
-		r_ptr_ofst = apu_readl(are_sram_base + ARE_PWR_IDX_OPP_ST_R_W_PTR);
-		r_ptr_ofst = DECODE_READ_POINTER(r_ptr_ofst);
-
-		opp_footprint = apu_readl(
-			(are_sram_base + OPP_STTS_BUF_FOOTPRINT(r_ptr_ofst)));
-
-		curr_opp_ts0 = APUPW_READQ(
-			(are_sram_base + OPP_STTS_BUF_CURR_OPP_TS(r_ptr_ofst)));
-
-		for (int _opp = 0; _opp < OPP_TABLE_SIZE; ++_opp)
-			opp_time_stats[_opp] = APUPW_READQ(
-				(are_sram_base + OPP_STTS_BUF_OPPS_TS(r_ptr_ofst, _opp)));
-		break;
-	case NPU_STTS_ENGINE_ON:
-		// TODO: overwrite read and write ptr, and clear write buffer
-		r_ptr_ofst = apu_readl(are_sram_base + ARE_PWR_IDX_ENG_ON_R_W_PTR);
-		r_ptr_ofst = DECODE_READ_POINTER(r_ptr_ofst);
-
-		// read the buffer in sram
-		for (int i = 0; i < NPU_ENGINES_MAX; ++i)
-			engine_on_time[i] = APUPW_READQ(
-				(are_sram_base + ENG_ON_BUF_ENG_TS(r_ptr_ofst, i)));
-		break;
-	case NPU_STTS_ALL:
-		break;
-	default:
-		break;
-	}
-
-	/* release mbox */
-	// FIXME: use mbox sema
-	apu_writel(0x0, mbox_pwr_idx_sync_reg);
-
-	/* Postprocessing part */
-	switch (req_type) {
-	case NPU_STTS_NPU_ON:
-		if (npu_on_ts != 0) {
-			uint64_t curr_ts_ns = sched_clock();
-
-			npu_on_stats += (curr_ts_ns - npu_on_ts);
-		}
-		p_npupw_stts->npu_on_time_us = npu_on_stats / 1000;
-		break;
-	case NPU_STTS_NPUFREQ:
-		for (int _opp = 0; _opp < OPP_TABLE_SIZE; ++_opp)
-			p_npupw_stts->time_in_states_us[_opp] = opp_time_stats[_opp] / 1000;
-
-		if ((curr_opp_ts0 != 0) && (opp_footprint & BIT(4))) {
-			uint64_t curr_ts_ns = sched_clock();
-			int curr_opp = opp_footprint & 0xF;
-
-			p_npupw_stts->time_in_states_us[curr_opp] +=
-				((curr_ts_ns - curr_opp_ts0) / 1000);
-		}
-		break;
-	case NPU_STTS_ENGINE_ON:
-		for (int i = 0; i < NPU_ENGINES_MAX; ++i)
-			p_npupw_stts->engine_on_time_us[i] = (engine_on_time[i] / 1000) * (154 * 2);
-		break;
-	case NPU_STTS_ALL:
-		break;
-	default:
-		break;
-	}
-
-out:
-	return ret;
 }

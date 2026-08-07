@@ -99,12 +99,6 @@ struct notify_dev dptx_notify_data;
 struct class *switch_class;
 static atomic_t device_count;
 
-#ifdef OPLUS_FEATURE_DISPLAY
-static bool oplus_dp_ctrl_gpio_support;
-static int oplus_dp_ctrl_gpio;
-#endif /* OPLUS_FEATURE_DISPLAY */
-
-
 static ssize_t state_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -612,9 +606,6 @@ void mdrv_DPTx_InitVariable(struct mtk_dp *mtk_dp)
 	mtk_dp->trigger_db_flag = false;
 	// for customer requirement(set max link rate)
 	//mtk_dp->training_info.ubSysMaxLinkRate = DP_LINKRATE_HBR;
-
-	if (mtk_dp->training_info.ubSysMaxLinkRate)
-		DPTXMSG("adb or dts force linkrate = %x\n", mtk_dp->training_info.ubSysMaxLinkRate);
 
 	if (!mtk_dp->training_info.set_max_linkrate && !mtk_dp->training_info.ubSysMaxLinkRate)
 		mdrv_DPTx_CheckMaxLinkRate(mtk_dp);
@@ -2398,9 +2389,6 @@ int mdrv_DPTx_SetTrainingStart(struct mtk_dp *mtk_dp)
 	do {
 		DPTXMSG("LinkRate:0x%x, LaneCount:%x", ubLinkRate, ubLaneCount);
 
-		// special setting for eye diagram
-		mhal_DPTx_swing_pre_emp_optimized_for_certain_linkrate(mtk_dp, ubLinkRate);
-
 		mtk_dp->training_info.cr_done = false;
 		mtk_dp->training_info.eq_done = false;
 
@@ -3680,7 +3668,6 @@ static int mtk_dp_dt_parse_pdata(struct mtk_dp *mtk_dp,
 	int count = 0;
 	const char *pd_name;
 	int config_version = 0;
-	const char *linkrate_str;
 
 	// get power num
 	while (true) {
@@ -3743,16 +3730,6 @@ static int mtk_dp_dt_parse_pdata(struct mtk_dp *mtk_dp,
 		mtk_dp->phy_params, ARRAY_SIZE(mtk_dp->phy_params));
 	if (ret)
 		DPTXMSG("get phy_params fail, use default val, ret %d\n", ret);
-
-	memset(mtk_dp->phy_params_special, 0, sizeof(mtk_dp->phy_params_special));
-	ret = of_property_read_u32_array(dev->of_node, "tuning-phy-params",
-		mtk_dp->phy_params_special, ARRAY_SIZE(mtk_dp->phy_params_special));
-	if (ret)
-		DPTXMSG("not get phy_params_special, use default val, ret %d\n", ret);
-
-	// phy parameter for eye test
-	if (of_property_read_u32(dev->of_node, "tuning-phy-linkrate-mask", &mtk_dp->phy_params_linkrate_mask))
-		mtk_dp->phy_params_linkrate_mask = 0;
 
 	ret = mtk_dp_vsvoter_parse(mtk_dp, dev->of_node);
 	if (ret)
@@ -4086,12 +4063,6 @@ static enum drm_mode_status mtk_dp_conn_mode_valid(struct drm_connector *conn,
 	if (vblank_time - 13300 < 20000) { // prefetch=13300
 		DPTXDBG("Returning MODE_VBLANK_NARROW: VBlank time too narrow");
 		return MODE_VBLANK_NARROW;
-	}
-
-	// TODO: Report MM CLK requirements and remove this code.
-	if (mode->hdisplay * vtotal * vrefresh / 2 > 273000000) {
-		DPTXDBG("Higher than max support MM CLK");
-		return MODE_NOMODE;
 	}
 
 	DPTXDBG("Returning MODE_OK: All checks passed");
@@ -4610,23 +4581,7 @@ void mtk_dp_SWInterruptSet(int bstatus)
 		return;
 	}
 
-#ifdef OPLUS_FEATURE_DISPLAY
-	if (oplus_dp_ctrl_gpio_support && gpio_is_valid(oplus_dp_ctrl_gpio)) {
-		if (bstatus == HPD_CONNECT) {
-			gpio_direction_output(oplus_dp_ctrl_gpio, 1);
-			DPTXMSG("HPD_CONNECT set oplus-dp-ctrl-gpio to pull up\n");
-		}
-	}
-#endif /* OPLUS_FEATURE_DISPLAY */
 	mtk_dp_HPDInterruptSet(bstatus);
-#ifdef OPLUS_FEATURE_DISPLAY
-	if (oplus_dp_ctrl_gpio_support && gpio_is_valid(oplus_dp_ctrl_gpio)) {
-		if (bstatus == HPD_DISCONNECT) {
-			gpio_direction_output(oplus_dp_ctrl_gpio, 0);
-			DPTXMSG("HPD_DISCONNECT set oplus-dp-ctrl-gpio to pull down\n");
-		}
-	}
-#endif /* OPLUS_FEATURE_DISPLAY */
 
 	DP_HPD_UNLOCK(&dp_lock, __func__, __LINE__);
 }
@@ -4808,7 +4763,6 @@ static int mtk_dp_parse_efuse(struct mtk_dp *mtk_dp, struct platform_device *pde
 
 		if (IS_ERR(buf))
 			return PTR_ERR(buf);
-		kfree(buf);
 	}
 	return 0;
 }
@@ -4907,29 +4861,6 @@ static int mtk_drm_dp_probe(struct platform_device *pdev)
 		dev_err(dev, "Failed to get dp_phy clock: %d\n", ret);
 	}
 
-#ifdef OPLUS_FEATURE_DISPLAY
-	oplus_dp_ctrl_gpio_support = false;
-	oplus_dp_ctrl_gpio = -1;
-	oplus_dp_ctrl_gpio_support = device_property_read_bool(dev, "oplus-dp-ctrl-gpio-support");
-	if (oplus_dp_ctrl_gpio_support) {
-		oplus_dp_ctrl_gpio = of_get_named_gpio(dev->of_node, "oplus-dp-ctrl-gpio", 0);
-		if (!gpio_is_valid(oplus_dp_ctrl_gpio)) {
-			oplus_dp_ctrl_gpio = -1;
-			DPTXERR("read oplus-dp-ctrl-gpio property fail and set invalid gpio num -1\n");
-		} else {
-			DPTXMSG("get oplus-dp-ctrl-gpio success is %d\n", oplus_dp_ctrl_gpio);
-			ret = gpio_request(oplus_dp_ctrl_gpio, NULL); /* probe oplus-dp-ctrl-gpio */
-			if (ret) {
-				DPTXERR("Failed to request oplus-dp-ctrl-gpio. ret = %d\n", ret);
-				oplus_dp_ctrl_gpio = -1;
-			}
-		}
-	}
-	mtk_dp->oplus_dp_support = false;
-	mtk_dp->oplus_dp_support = device_property_read_bool(dev, "oplus-dp-support");
-	DPTXMSG("parser oplus-dp-support success is %d\n", mtk_dp->oplus_dp_support);
-#endif /* OPLUS_FEATURE_DISPLAY */
-
 	return component_add(&pdev->dev, &mtk_dp_component_ops);
 
 error:
@@ -4948,12 +4879,6 @@ static void mtk_drm_dp_remove(struct platform_device *pdev)
 
 	mutex_destroy(&dp_lock);
 	drm_connector_cleanup(&mtk_dp->conn);
-
-#ifdef OPLUS_FEATURE_DISPLAY
-	if (!gpio_is_valid(oplus_dp_ctrl_gpio)) {
-		gpio_free(oplus_dp_ctrl_gpio); /* free oplus-dp-ctrl-gpio */
-	}
-#endif /* OPLUS_FEATURE_DISPLAY */
 }
 
 #ifdef CONFIG_PM_SLEEP

@@ -21,13 +21,7 @@
 #include <sched/pelt.h>
 #include <linux/stop_machine.h>
 #include <linux/kthread.h>
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-#include <linux/sa_fair.h>
-#include <linux/sa_common.h>
-#endif
-#if IS_ENABLED(CONFIG_OPLUS_CPU_AUDIO_PERF)
-#include <linux/sa_audio.h>
-#endif
+
 #if IS_ENABLED(CONFIG_MTK_THERMAL_INTERFACE)
 #include <thermal_interface.h>
 #endif // CONFIG_MTK_THERMAL_INTERFACE
@@ -44,9 +38,6 @@
 #if IS_ENABLED(CONFIG_MTK_SCHED_FAST_LOAD_TRACKING)
 #include "eas/group.h"
 #endif // CONFIG_MTK_SCHED_FAST_LOAD_TRACKING
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
-#include <linux/sa_pipeline.h>
-#endif
 #define CREATE_TRACE_POINTS
 #include "sched_trace.h"
 #include "sugov/sched_version_ctrl.h"
@@ -2029,44 +2020,6 @@ static inline bool gear_hints_unset(struct task_gear_hints *ghts)
 	return true;
 }
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-static inline unsigned int get_cur_freq(unsigned int cpu)
-{
-	struct cpufreq_policy *policy = cpufreq_cpu_get_raw(cpu);
-	return (policy == NULL) ? 0 : policy->cur;
-}
-
-/* For the MediaTek Dimensity 8400 (MT6899), which adopts an ​all-big-core
- * architecture (A725 cores), the shared voltage between the ​DSU (Dynamic Shared Unit)
- * and the little cores results in ​extremely poor energy efficiency for the little cores
- * at low frequencies. Specifically, the power consumption difference reaches ​5-11 mA at
- * the same frequency point. Therefore, in low-load scenarios, it is advisable to
- * prioritize scheduling tasks to the big cores.
- */
-static bool dsu_power_opt_enable;
-static unsigned int dsu_power_opt_freq;
-static unsigned int dsu_power_opt_cpu;
-void dsu_power_optimization_init(void)
-{
-	struct device_node *np;
-	const char *soc_id = NULL;
-
-	dsu_power_opt_enable = false;
-	dsu_power_opt_freq = 0;
-	dsu_power_opt_cpu = 0;
-	np = of_find_node_by_path("/");
-	of_property_read_string(np, "model", &soc_id);
-	/* If a large core’s frequency falls below ​800 MHz,
-	 * prioritize scheduling tasks to it to maintain performance */
-	if (soc_id && !strcmp(soc_id, "MT6899")) {
-		dsu_power_opt_enable = true;
-		dsu_power_opt_freq = 800000;
-		/* Any one of the cpu's on the big core (cluster1). */
-		dsu_power_opt_cpu = 5;
-	}
-}
-#endif
-
 void mtk_get_gear_indicies(struct task_struct *p, int *order_index, int *end_index,
 		int *reverse, bool latency_sensitive)
 {
@@ -2093,14 +2046,6 @@ void mtk_get_gear_indicies(struct task_struct *p, int *order_index, int *end_ind
 		goto out;
 	}
 #endif // CONFIG_MTK_SCHED_FAST_LOAD_TRACKING
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-	if (dsu_power_opt_enable && (get_cur_freq(dsu_power_opt_cpu) <= dsu_power_opt_freq)) {
-		*order_index = 1;
-		*end_index = 0;
-	}
-#endif
-
 	/* task has customized gear prefer */
 	if (gear_hints_enable && ghts->gear_start >= 0)
 		*order_index = ghts->gear_start;
@@ -2275,10 +2220,6 @@ static void mtk_find_best_candidates(struct cpumask *candidates, struct task_str
 #else
 		for_each_cpu(cpu, cpus) {
 #endif // CONFIG_MTK_THERMAL_AWARE_SCHEDULING
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
-			if (oplus_pipeline_task_skip_cpu(p, cpu))
-				continue;
-#endif
 			track_sched_cpu_util(p, cpu, min_cap, max_cap);
 
 			if (!is_vip) {
@@ -2485,9 +2426,6 @@ void mtk_find_energy_efficient_cpu(void *data, struct task_struct *p, int prev_c
 	struct find_best_candidates_parameters fbc_params;
 	unsigned long cpu_utils[MAX_NR_CPUS] = {[0 ... MAX_NR_CPUS-1] = ULONG_MAX};
 	int recent_used_cpu, target;
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
-	int pipeline_cpu;
-#endif
 	bool is_vip = false;
 	int vip_prio = NOT_VIP;
 	struct cpumask vip_candidate;
@@ -2516,28 +2454,6 @@ void mtk_find_energy_efficient_cpu(void *data, struct task_struct *p, int prev_c
 
 	rcu_read_lock();
 	compute_effective_softmask(p, &latency_sensitive, &effective_softmask);
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
-	pipeline_cpu = oplus_get_task_pipeline_cpu(p);
-	if (pipeline_cpu != -1) {
-		bool ctc = cpumask_test_cpu(pipeline_cpu, p->cpus_ptr);
-		bool ca = cpu_active(pipeline_cpu);
-		bool ncp = !cpu_paused(pipeline_cpu);
-		bool nllt = !oplus_pipeline_low_latency_task(pipeline_cpu);
-		bool pipeline_success = ctc && ca && ncp && nllt;
-
-		if (pipeline_success) {
-			rcu_read_unlock();
-			*new_cpu = pipeline_cpu;
-			select_reason = LB_PIPELINE;
-			goto pipeline_out;
-		}
-	}
-#endif
-
-#if IS_ENABLED(CONFIG_OPLUS_CPU_AUDIO_PERF)
-	oplus_sched_assist_audio_latency_sensitive(p, &latency_sensitive);
-#endif
 
 	pd = rcu_dereference(rd->pd);
 #if IS_ENABLED(CONFIG_MTK_SCHED_VIP_TASK)
@@ -2848,15 +2764,6 @@ backup_unlock:
 done:
 	irq_log_store();
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-	if (set_ux_task_to_prefer_cpu(p, new_cpu)) {
-		select_reason = LB_UX_PREFER;
-	}
-#endif
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
-pipeline_out:
-#endif
 	if (trace_sched_find_energy_efficient_cpu_enabled())
 		trace_sched_find_energy_efficient_cpu(in_irq, best_delta, best_energy_cpu,
 				best_energy_cpu, idle_max_spare_cap_cpu, sys_max_spare_cap_cpu);

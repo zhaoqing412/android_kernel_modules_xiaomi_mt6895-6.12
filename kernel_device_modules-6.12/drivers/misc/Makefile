@@ -4,5 +4,3 @@
 #
 
 obj-y				+= mediatek/
-obj-$(CONFIG_MI_HARDWARE_ID)	+= hwid/
-obj-$(CONFIG_SIMTRAY_STATUS)	+= simtray.o

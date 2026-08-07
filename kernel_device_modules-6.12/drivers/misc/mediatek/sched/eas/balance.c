@@ -11,18 +11,6 @@
 #include "sugov/cpufreq.h"
 #include "sched_trace.h"
 #include "mt-plat/mtk_irq_mon.h"
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-#include <linux/sa_fair.h>
-#endif
-#if IS_ENABLED(CONFIG_OPLUS_CPU_AUDIO_PERF)
-#include <linux/sa_audio.h>
-#endif
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_LOADBALANCE)
-#include <linux/sa_balance.h>
-#endif
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
-#include <linux/sa_pipeline.h>
-#endif
 
 static DEFINE_PER_CPU(u64, next_update_new_balance_time_ns);
 
@@ -44,11 +32,6 @@ int mtk_can_migrate_task(struct task_struct *p, int dst_cpu)
 
 	if (!cpumask_test_cpu(dst_cpu, p->cpus_ptr))
 		return false;
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
-	if (oplus_pipeline_task_skip_cpu(p, dst_cpu))
-		return false;
-#endif
 
 	if (task_is_vip(p, VVIP)) {
 		int num_vip_src = num_vip_in_cpu(src_cpu, VVIP);
@@ -121,11 +104,6 @@ static struct task_struct *detach_one_task(struct rq *src_rq, int dst_cpu)
 		if (!mtk_can_migrate_task(p, dst_cpu))
 			continue;
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-		if (should_ux_task_skip_cpu(p, dst_cpu))
-			continue;
-#endif
-
 		/*task_util = uclamp_task_util(p);*/
 		if (is_dpt_v2_support()) {
 			int using_uclamp_freq = 0;
@@ -136,10 +114,6 @@ static struct task_struct *detach_one_task(struct rq *src_rq, int dst_cpu)
 			task_util_dst = uclamp_task_util_dpt_v2(p, src_rq->cpu, &using_uclamp_freq);
 		} else
 			task_util_src = task_util_dst = uclamp_task_util(p);
-
-#if IS_ENABLED(CONFIG_OPLUS_CPU_AUDIO_PERF)
-		oplus_sched_assist_audio_latency_sensitive(p, &latency_sensitive);
-#endif
 
 		if (in_many_heavy_tasks &&
 			!fits_capacity(task_util_src, src_capacity, margin_src)) {
@@ -322,11 +296,6 @@ int migrate_running_task(int this_cpu, struct task_struct *p, struct rq *target,
 	bool latency_sensitive = false;
 	struct cpumask effective_softmask;
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
-	if (oplus_pipeline_task_skip_cpu(p, this_cpu))
-		return true;
-#endif
-
 	compute_effective_softmask(p, &latency_sensitive, &effective_softmask);
 
 	raw_spin_rq_lock_irqsave(target, flags);
@@ -366,11 +335,6 @@ void hook_sched_balance_newidle(void *data, struct rq *this_rq, struct rq_flags 
 	bool latency_sensitive = false;
 	struct cpumask effective_softmask;
 	bool had_pull_vvip = false;
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_LOADBALANCE)
-	if (__oplus_newidle_balance(data, this_rq, rf, pulled_task, done))
-		return;
-#endif
 
 	if (!get_eas_hook())
 		return;
@@ -414,12 +378,6 @@ void hook_sched_balance_newidle(void *data, struct rq *this_rq, struct rq_flags 
 	 * re-start the picking loop.
 	 */
 	rq_unpin_lock(this_rq, rf);
-
-#if IS_ENABLED(CONFIG_OPLUS_CPU_AUDIO_PERF)
-	if (oplus_sched_assist_audio_idle_balance(this_rq))
-		goto audio_pulled;
-#endif
-
 	raw_spin_rq_unlock(this_rq);
 
 	this_cpu = this_rq->cpu;
@@ -490,9 +448,6 @@ void hook_sched_balance_newidle(void *data, struct rq *this_rq, struct rq_flags 
 		put_task_struct(best_running_task);
 out:
 	raw_spin_rq_lock(this_rq);
-#if IS_ENABLED(CONFIG_OPLUS_CPU_AUDIO_PERF)
-audio_pulled:
-#endif
 	/*
 	 * While browsing the domains, we released the rq lock, a task could
 	 * have been enqueued in the meantime. Since we're not going idle,

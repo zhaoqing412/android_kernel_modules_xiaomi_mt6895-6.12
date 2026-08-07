@@ -168,20 +168,6 @@ static void tcpci_alert_recv_msg(struct tcpc_device *tcpc)
 	int rv = 0;
 	struct pd_msg *pd_msg = NULL;
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	int rv1 = 0;
-	uint32_t chip_vid = 0;
-	uint32_t chip_pid = 0;
-	bool in_bist_mode = (tcpc->pd_bist_mode != PD_BIST_MODE_DISABLE);
-
-	rv1 = tcpci_get_chip_vid(tcpc, &chip_vid);
-	if (!rv1 && chip_vid == SOUTHCHIP_PD_VID) {
-		rv1 = tcpci_get_chip_pid(tcpc, &chip_pid);
-	}
-	if (!rv1 && (SC2150A_PID == chip_pid) && !in_bist_mode) {
-		tcpci_set_rx_enable(tcpc, PD_RX_CAP_PE_STARTUP);
-	}
-#endif
 	pd_msg = pd_alloc_msg(tcpc);
 	if (pd_msg == NULL)
 		return;
@@ -319,9 +305,6 @@ int tcpci_alert(struct tcpc_device *tcpc, bool masked)
 	tcpc->io_time_start = local_clock();
 	mutex_unlock(&tcpc->access_lock);
 #endif	/* CONFIG_USB_POWER_DELIVERY */
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	uint32_t chip_vid;
-#endif
 
 	rv = tcpci_get_alert_status_and_mask(tcpc, &alert_status, &alert_mask);
 	if (rv < 0)
@@ -344,13 +327,7 @@ int tcpci_alert(struct tcpc_device *tcpc, bool masked)
 
 	TCPC_INFO("Alert:0x%04x, Mask:0x%04x\n", alert_status, alert_mask);
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	rv = tcpci_get_chip_vid(tcpc, &chip_vid);
-	if (rv || chip_vid != SOUTHCHIP_PD_VID)
-		alert_status &= alert_mask;
-#else
 	alert_status &= alert_mask;
-#endif
 
 	if (typec_role == TYPEC_ROLE_UNKNOWN ||
 		typec_role >= TYPEC_ROLE_NR) {
@@ -435,10 +412,6 @@ int tcpci_report_usb_port_attached(struct tcpc_device *tcpc)
 #if CONFIG_USB_PD_DISABLE_PE
 	if (tcpc->disable_pe)
 		return 0;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	if (tcpc->int_invaild_cnt >= CONFIG_SOUTHCHIP_INT_INVAILD_RETRY_MAX)
-		return 0;
-#endif
 #endif	/* CONFIG_USB_PD_DISABLE_PE */
 
 	if (tcpc->pd_inited_flag)

@@ -31,19 +31,11 @@
 #include "cpufreq.h"
 #include "util/cpu_util.h"
 #include "sched_version_ctrl.h"
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-#include <linux/sa_common.h>
-#endif
 #if IS_ENABLED(CONFIG_MTK_GEARLESS_SUPPORT)
 #include "mtk_energy_model/v3/energy_model.h"
 #else
 #include "mtk_energy_model/v1/energy_model.h"
 #endif
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SMART_FREQ)
-#include <linux/smart_freq.h>
-#endif
-
 
 #define CREATE_TRACE_POINTS
 #include "sugov_trace.h"
@@ -202,41 +194,6 @@ int get_flt_coef_margin_ctrl(void)
 }
 EXPORT_SYMBOL(get_flt_coef_margin_ctrl);
 
-void setWithoutDPTCtl(int pid)
-{
-	struct task_struct *p;
-	struct dpt_task_struct *dts;
-
-	rcu_read_lock();
-	p = find_task_by_vpid(pid);
-	if (p) {
-		get_task_struct(p);
-		dts = &((struct mtk_task *) android_task_vendor_data(p))->dpt_task;
-		dts->without_DPT_ctrl = 1;
-		put_task_struct(p);
-	}
-	rcu_read_unlock();
-}
-EXPORT_SYMBOL(setWithoutDPTCtl);
-
-void unsetWithoutDPTCtl(int pid)
-{
-	struct task_struct *p;
-	struct dpt_task_struct *dts;
-
-	rcu_read_lock();
-	p = find_task_by_vpid(pid);
-	if (p) {
-		get_task_struct(p);
-		dts = &((struct mtk_task *) android_task_vendor_data(p))->dpt_task;
-		dts->without_DPT_ctrl = 0;
-		put_task_struct(p);
-	}
-	rcu_read_unlock();
-}
-EXPORT_SYMBOL(unsetWithoutDPTCtl);
-
-
 /************************ Governor internals ***********************/
 
 static bool sugov_should_update_freq(struct sugov_policy *sg_policy, u64 time)
@@ -381,14 +338,8 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	mtk_map_util_freq((void *)sg_policy, util, policy->related_cpus, &next_freq, min, max);
 	if (next_freq) {
 		freq = next_freq;
-		#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SMART_FREQ)
-			freq = smart_freq_update_final_freq(policy->related_cpus, freq);
-		#endif
 	} else {
 		freq = map_util_freq(util, freq, cap);
-		#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SMART_FREQ)
-			freq = smart_freq_update_final_freq(policy->related_cpus, freq);
-		#endif
 		if (freq == sg_policy->cached_raw_freq && !sg_policy->need_freq_update)
 			return sg_policy->next_freq;
 		sg_policy->cached_raw_freq = freq;
@@ -1040,9 +991,6 @@ static inline bool sugov_update_single_common(struct sugov_cpu *sg_cpu, u64 time
 	sugov_iowait_boost(sg_cpu, time, flags);
 	sg_cpu->last_update = time;
 	ignore_dl_rate_limit(sg_cpu);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SMART_FREQ)
-	smart_freq_update(sg_cpu->cpu, time, flags);
-#endif
 
 	if (!sugov_should_update_freq(sg_cpu->sg_policy, time))
 		return false;
@@ -1274,9 +1222,6 @@ sugov_update_shared(struct update_util_data *hook, u64 time, unsigned int flags)
 
 	sugov_iowait_boost(sg_cpu, time, flags);
 	sg_cpu->last_update = time;
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SMART_FREQ)
-	smart_freq_update(sg_cpu->cpu, time, flags);
-#endif
 
 	ignore_dl_rate_limit(sg_cpu);
 
@@ -2004,10 +1949,6 @@ static int __init cpufreq_mtk_init(void)
 	ret = register_trace_android_rvh_build_perf_domains(sched_build_perf_domains, NULL);
 	if (ret)
 		pr_info("register sched_build_perf_domains hooks failed, returned %d\n", ret);
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-	update_ux_sched_cputopo();
-#endif
 
 	return cpufreq_register_governor(&mtk_gov);
 }

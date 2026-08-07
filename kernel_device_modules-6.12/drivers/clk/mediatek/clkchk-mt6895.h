@@ -65,8 +65,7 @@ enum chk_sys_id {
 	cam_mm_subcomm0 = 54,
 	cam_mdp_subcomm1 = 55,
 	cam_sys_subcomm1 = 56,
-	hwv = 57,
-	chk_sys_num = 58,
+	chk_sys_num = 57,
 };
 
 #ifdef CONFIG_MTK_DVFSRC_HELPER

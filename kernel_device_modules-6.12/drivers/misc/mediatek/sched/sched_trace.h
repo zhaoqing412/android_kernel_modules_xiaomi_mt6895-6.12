@@ -14,14 +14,6 @@
 #include "common.h"
 #include "eas/eas_plus.h"
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-#define LB_UX_PREFER	(0xB0)
-#endif
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
-#define LB_PIPELINE     (0xA0)
-#endif
-
 #ifndef _SCHED_TRACE_INFO_
 #define _SCHED_TRACE_INFO_
 struct trace_info_sched_select_task_rq {

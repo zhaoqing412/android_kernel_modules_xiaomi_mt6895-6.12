@@ -20,7 +20,6 @@
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/thermal.h>
-#include <soc/oplus/system/oplus_project.h>
 
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
@@ -38,10 +37,6 @@
 #include "mtk_pbm.h" /* DLPT */
 #include "mtk_peak_power_budget.h"
 #endif
-
-#ifndef OPLUS_FEATURE_CAMERA_COMMON
-#define OPLUS_FEATURE_CAMERA_COMMON
-#endif /* OPLUS_FEATURE_CAMERA_COMMON */
 
 
 /******************************************************************************
@@ -71,11 +66,6 @@ static int pt_strict; /* always be zero in C standard */
 
 static int pt_is_low(int pt_low_vol, int pt_low_bat, int pt_over_cur);
 #endif
-
-const struct flashlight_device_id *flashlight_id;
-extern const struct flashlight_device_id flashlight_id_24267[];
-extern const struct flashlight_device_id flashlight_id_cl4[];
-int flashlight_device_num = 0;
 
 /******************************************************************************
  * Flashlight operations
@@ -284,34 +274,6 @@ int flashlight_get_part_index(int part_id)
 }
 EXPORT_SYMBOL(flashlight_get_part_index);
 
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-static int select_lednum(struct flashlight_dev *fdev, int lednum)
-{
-	struct flashlight_dev_arg fl_dev_arg;
-	if (!fdev || !fdev->ops) {
-		pr_info("Failed with no flashlight ops\n");
-		return -EINVAL;
-	}
-
-	if (fdev->sw_disable_status == FLASHLIGHT_SW_DISABLE_ON) {
-		pr_info("Sw disable on\n");
-		return 0;
-	}
-
-	fl_dev_arg.channel = fdev->dev_id.channel;
-	fl_dev_arg.arg = lednum;
-
-	if (fdev->ops->flashlight_ioctl(OPLUS_FLASH_IOC_SELECT_LED_NUM,
-				(unsigned long)&fl_dev_arg)) {
-		pr_info("Failed to select led nums \n");
-		return -EFAULT;
-	}
-
-	fdev->enable = 1;
-	return 0;
-}
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
-
 
 /******************************************************************************
  * Flashlight devices
@@ -378,14 +340,6 @@ int flashlight_dev_register(
 	struct flashlight_dev *fdev;
 	int type_index, ct_index, part_index;
 	int i;
-
-	if (is_project(24267) || is_project(24268) || is_project(24269)) {
-		flashlight_id = flashlight_id_24267;
-		flashlight_device_num = 1;
-	} else if (is_project(25281)) {
-		flashlight_id = flashlight_id_cl4;
-		flashlight_device_num = 1;
-	}
 
 	for (i = 0; i < flashlight_device_num; i++) {
 		if (!strncmp(name, flashlight_id[i].name,
@@ -828,12 +782,10 @@ static long _flashlight_ioctl(
 	case FLASH_IOC_IS_LOW_POWER:
 		fl_arg.arg = 0;
 #ifdef CONFIG_MTK_FLASHLIGHT_PT
-	#ifndef OPLUS_FEATURE_CAMERA_COMMON
 		fl_arg.arg = pt_is_low(pt_low_vol, pt_low_bat, pt_over_cur);
 		if (fl_arg.arg)
 			pr_debug("Pt status: (%d,%d,%d)\n",
 					pt_low_vol, pt_low_bat, pt_over_cur);
-	#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 #endif
 		if (copy_to_user((void __user *)arg, (void *)&fl_arg,
 					sizeof(struct flashlight_user_arg))) {
@@ -966,16 +918,6 @@ static long _flashlight_ioctl(
 			return -ENOTTY;
 		}
 		break;
-
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	case OPLUS_FLASH_IOC_SELECT_LED_NUM:
-		pr_info("OPLUS_FLASH_IOC_SELECT_LED_NUM(%d,%d,%d): %d\n",
-				type, ct, part, fl_arg.arg);
-		mutex_lock(&fl_mutex);
-		ret = select_lednum(fdev, fl_arg.arg);
-		mutex_unlock(&fl_mutex);
-		break;
-#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 
 	default:
 		if (fdev->ops)
@@ -2119,12 +2061,10 @@ static int __init flashlight_init(void)
 	}
 
 #ifdef CONFIG_MTK_FLASHLIGHT_PT
-	#ifndef OPLUS_FEATURE_CAMERA_COMMON
 	register_low_battery_notify(
 			&pt_low_vol_callback, LOW_BATTERY_PRIO_FLASHLIGHT, NULL);
 	register_bp_thl_notify(
 			&pt_low_bat_callback, BATTERY_PERCENT_PRIO_FLASHLIGHT);
-	#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 	register_battery_oc_notify(
 			&pt_oc_callback, BATTERY_OC_PRIO_FLASHLIGHT, NULL);
 #endif

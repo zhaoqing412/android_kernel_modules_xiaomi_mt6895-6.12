@@ -66,7 +66,6 @@ void pe_snk_evaluate_capability_entry(struct pd_port *pd_port)
 	pd_handle_hard_reset_recovery(pd_port);
 	pd_handle_first_pd_command(pd_port);
 
-	pd_port->request_i = -1;
 	pd_dpm_snk_evaluate_caps(pd_port);
 	pd_port->pe_data.explicit_contract = false;
 }

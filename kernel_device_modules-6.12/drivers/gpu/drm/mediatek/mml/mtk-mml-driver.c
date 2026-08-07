@@ -153,8 +153,7 @@ struct mml_dev {
 	struct cmdq_base *cmdq_base;
 	struct cmdq_client *cmdq_clts[MML_MAX_CMDQ_CLTS];
 	u8 cmdq_clt_cnt;
-	struct kthread_worker *kt_workers[mml_kt_total];
-	struct mml_comp *sys_comps[mml_max_sys];
+	struct kthread_worker *kt_config;
 
 	u32 sw_ver;
 	atomic_t drm_cnt;
@@ -226,13 +225,6 @@ struct mml_dev {
 #ifdef MML_DEBUG_PROC
 	struct proc_dir_entry *dbg_procfs;
 #endif
-};
-
-static const char *mml_kt_name[mml_kt_total] = {
-	[mml_kt_hwdone]		= "mml_drm_done",
-	[mml_kt_taskdone]	= "mml_taskdone",
-	[mml_kt_config0]	= "mml_work0",
-	[mml_kt_config1]	= "mml_work1",
 };
 
 int mml_comp_add(u32 id, struct device *dev, const struct component_ops *ops)
@@ -676,9 +668,9 @@ exit:
 	return ctx;
 }
 
-struct kthread_worker *mml_dev_get_kt_worker(struct mml_dev *mml, enum mml_kt kt_id)
+struct kthread_worker *mml_dev_get_config_worker(struct mml_dev *mml)
 {
-	return mml->kt_workers[kt_id];
+	return mml->kt_config;
 }
 
 struct mml_v4l2_dev *mml_get_v4l2_dev(struct mml_dev *mml)
@@ -1567,17 +1559,6 @@ void mml_comp_qos_set(struct mml_comp *comp, struct mml_task *task,
 	updated = true;
 	mml->port_srt_bw[larb_idx][comp->larb_port] = srt_bw;
 	mml->port_hrt_bw[larb_idx][comp->larb_port] = hrt_bw;
-
-	/* For hybrid case, also update another larb port cache,
-	 * so that next time update component to other bw mode will do icc_set again
-	 * to config correct bandwidth.
-	 */
-	if (comp->bw_hybrid) {
-		u8 larb_idx_revert = cfg->dpc ? comp->larb_idx : comp->larb_idx_dpc;
-
-		mml->port_srt_bw[larb_idx_revert][comp->larb_port] = srt_bw;
-		mml->port_hrt_bw[larb_idx_revert][comp->larb_port] = hrt_bw;
-	}
 
 skip_update:
 	if (cfg->dpc) {
@@ -2485,45 +2466,6 @@ void mml_isr_wait(struct mml_dev *mml, struct mml_task *task)
 	}
 }
 
-void mml_drv_sys_comp_set(struct mml_dev *mml, u32 sys_comp_id, u32 index)
-{
-	mml->sys_comps[index] = mml->comps[sys_comp_id];
-}
-EXPORT_SYMBOL_GPL(mml_drv_sys_comp_set);
-
-s32 mml_drv_sys_pw_enable(struct mml_dev *mml, enum mml_mode mode, bool by_mminfra,
-	s32 (*pw_enable)(struct mml_comp *comp, const s8 mode, bool pw_by_mminfra))
-{
-	s32 ret;
-	u32 i;
-
-	for (i = 0; i < ARRAY_SIZE(mml->sys_comps); i++) {
-		if (!mml->sys_comps[i])
-			break;
-		ret = pw_enable(mml->sys_comps[i], mode, by_mminfra);
-		if (ret < 0)
-			return ret;
-	}
-
-	return 0;
-}
-
-s32 mml_drv_sys_pw_disable(struct mml_dev *mml, enum mml_mode mode, bool by_mminfra,
-	s32 (*pw_disable)(struct mml_comp *comp, const s8 mode, bool pw_by_mminfra))
-{
-	s32 ret, i;
-
-	for (i = ARRAY_SIZE(mml->sys_comps) - 1; i >= 0; i--) {
-		if (!mml->sys_comps[i])
-			break;
-		ret = pw_disable(mml->sys_comps[i], mode, by_mminfra);
-		if (ret < 0)
-			return ret;
-	}
-
-	return 0;
-}
-
 static void mml_process_dbg_cmd(const char *cmd, struct mml_dev *mml)
 {
 	if (IS_ERR_OR_NULL(cmd)) {
@@ -2606,24 +2548,6 @@ static const struct proc_ops mml_debug_proc_fops = {
 };
 #endif
 
-static struct kthread_worker *mml_worker_create(const char *name)
-{
-	struct kthread_worker *kt;
-
-	kt = kthread_create_worker(0, name);
-	if (IS_ERR(kt)) {
-		/* create thread fail */
-		mml_log("%s create thread %s fail %pe", __func__, name, kt);
-	} else {
-		struct sched_param kt_param = { .sched_priority = 1 };
-		int ret = sched_setscheduler(kt->task, SCHED_FIFO, &kt_param);
-
-		mml_log("%s thread %s result %d", __func__, name, ret);
-	}
-
-	return kt;
-}
-
 static bool dbg_probed;
 static int mml_probe(struct platform_device *pdev)
 {
@@ -2638,8 +2562,17 @@ static int mml_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	platform_set_drvdata(pdev, mml);
 
-	for (i = 0; i < ARRAY_SIZE(mml->kt_workers); i++)
-		mml->kt_workers[i] = mml_worker_create(mml_kt_name[i]);
+	mml->kt_config = kthread_create_worker(0, "mml_work0");
+	if (IS_ERR(mml->kt_config)) {
+		ret = PTR_ERR(mml->kt_config);
+		mml_log("%s create thread fail %d", __func__, ret);
+		goto err_sys_add;
+	} else {
+		struct sched_param kt_param = { .sched_priority = MAX_RT_PRIO - 1 };
+
+		ret = sched_setscheduler(mml->kt_config->task, SCHED_FIFO, &kt_param);
+		mml_log("%s thread work0 ret %d", __func__, ret);
+	}
 
 	mml->pdev = pdev;
 	mutex_init(&mml->sys_state_mutex);
@@ -2815,14 +2748,10 @@ static void mml_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct mml_dev *mml = platform_get_drvdata(pdev);
-	u32 i;
 
-	for (i = 0; i < ARRAY_SIZE(mml->kt_workers); i++) {
-		if (!mml->kt_workers[i])
-			continue;
-		if (!IS_ERR(mml->kt_workers[i]))
-			kthread_destroy_worker(mml->kt_workers[i]);
-		mml->kt_workers[i] = NULL;
+	if (mml->kt_config) {
+		kthread_destroy_worker(mml->kt_config);
+		mml->kt_config = NULL;
 	}
 
 #ifdef MML_DEBUG_PROC

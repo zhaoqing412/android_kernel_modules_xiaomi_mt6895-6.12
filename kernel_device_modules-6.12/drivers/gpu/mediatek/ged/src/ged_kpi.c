@@ -60,8 +60,6 @@
 	pr_debug(GED_KPI_TAG"%s %d : "fmt, __func__, __LINE__, ##args)
 
 #define GED_KPI_SEC_DIVIDER 1000000000
-#define GED_KPI_FPS_INVALID_PERIOD 120000000 //ns
-
 #define GED_KPI_MAX_FPS 60
 /* set default margin to be distinct from FPSGO(0 or 3) */
 #define GED_KPI_DEFAULT_FPS_MARGIN 4
@@ -120,7 +118,6 @@ enum gpu_fps_reason {
 	GED_FPS_REASON_7 = 7,
 	GED_FPS_REASON_8 = 8,
 	GED_FPS_REASON_9 = 9,
-	GED_FPS_REASON_10 = 10, // long queue duration
 };
 
 
@@ -218,7 +215,6 @@ struct GED_KPI_HEAD {
 	int t_last_gpu_fps;
 	int candidate_fps;
 	int candidate_fps_cnt;
-	bool has_long_queue_period;
 
 	int t_cpu_target;
 	int t_gpu_target;
@@ -635,13 +631,6 @@ static inline void check_refresh_diff(struct GED_KPI_HEAD *psHead)
 			psHead->t_gpu_target = g_gpu_target_default;
 			return;
 		}
-
-		if (psHead->has_long_queue_period) {
-			psHead->t_use_gpu_fps_reason = GED_FPS_REASON_10;
-			psHead->t_gpu_target = g_gpu_target_default;
-			return;
-		}
-
 		if (psHead->t_gpu_fps < g_ged_gpu_fps[GED_FPS_LEVEL_0].fps_margin) {
 			// keep use previous fps
 			if (psHead->t_gpu_target < g_gpu_target_default) {
@@ -771,15 +760,10 @@ static inline void update_by_internal_fps(struct GED_KPI_HEAD *psHead, struct GE
 		psHead->ullElapsed_time_per_sec = 0;
 		psHead->frame_count = 0;
 		g_set_panel_refresh_rate = false;
-		psHead->has_long_queue_period = false;
 	} else {
 		psHead->ullElapsed_time_per_sec += ullTimeStampS_diff;
 		psHead->frame_count++;
 	}
-
-
-	if (ullTimeStampS_diff > GED_KPI_FPS_INVALID_PERIOD)
-		psHead->has_long_queue_period = true;
 
 	psHead->ullPreTimeStampS = psKPI->ullTimeStampS;
 
@@ -821,10 +805,10 @@ static inline void update_by_internal_fps(struct GED_KPI_HEAD *psHead, struct GE
 		psHead->frame_count = 0;
 		psHead->ullElapsed_time_per_sec = 0;
 		check_refresh_diff(psHead);
-		psHead->has_long_queue_period = false;
 		trace_GPU_DVFS__Policy__Common__Check_Target(psHead->pid,
 			(int)(psHead->ullWnd % 0xF), psHead->t_gpu_fps, psHead->t_use_gpu_fps_reason,
 			psHead->t_gpu_target);
+
 	}
 }
 
@@ -2371,13 +2355,11 @@ static GED_ERROR ged_kpi_push_timestamp(
 		case GED_TIMESTAMP_TYPE_1:
 			atomic_inc_return(&event_QedBuffer_cnt);
 			atomic_inc_return(&event_3d_fence_cnt);
-			if (!(is_fdvfs_enable() & POLICY_MODE_V2))
-				ged_eb_dvfs_task(EB_UPDATE_FB_TARGET_TIME, div_u64(fb_timeout, 1000));
+			ged_eb_dvfs_task(EB_UPDATE_FB_TARGET_TIME, div_u64(fb_timeout, 1000));
 			break;
 		case GED_TIMESTAMP_TYPE_2:
 			atomic_dec_return(&event_3d_fence_cnt);
-			if (!(is_fdvfs_enable() & POLICY_MODE_V2))
-				ged_eb_dvfs_task(EB_UPDATE_FB_TARGET_TIME_DONE, div_u64(fb_timeout, 1000));
+			ged_eb_dvfs_task(EB_UPDATE_FB_TARGET_TIME_DONE, div_u64(fb_timeout, 1000));
 			// reset SF edge effect api_boost
 			if (get_sf_edge_hint() == SF_EDGE_EFFECT && check_service_uncomplete())
 				reset_sf_edge_hint();
@@ -3141,11 +3123,9 @@ void ged_kpi_set_target_FPS_api(u64 ulID, int target_FPS, int target_FPS_margin)
 #ifdef MTK_GED_KPI
 	trace_tracing_mark_write(5566, "target_fps_api", target_FPS);
 
-	if (ulID == 0) {
+	if (ulID == 0)
 		ged_kpi_push_timestamp(GED_SET_PANEL_REFRESH_RATE, 0, -1, 0,
 			target_FPS, GED_API_FPS_HINT, -1, NULL);
-		ged_eb_dvfs_task(EB_SET_PANEL_REFRESH_RATE, target_FPS);
-	}
 	else
 		ged_kpi_push_timestamp(GED_SET_TARGET_FPS, 0, -1, ulID,
 			(target_FPS | (target_FPS_margin << 8)), GED_API_FPS_HINT, -1, NULL);
@@ -3504,20 +3484,10 @@ GED_ERROR ged_kpi_hint_frame_info(
 	if (out == NULL)
 		return GED_ERROR_FAIL;
 
-	if (is_fdvfs_enable() & POLICY_MODE_V2) {
-		out->mainHead_fps_v = g_target_fps_default;
-		out->mainHead_fps_gpu = 0;
-		out->mainHead_BQ_ID = 0;
-	} else if (main_head) {
-		out->mainHead_fps_v = main_head->target_fps_v;
-		out->mainHead_fps_gpu = main_head->t_gpu_fps;
-		out->mainHead_BQ_ID = main_head->ullWnd;
-	} else {
-		out->mainHead_fps_v = 0;
-		out->mainHead_fps_gpu = 0;
-		out->mainHead_BQ_ID = 0;
-	}
-
+	out->eError = GED_OK;
+	out->mainHead_fps_v = main_head->target_fps_v;
+	out->mainHead_fps_gpu = main_head->t_gpu_fps;
+	out->mainHead_BQ_ID = main_head->ullWnd;
 	return GED_OK;
 #else
 	return GED_OK;

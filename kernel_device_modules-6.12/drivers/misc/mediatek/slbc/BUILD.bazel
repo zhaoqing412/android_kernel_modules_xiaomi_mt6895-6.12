@@ -46,7 +46,6 @@ ddk_headers(
     hdrs = [
         "slbc_ops.h",
         "slbc_sdk.h",
-        "slbc_ipi.h",
     ],
     includes = ["."],
 )
@@ -104,9 +103,6 @@ define_mgk_ddk_ko(
     includes = [
         ".",
     ],
-    conditional_defines = {
-        "k6993v1_64":  ["CONFIG_OPLUS_FEATURE_SLC"],
-    },
     copts = [
         "-Wall",
         "-Werror",
@@ -150,9 +146,6 @@ define_mgk_ddk_ko(
     includes = [
         "include",
     ],
-    conditional_defines = {
-        "k6993v1_64":  ["CONFIG_OPLUS_FEATURE_SLC"],
-    },
     srcs = [
         "slbc_{}.c".format(p),
         "slbc.h",

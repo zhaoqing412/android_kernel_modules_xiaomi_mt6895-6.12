@@ -382,12 +382,6 @@ static void ccci_md_regulator_dump(void)
 #endif
 
 	for (idx = 0; idx < ARRAY_SIZE(md_reg_table); idx++) {
-//#ifdef OPLUS_FEATURE_TRACE
-		if (md_reg_table[idx].reg_ref == NULL) {
-			CCCI_ERROR_LOG(-1, TAG,"%s:fail ref is NULL !\n",__func__);
-			continue;
-		}
-//endif		
 		if (IS_ERR(md_reg_table[idx].reg_ref)) {
 			ret = PTR_ERR(md_reg_table[idx].reg_ref);
 			if (ret != -ENODEV) {

@@ -26,8 +26,6 @@
 			spmi-parity-err-clr = <0x4d0>;
 			spmi-parity-err-sts = <0x4d1>;
 			spmi-parity-err-cnt = <0x4d2>;
-			spmi-crc-err-sts = <MT6661_RGS_CRC_ERR_ADDR>;
-			spmi-crc-err-cnt = <MT6661_RGS_CRC_ERR_CNT_ADDR>;
 			pmic-pre-ot-cnt-enable = <1>;
 			pmic-pre-ot-cnt = <MT6661_RG_PRE_OT_COUNT_ADDR>;
 			pmic-pre-ot-cnt-clr = <MT6661_RG_PRE_OT_COUNT_CLR_ADDR
@@ -96,8 +94,8 @@
 
 		mt6661keys: mt6661keys {
 			compatible = "mediatek,mt6661-keys";
-			mediatek,long-press-mode = <2>;
-			power-off-time-sec = <1>;
+			mediatek,long-press-mode = <1>;
+			power-off-time-sec = <0>;
 
 			power {
 				linux,keycodes = <116>;
@@ -194,8 +192,6 @@
 				regulator-max-microvolt = <3700000>;
 				regulator-enable-ramp-delay = <200>;
 				regulator-allowed-modes = <0 2>;
-				regulator-always-on;
-				regulator-boot-on;
 				regulator-allow-set-load;
 			};
 			mt6661_4_ldc0_4: mt6661-4-ldc0-4 {
@@ -359,8 +355,6 @@
 			spmi-parity-err-clr = <0x4d0>;
 			spmi-parity-err-sts = <0x4d1>;
 			spmi-parity-err-cnt = <0x4d2>;
-			spmi-crc-err-sts = <MT6661_RGS_CRC_ERR_ADDR>;
-			spmi-crc-err-cnt = <MT6661_RGS_CRC_ERR_CNT_ADDR>;
 			pmic-pre-ot-cnt-enable = <1>;
 			pmic-pre-ot-cnt = <MT6661_RG_PRE_OT_COUNT_ADDR>;
 			pmic-pre-ot-cnt-clr = <MT6661_RG_PRE_OT_COUNT_CLR_ADDR
@@ -526,8 +520,8 @@
 			mt6661_3_ln60_5: mt6661-3-ln60-5 {
 				regulator-compatible = "LN60_5";
 				regulator-name = "mt6661_3_ln60_5";
-				regulator-min-microvolt = <1800000>;
-				regulator-max-microvolt = <1800000>;
+				regulator-min-microvolt = <500000>;
+				regulator-max-microvolt = <2090000>;
 				regulator-enable-ramp-delay = <200>;
 				regulator-allowed-modes = <0 2>;
 			};
@@ -673,8 +667,6 @@
 			spmi-parity-err-clr = <0x4d0>;
 			spmi-parity-err-sts = <0x4d1>;
 			spmi-parity-err-cnt = <0x4d2>;
-			spmi-crc-err-sts = <MT6661_RGS_CRC_ERR_ADDR>;
-			spmi-crc-err-cnt = <MT6661_RGS_CRC_ERR_CNT_ADDR>;
 			pmic-pre-ot-cnt-enable = <1>;
 			pmic-pre-ot-cnt = <MT6661_RG_PRE_OT_COUNT_ADDR>;
 			pmic-pre-ot-cnt-clr = <MT6661_RG_PRE_OT_COUNT_CLR_ADDR
@@ -1185,8 +1177,6 @@
 			spmi-parity-err-clr = <0x4d0>;
 			spmi-parity-err-sts = <0x4d1>;
 			spmi-parity-err-cnt = <0x4d2>;
-			spmi-crc-err-sts = <MT6661_RGS_CRC_ERR_ADDR>;
-			spmi-crc-err-cnt = <MT6661_RGS_CRC_ERR_CNT_ADDR>;
 			pmic-pre-ot-cnt-enable = <1>;
 			pmic-pre-ot-cnt = <MT6661_RG_PRE_OT_COUNT_ADDR>;
 			pmic-pre-ot-cnt-clr = <MT6661_RG_PRE_OT_COUNT_CLR_ADDR

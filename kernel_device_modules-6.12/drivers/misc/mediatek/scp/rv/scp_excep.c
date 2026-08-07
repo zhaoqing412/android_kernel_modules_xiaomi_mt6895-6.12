@@ -23,17 +23,12 @@
 #include "scp_feature_define.h"
 #include "scp_l1c.h"
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_FEEDBACK)
-#include <soc/oplus/system/kernel_fb.h>
-#endif
-
 #if IS_ENABLED(CONFIG_OF_RESERVED_MEM)
 #include <linux/of_reserved_mem.h>
 #include "scp_reservedmem_define.h"
 #endif
 #include "sap.h"
 
-#define BUS_TRACKER_ENTRY_CNT	32
 #define SCP_SECURE_DUMP_MEASURE 0
 #define POLLING_RETRY 400
 #if SCP_RESERVED_MEM && IS_ENABLED(CONFIG_OF_RESERVED_MEM) && SCP_SECURE_DUMP_MEASURE
@@ -194,9 +189,7 @@ void scp_dump_last_regs(void)
 		c1_t1_m->lr_latch = readl(R_CORE1_T1_MON_LR_LATCH);
 		c1_t1_m->sp_latch = readl(R_CORE1_T1_MON_SP_LATCH);
 	}
-
-	if(scpreg.tracker_version == BUS_TRACKER_LEGACY)
-		scp_dump_bus_tracker_status();
+	scp_dump_bus_tracker_status();
 }
 
 void scp_show_last_regs(void)
@@ -233,10 +226,7 @@ void scp_show_last_regs(void)
 		pr_notice("[SCP] c1h1_lr_latch = %08x\n", c1_t1_m->lr_latch);
 		pr_notice("[SCP] c1h1_sp_latch = %08x\n", c1_t1_m->sp_latch);
 	}
-	if(scpreg.tracker_version == BUS_TRACKER_LEGACY)
-		scp_show_bus_tracker_status();
-	else if(scpreg.tracker_version == BUS_TRACKER_V2)
-		scp_show_bus_tracker_status_v2();
+	scp_show_bus_tracker_status();
 }
 
 void scp_dump_bus_tracker_status(void)
@@ -298,30 +288,6 @@ void scp_show_bus_tracker_status(void)
 				bus_tracker->dbg_w[offset + 6],
 				bus_tracker->dbg_w[offset + 7]);
 		}
-}
-
-void scp_show_bus_tracker_status_v2(void)
-{
-	uint32_t offset;
-	int i;
-
-	pr_notice("[SCP] BUS DBG CON %08x\n", readl(SCP_BUS_DBG_CON));
-	if (readl(SCP_BUS_DBG_CON) & (IRQ_STA_AR_1ST_TIMEOUT | IRQ_STA_AW_1ST_TIMEOUT)) {
-		for (i = BUS_TRACKER_ENTRY_CNT - 1; i >= 0; --i) {
-			pr_notice("Record[%02u]:\n", i);
-			offset = i * 4;
-			pr_notice("[SCP] W_LOG: %08x\n", readl(SCP_BUS_DBG_AW_TRACK_LOG + offset));
-			pr_notice("[SCP] W_ID: %08x\n", readl(SCP_BUS_DBG_AW_TRACK_ID + offset));
-			pr_notice("[SCP] W_L: %08x\n", readl(SCP_BUS_DBG_AW_TRACK_L + offset));
-			pr_notice("[SCP] W_H: %08x\n", readl(SCP_BUS_DBG_AW_TRACK_H + offset));
-			pr_notice("[SCP] R_LOG: %08x\n", readl(SCP_BUS_DBG_AR_TRACK_LOG + offset));
-			pr_notice("[SCP] R_ID: %08x\n", readl(SCP_BUS_DBG_AR_TRACK_ID + offset));
-			pr_notice("[SCP] R_L: %08x\n", readl(SCP_BUS_DBG_AR_TRACK_L + offset));
-			pr_notice("[SCP] R_H: %08x\n", readl(SCP_BUS_DBG_AR_TRACK_H + offset));
-		}
-		if (scpreg.traker_timeout_bugon)
-			BUG_ON(1);
-	}
 }
 
 void scp_do_regdump(uint32_t *out, uint32_t *out_end)
@@ -526,21 +492,7 @@ static unsigned int scp_crash_dump(enum scp_core_id id)
 			scpdump_cal[idx].start = ktime_get_boottime_ns();
 #endif
 
-			/* polling status,
-			 * 0: FORCE_RST_STA_DONE
-			 * 1: FORCE_RST_STA_RETRY
-			 */
-			while (polling != 0 && retry > 0) {
-				polling = scp_do_dump(DO_DUMP);
-				retry--;
-			}
-
-			if (retry == 0)
-				pr_notice("[SCP] Force reset time out:%d\n", POLLING_RETRY);
-
-			/* reset val */
-			polling = 1;
-			retry = POLLING_RETRY;
+			scp_do_dump(DO_DUMP);
 
 #if SCP_SECURE_DUMP_MEASURE
 			scpdump_cal[idx].end = ktime_get_boottime_ns();
@@ -762,9 +714,6 @@ void scp_aed(enum SCP_RESET_TYPE type, enum scp_core_id id)
 	size_t timeout = msecs_to_jiffies(SCP_COREDUMP_TIMEOUT_MS);
 	size_t expire = jiffies + timeout;
 	int ret;
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_FEEDBACK)
-	unsigned char fb_str[256] = "";
-#endif
 
 	if (!scp_ee_enable) {
 		pr_debug("[SCP]ee disable value=%d\n", scp_ee_enable);
@@ -838,17 +787,6 @@ void scp_aed(enum SCP_RESET_TYPE type, enum scp_core_id id)
 		/* scp aed api, only detail information available*/
 		aed_common_exception_api("scp", NULL, 0, NULL, 0,
 			scp_dump.detail_buff, DB_OPT_DEFAULT);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_FEEDBACK)
-		if (scpreg.core_nums == 2) {
-			scnprintf(fb_str, sizeof(fb_str), "%s: core0 pc:0x%08x,lr:0x%08x;core1 pc:0x%08x,lr:0x%08x:$$module@@scp",
-				scp_aed_title, c0_m->pc, c0_m->lr, c1_m->pc, c1_m->lr);
-		} else {
-			scnprintf(fb_str, sizeof(fb_str), "%s: core0 pc:0x%08x,lr:0x%08x:$$module@@scp",
-			scp_aed_title, c0_m->pc, c0_m->lr);
-		}
-		oplus_kevent_fb_str(FB_SENSOR, FB_SENSOR_ID_CRASH, fb_str);
-		pr_notice("[SCP] %s, db feedback is running, core_nums %d\n", __func__, scpreg.core_nums);
-#endif
 	}
 #endif
 

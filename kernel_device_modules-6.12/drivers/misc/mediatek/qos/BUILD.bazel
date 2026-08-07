@@ -67,9 +67,6 @@ ddk_headers(
     name = "ddk_public_headers",
     hdrs = [
         "mtk_qos_bound.h",
-        "mtk_qos_sram.h",
-        "mtk_qos_share.h",
-        "mtk_qos_ipi.h",
     ],
     includes = ["."],
 )

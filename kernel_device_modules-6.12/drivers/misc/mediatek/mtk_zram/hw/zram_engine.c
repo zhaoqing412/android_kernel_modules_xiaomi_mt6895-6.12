@@ -12,7 +12,6 @@
 
 #include <linux/kthread.h>
 #include <linux/sched.h>
-#include <uapi/linux/sched/types.h>
 #include <linux/sched_clock.h>
 #include <linux/swap.h>
 #include <linux/highmem.h>
@@ -196,7 +195,6 @@ enum glaflags {
 	GLA_decdone,		/* Gear down for decompression */
 	GLA_encrst,		/* Notify requesters we will reset compression. Don't bother us */
 	GLA_decrst,		/* Notify requesters we will reset decompression. Don't bother us */
-	GLA_encrstfail,		/* Notify requesters that it's failed to reset compression */
 };
 
 #define SETGLAFLAG(uname, lname)					\
@@ -229,7 +227,6 @@ GLAFLAG(Encdone, encdone);
 GLAFLAG(Decdone, decdone);
 GLAFLAG(EncRst, encrst);
 GLAFLAG(DecRst, decrst);
-GLAFLAG(EncRstFail, encrstfail);
 
 static unsigned long gla_flags;
 
@@ -449,8 +446,9 @@ static irqreturn_t dcomp_irq_handler(int irq, void *data)
 static irqreturn_t smmu_irq_handler(int irq, void *data)
 {
 	struct zram_engine_t *hwz = data;
-	uint32_t status;
-	uint32_t pend_cnt;
+	//uint32_t status;
+
+	pr_info("%s\n", __func__);
 
 	if (!hwz)
 		return IRQ_HANDLED;
@@ -462,39 +460,8 @@ static irqreturn_t smmu_irq_handler(int irq, void *data)
 		return IRQ_HANDLED;
 	}
 
-	if (engine_gear_get_clock_not_zero_irq_safe(&hwz->gear_ctrl) != 0) {
-#ifdef ZRAM_ENGINE_DEBUG
-		pr_info("%s: engine is off!\n", __func__);
-#endif
-		return IRQ_HANDLED;
-	}
+	/* TODO: handle translation fault */
 
-	/* Handle TBU RAS fault */
-	status = engine_get_smmu_tbu_irq_sta(&hwz->ctrl);
-	if (status == 0) {
-		pr_info("%s: %x\n", __func__, status);
-		engine_gear_put_clock_irq_safe(&hwz->gear_ctrl);
-		return IRQ_HANDLED;
-	}
-
-	pr_info("%s: %x\n", __func__, status);
-
-	if (status & ZRAM_TBU_IRQ_STA_RAS_CRI) {
-		pend_cnt = engine_clear_smmu_tbu_irq(&hwz->ctrl, ZRAM_TBU_IRQ_STA_RAS_CRI_BIT);
-		pr_info("%s: RAS CRI detected %u\n", __func__, pend_cnt);
-	}
-
-	if (status & ZRAM_TBU_IRQ_STA_RAS_ERI) {
-		pend_cnt = engine_clear_smmu_tbu_irq(&hwz->ctrl, ZRAM_TBU_IRQ_STA_RAS_ERI_BIT);
-		pr_info("%s: RAS ERI detected %u\n", __func__, pend_cnt);
-	}
-
-	if (status & ZRAM_TBU_IRQ_STA_RAS_FHI) {
-		pend_cnt = engine_clear_smmu_tbu_irq(&hwz->ctrl, ZRAM_TBU_IRQ_STA_RAS_FHI_BIT);
-		pr_info("%s: RAS FHI detected %u\n", __func__, pend_cnt);
-	}
-
-	engine_gear_put_clock_irq_safe(&hwz->gear_ctrl);
 	return IRQ_HANDLED;
 }
 
@@ -1052,47 +1019,20 @@ static void comp_hang_handle(struct zram_engine_t *hwz)
 	spin_unlock(&hwz->comp_fifo_lock);
 }
 
-/* Post processing range for compression error */
-static uint32_t comp_error_processing_range(struct zram_engine_t *hwz, struct hwfifo *fifo,
-		uint32_t start, uint32_t end)
-{
-	uint32_t index, entry;
-	uint32_t processed = 0;
-	struct compress_cmd *cmdp;
-	struct comp_pp_info *pp_info;
-
-#ifdef ZRAM_ENGINE_DEBUG
-	pr_info("%s: fifo(%d) - start(0x%x), end(0x%x)", __func__, fifo->id, start, end);
-#endif
-
-	/* Change cmd status and do post processing */
-	for (index = start; index != end; index = (index + 1) & ENGINE_COMP_FIFO_ENTRY_CARRY_MASK) {
-		entry = index & ENGINE_COMP_FIFO_ENTRY_MASK;
-		cmdp = COMP_CMD(fifo, entry);
-		pp_info = COMP_CMPL(fifo, entry);
-		set_comp_cmd_as_error(cmdp);
-		hwz->ops->comp_process_completed_cmd(fifo, entry, true);
-		atomic_dec(&hwz->comp_cnt);
-		update_comp_fifo_complete_index(fifo);
-		processed++;
-	}
-
-	/* Mark end for next iteration */
-	fifo->pp_prev_end = end;
-
-	return processed;
-}
-
-
 #define FM_ZRAM_SUB_CK			(7)
 #define MAX_TIMEOUT_AFTER_RESET_IN_MS	(100)
 /* Handler (with engine reset) when comp is not started successfully */
 static uint32_t comp_hang_handle_with_reset(struct zram_engine_t *hwz, struct hwfifo *fifo)
 {
+	uint32_t start, end, index, entry;
 	uint32_t processed = 0;
+	struct compress_cmd *cmdp;
+	struct comp_pp_info *pp_info;
 	struct hwfifo *rfifo; /* reset fifo */
 	int i;
+#if IS_ENABLED(CONFIG_MTK_VM_DEBUG)
 	static bool warn_on_wait_idle_timeout = true;
+#endif
 
 	/* Increase the count to recover hang */
 	atomic_inc(&enc_recover_hang_count);
@@ -1110,6 +1050,7 @@ static uint32_t comp_hang_handle_with_reset(struct zram_engine_t *hwz, struct hw
 
 	/* Do warm reset & wait for idle */
 	engine_enc_reset(&hwz->ctrl);
+#if IS_ENABLED(CONFIG_MTK_VM_DEBUG)
 	if (engine_enc_wait_idle_timeout(&hwz->ctrl, MAX_TIMEOUT_AFTER_RESET_IN_MS)) {
 		/* Show warning & dump information once to avoid log flooding */
 		if (READ_ONCE(warn_on_wait_idle_timeout)) {
@@ -1120,23 +1061,37 @@ static uint32_t comp_hang_handle_with_reset(struct zram_engine_t *hwz, struct hw
 			WARN_ON(1);
 			WRITE_ONCE(warn_on_wait_idle_timeout, false);
 		}
-		/* Mark it's failed to reset compression */
-		SetGlaEncRstFail(&gla_flags);
 	}
+#else
+	engine_enc_wait_idle(&hwz->ctrl);
+#endif
+
+	/* Acquire the range for post-processing */
+	start = fifo->pp_prev_end;
+	end = fifo->write_idx;
+
+#ifdef ZRAM_ENGINE_DEBUG
+	pr_info("%s: fifo(%d) - start(0x%x), end(0x%x)", __func__, hwz->curr_fifo, start, end);
+#endif
 
 	/* Change cmd status and do post processing */
-	processed += comp_error_processing_range(hwz, fifo, fifo->pp_prev_end, fifo->write_idx);
+	for (index = start; index != end; index = (index + 1) & ENGINE_COMP_FIFO_ENTRY_CARRY_MASK) {
+		entry = index & ENGINE_COMP_FIFO_ENTRY_MASK;
+		cmdp = COMP_CMD(fifo, entry);
+		pp_info = COMP_CMPL(fifo, entry);
+		set_comp_cmd_as_error(cmdp);
+		hwz->ops->comp_process_completed_cmd(fifo, entry, true);
+		atomic_dec(&hwz->comp_cnt);
+		update_comp_fifo_complete_index(fifo);
+		processed++;
+	}
+
+	/* Mark end for next iteration */
+	fifo->pp_prev_end = end;
 
 	/* Reset indices */
 
 	spin_lock(&hwz->comp_fifo_lock);
-
-	/* Failed to reset compression. Do post processing on the other fifo */
-	if (GlaEncRstFail(&gla_flags)) {
-		rfifo = &hwz->comp_fifo[(hwz->curr_fifo + 1) % MAX_COMP_NR];
-		processed += comp_error_processing_range(hwz, rfifo, rfifo->pp_prev_end, rfifo->write_idx);
-		goto exit;
-	}
 
 	/* 1. Change to offset index mode */
 	engine_enc_change_mode(&hwz->ctrl, true);
@@ -1166,7 +1121,6 @@ static uint32_t comp_hang_handle_with_reset(struct zram_engine_t *hwz, struct hw
 	engine_enc_change_mode(&hwz->ctrl, false);
 	engine_enc_wait_idle(&hwz->ctrl);
 
-exit:
 	spin_unlock(&hwz->comp_fifo_lock);
 
 	/* Reset is finished. Show information for debug */
@@ -1310,17 +1264,11 @@ exit:
 static int comp_post_process(void *data)
 {
 	struct zram_engine_t *hwz = data;
-	struct sched_attr attr = {
-		.sched_policy = SCHED_NORMAL,
-		.sched_nice = -10,
-	};
 	unsigned long pflags;
 	uint32_t processed, total_processed;
 	uint32_t hang_detect, suspect_hang;
 	int cnt;
 	DEFINE_WAIT(wait);
-
-	WARN_ON_ONCE(sched_setattr_nocheck(current, &attr) != 0);
 
 	current->flags |= PF_MEMALLOC;
 
@@ -1668,12 +1616,6 @@ int hwcomp_compress_page(void *hw, struct page *page, struct comp_pp_info *pp_in
 
 	/* Lock */
 	spin_lock(&hwz->comp_fifo_lock);
-	/* Engine compression is disabled */
-	if (GlaEncRstFail(&gla_flags)) {
-		spin_unlock(&hwz->comp_fifo_lock);
-		return -ENOENT;
-	}
-
 	fifo = &hwz->comp_fifo[hwz->curr_fifo];
 
 next_cmd_fifo:

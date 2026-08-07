@@ -112,21 +112,6 @@
 #include "mtk_disp_bdg.h"
 
 #include "mtk_disp_vdisp_ao.h"
-#ifdef OPLUS_FEATURE_DISPLAY
-#include "oplus_dsi_display_config.h"
-#include "oplus_display_proc.h"
-#include "oplus_display_sysfs_attrs.h"
-#include "oplus_display_device.h"
-#include "oplus_display_trackpoint_report.h"
-#include <mt-plat/mtk_boot_common.h>
-extern unsigned int silence_mode;
-extern int oplus_ofp_get_fp_type(void *buf);
-static unsigned int fp_type;
-static bool is_get_fp_type = false;
-#endif /* OPLUS_FEATURE_DISPLAY  */
-#ifdef OPLUS_FEATURE_DISPLAY_ADFR
-#include "oplus_adfr.h"
-#endif /* OPLUS_FEATURE_DISPLAY_ADFR  */
 #define CLKBUF_COMMON_H
 
 #define DRIVER_NAME "mediatek"
@@ -149,7 +134,6 @@ u32 *disp_perfs;
 static atomic_t top_isr_ref; /* irq power status protection */
 static atomic_t top_clk_ref; /* top clk status protection*/
 static spinlock_t top_clk_lock; /* power status protection*/
-static atomic_t debug_power_async = ATOMIC_INIT(0);
 
 struct device *g_dpc_dev; /* mminfra power control */
 
@@ -1073,13 +1057,6 @@ static void mtk_atomic_doze_update_pq(struct drm_crtc *crtc, unsigned int stage,
 		crtc->state->active, old_state, stage);
 	mtk_state = to_mtk_crtc_state(crtc->state);
 
-#ifdef OPLUS_FEATURE_DISPLAY
-	if (!is_get_fp_type) {
-		is_get_fp_type = true;
-		oplus_ofp_get_fp_type(&fp_type);
-	}
-#endif
-
 	if (!crtc->state->active) {
 		if (mtk_state->doze_changed &&
 			!mtk_state->prop_val[CRTC_PROP_DOZE_ACTIVE]) {
@@ -1133,21 +1110,13 @@ static void mtk_atomic_doze_update_pq(struct drm_crtc *crtc, unsigned int stage,
 			mtk_crtc->gce_obj.event[EVENT_CMD_EOF]);
 
 	for_each_comp_in_cur_crtc_path(comp, mtk_crtc, i, j) {
-#ifdef OPLUS_FEATURE_DISPLAY
-		if (((fp_type & 0x100) != 0x100) && (comp->doze_bypass & DOZE_BYPASS_PQ))
-#else
 		if (comp->doze_bypass & DOZE_BYPASS_PQ)
-#endif
 			mtk_ddp_comp_bypass(comp, bypass, PQ_FEATURE_KRN_DOZE, cmdq_handle);
 	}
 
 	if (mtk_crtc->is_dual_pipe) {
 		for_each_comp_in_dual_pipe(comp, mtk_crtc, i, j) {
-#ifdef OPLUS_FEATURE_DISPLAY
-			if (((fp_type & 0x100) != 0x100) && (comp->doze_bypass & DOZE_BYPASS_PQ))
-#else
 			if(comp->doze_bypass & DOZE_BYPASS_PQ)
-#endif
 				mtk_ddp_comp_bypass(comp, bypass, PQ_FEATURE_KRN_DOZE, cmdq_handle);
 		}
 	}
@@ -1567,9 +1536,6 @@ static enum mml_mode _mtk_atomic_mml_plane(struct drm_device *dev,
 			goto err_submit;
 		}
 
-		if (mtk_crtc->mml_disabled)
-			return MML_MODE_UNKNOWN;
-
 		mtk_drm_idlemgr_kick(__func__, crtc, false); /* power on dsi */
 
 		/* fill back mml submit roi to crtc_state roi */
@@ -1585,9 +1551,6 @@ static enum mml_mode _mtk_atomic_mml_plane(struct drm_device *dev,
 			memcpy(&crtc_state->mml_dst_roi_dual[1], &mtk_crtc->mml_cfg->dl_out[1],
 			    sizeof(struct mml_rect));
 		mtk_crtc->mml_cfg->disp_id = mtk_crtc->cur_present_fence_idx;
-
-		CRTC_MMP_MARK(0, mml_dbg, crtc_state->prop_val[CRTC_PROP_LYE_IDX],
-			MMP_MML_RESUBMIT);
 
 		ret = mml_drm_submit(mml_ctx, mtk_crtc->mml_cfg, &(mtk_crtc->mml_cb));
 		mml_drm_put_context(mml_ctx);	/* ref cnt dec */
@@ -1752,9 +1715,6 @@ static enum mml_mode _mtk_atomic_mml_plane(struct drm_device *dev,
 	}
 	mtk_crtc->is_mml_submit = true;
 	mtk_crtc->is_mml_submit_success = true;
-	mtk_crtc->mml_disabled = false;
-	CRTC_MMP_MARK(0, mml_dbg, crtc_state->prop_val[CRTC_PROP_LYE_IDX],
-		MMP_MML_PLANE_ENABLED);
 
 	atomic_set(&(mtk_crtc->wait_mml_last_job_is_flushed), 0);
 
@@ -1845,24 +1805,6 @@ static void mtk_atomic_mml(struct drm_device *dev,
 				mtk_plane_state->mml_cfg = mtk_crtc->mml_cfg_pq;
 			}
 		}
-	}
-
-	if (!mtk_crtc->is_mml_submit) {
-		for_each_old_plane_in_state(state, plane, old_plane_state, i) {
-			plane_state = plane->state;
-			mtk_plane_state = to_mtk_plane_state(plane_state);
-			if (plane_state && !plane_state->crtc &&
-				mtk_plane_state->prop_val[PLANE_PROP_IS_MML]) {
-				mtk_crtc->mml_disabled = true;
-				break;
-			}
-		}
-	}
-	if (mtk_crtc->mml_disabled) {
-		mtk_crtc->is_mml_submit = false;
-		mtk_crtc_state->lye_state.mml_dl_lye = 0;
-		CRTC_MMP_MARK(0, mml_dbg, mtk_crtc_state->prop_val[CRTC_PROP_LYE_IDX],
-			MMP_MML_PLANE_DISABLED);
 	}
 
 	/* return this function when CRTC's no plane to update and exist lye_state with mml lye config */
@@ -2005,28 +1947,6 @@ static void mtk_atomic_complete(struct mtk_drm_private *private,
 	mtk_set_first_config(drm, state);
 
 	mtk_drm_enable_trig(drm, state);
-
-#ifdef OPLUS_FEATURE_DISPLAY_ADFR
-	unsigned int crtc_mask = mtk_atomic_crtc_mask(drm, state);
-
-	if (private->crtc[0]) {
-		oplus_adfr_set_current_crtc(private->crtc[0]);
-	} else if (private->crtc[3]) {
-		oplus_adfr_set_current_crtc(private->crtc[3]);
-	}
-
-	if (crtc_mask & BIT(0)) {
-		struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(private->crtc[0]);
-		if (mtk_crtc) {
-			oplus_adfr_auto_mode_update(mtk_crtc);
-		}
-	} else if (crtc_mask & BIT(3)) {
-		struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(private->crtc[3]);
-		if (mtk_crtc) {
-			oplus_adfr_auto_mode_update(mtk_crtc);
-		}
-	}
-#endif
 
 	mtk_atomic_disp_rsz_roi(drm, state);
 
@@ -2358,6 +2278,84 @@ static void mtk_atomic_check_res_switch(struct mtk_drm_private *private,
 	}
 }
 
+static void mtk_atomic_delay(struct mtk_drm_private *private,
+	struct drm_crtc_state *new_crtc_state)
+{
+	/* First atomic_delay before commit LOCK: to second last little te*/
+	struct mtk_crtc_state *mtk_state = to_mtk_crtc_state(new_crtc_state);
+	struct drm_crtc *crtc = NULL;
+	struct mtk_panel_params *params;
+	int crtc_index;
+	unsigned int delay_us = 0;
+	unsigned long long current_time = ktime_get();
+	unsigned long long ept_time = mtk_state->prop_val[CRTC_PROP_EPT];
+	unsigned int te_step_time = 0;
+	unsigned long long x_time = 0;
+	struct mtk_drm_crtc *mtk_crtc;
+	uint64_t atomic_commit_reserved_ns = 0;
+
+	if (!private|| !private->drm) {
+		DDPPR_ERR("%s:%d invalid fetching\n", __func__, __LINE__);
+		return;
+	}
+
+	//only find first crtc
+	crtc = list_first_entry(&(private->drm)->mode_config.crtc_list,
+		typeof(*crtc), head);
+
+	if (IS_ERR_OR_NULL(crtc)) {
+		DDPPR_ERR("find crtc fail\n");
+		return;
+	}
+
+	mtk_crtc = to_mtk_crtc(crtc);
+	params = mtk_drm_get_lcm_ext_params(crtc);
+	crtc_index = drm_crtc_index(crtc);
+	atomic_commit_reserved_ns = mtk_crtc->crtc_caps.atomic_commit_reserved_ns;
+	if (!params) {
+		DDPPR_ERR("%s:%d invalid fetching\n", __func__, __LINE__);
+		return;
+	}
+
+	te_step_time = params->real_te_duration;
+	DDPDBG("%s:%d te_step_time:%u\n", __func__, __LINE__, te_step_time);
+
+	if ((ept_time == 0) || (te_step_time == 0) ||
+		(atomic_commit_reserved_ns == 0) ||
+		(ept_time/1000 <= current_time/1000) ||
+		(mtk_state->prop_val[CRTC_PROP_USER_SCEN] == 1))
+		return;
+
+	x_time = ept_time/1000 - current_time/1000;
+	//real_te_duration = 8.3ms > 3ms, then wait to the last TE
+	if ((te_step_time > atomic_commit_reserved_ns/1000) &&
+		(x_time > te_step_time))
+		delay_us = x_time - te_step_time;
+	// Sleep without LOCK: sleep to (EPT - 3ms)
+	// Ideally, atomic commit can be finished within 2ms
+	else if ((atomic_commit_reserved_ns/1000 >= te_step_time) &&
+		(x_time > atomic_commit_reserved_ns/1000))
+		delay_us = x_time - atomic_commit_reserved_ns/1000;
+	else
+		delay_us = 0;
+	if (delay_us == 0)
+		return;
+
+	if (delay_us < 1000000) {
+		mtk_drm_trace_begin("atomic_delay_first_sleep:%u", delay_us);
+		CRTC_MMP_EVENT_START(crtc_index, atomic_delay, delay_us, 0);
+
+		usleep_range(delay_us, delay_us + 1);
+
+		CRTC_MMP_EVENT_END(crtc_index, atomic_delay, delay_us, 0);
+		mtk_drm_trace_end();
+		DDPINFO("%s:%d CPU delay: atomic_delay st sleep %u us\n",
+			__func__, __LINE__, delay_us);
+	} else
+		DDPINFO("%s:%d delay_us too much %u us\n",
+			__func__, __LINE__, delay_us);
+}
+
 static int mtk_atomic_commit(struct drm_device *drm,
 			     struct drm_atomic_state *state, bool async)
 {
@@ -2416,6 +2414,9 @@ static int mtk_atomic_commit(struct drm_device *drm,
 		}
 		break;
 	}
+
+	if (mtk_drm_helper_get_opt(private->helper_opt, MTK_DRM_OPT_WAIT_EPT))
+		mtk_atomic_delay(private, new_crtc_state);
 
 	DDP_COMMIT_LOCK(&private->commit.lock, __func__, pf);
 	DRM_MMP_EVENT_START(mutex_lock, 0, 0);
@@ -4152,6 +4153,10 @@ static const enum pwr_clk_id mt6993_pwr_on_order[] = {
 	CLK_OVL0,
 	CLK_OVL1,
 	CLK_OVL2,
+	CLK_MML0,
+	CLK_MML1,
+	CLK_MML2,
+
 };
 
 static const enum pwr_clk_id mt6993_pwr_off_order[] = {
@@ -4162,6 +4167,9 @@ static const enum pwr_clk_id mt6993_pwr_off_order[] = {
 	CLK_OVL0,
 	CLK_OVL1,
 	CLK_OVL2,
+	CLK_MML0,
+	CLK_MML1,
+	CLK_MML2,
 	CLK_DSI_PHY0,
 };
 
@@ -4560,25 +4568,20 @@ static const struct mtk_addon_module_data mt6993_addon_wdma1_data[] = {
 };
 
 static const struct mtk_addon_module_data mt6993_addon_wdma1_pq_data[] = {
-	/* mt6993 CWB MTK_DRM_MID -> WDMA_WRITE_BACK_MID */
-	{DISP_WDMA1_v3, ADDON_AFTER, DDP_COMPONENT_DLI_ASYNC21},
-};
-
-static const struct mtk_addon_module_data mt6993_addon_wdma1_pc_data[] = {
 	/* mt6993 CWB MTK_DRM_AFTER_PQ -> WDMA_WRITE_BACK */
 #ifdef DRM_BYPASS_PQ_MT6993
-	{DISP_WDMA1_v3, ADDON_AFTER, DDP_COMPONENT_DLI_ASYNC20},
+	{DISP_WDMA1_v3_PQ, ADDON_AFTER, DDP_COMPONENT_DLI_ASYNC20},
 #else
-	{DISP_WDMA1_v3, ADDON_AFTER, DDP_COMPONENT_POSTALIGN0},
+	{DISP_WDMA1_v3_PQ, ADDON_AFTER, DDP_COMPONENT_POSTALIGN0},
 #endif
 };
 
 static const struct mtk_addon_module_data mt6993_addon_wdma1_dbi_data[] = {
 	/* mt6993 CWB MTK_DRM_DBI -> WDMA_WRITE_BACK_DBI */
 #ifdef DRM_BYPASS_PQ_MT6993
-	{DISP_WDMA1_v3, ADDON_AFTER, DDP_COMPONENT_DLI_ASYNC20},
+	{DISP_WDMA1_v3_DBI, ADDON_AFTER, DDP_COMPONENT_DLI_ASYNC20},
 #else
-	{DISP_WDMA1_v3, ADDON_AFTER, DDP_COMPONENT_DBI_COUNT0},
+	{DISP_WDMA1_v3_DBI, ADDON_AFTER, DDP_COMPONENT_DBI_COUNT0},
 #endif
 };
 
@@ -5158,8 +5161,8 @@ static const struct mtk_addon_scenario_data mt6993_addon_main[ADDON_SCN_NR] = {
 		.hrt_type = HRT_TB_TYPE_GENERAL1,
 	},
 	[WDMA_WRITE_BACK] = {
-		.module_num = ARRAY_SIZE(mt6993_addon_wdma1_pc_data),
-		.module_data = mt6993_addon_wdma1_pc_data,
+		.module_num = ARRAY_SIZE(mt6993_addon_wdma1_pq_data),
+		.module_data = mt6993_addon_wdma1_pq_data,
 		.hrt_type = HRT_TB_TYPE_GENERAL1,
 	},
 
@@ -7561,7 +7564,6 @@ static const struct mtk_mmsys_driver_data mt6993_mmsys_driver_data = {
 	.bypass_infra_ddr_control = true,
 	.use_infra_mem_res = false,
 	.disable_merge_irq = mtk_ddp_disable_merge_irq_MT6993,
-	.disable_inten = mtk_ddp_disable_inten_MT6993,
 	.gce_event_config = mtk_gce_event_config_MT6993,
 	.vdisp_ao_irq_config = mtk_vdisp_ao_irq_config_MT6993,
 	.vdisp_ao_qos_config = mtk_vdisp_ao_qos_config_MT6993,
@@ -7578,7 +7580,6 @@ static const struct mtk_mmsys_driver_data mt6993_mmsys_driver_data = {
 	.get_channel_idx = mtk_disp_get_channel_idx,
 	.pwr_clk_map = pwr_clk_map,
 	.pwr_on_order = mt6993_pwr_on_order,
-	.pwr_on_async_id = 8,
 	.pwr_off_order = mt6993_pwr_off_order,
 	.pwr_length = ARRAY_SIZE(mt6993_pwr_on_order),
 	//.update_channel_hrt = mtk_disp_update_channel_hrt_MT6993,
@@ -7905,50 +7906,7 @@ int mtk_drm_esd_recovery_check_ioctl(struct drm_device *dev, void *data,
 	return 0;
 }
 
-static int mtk_drm_subsys_poweron_thread_block(void *data)
-{
-	unsigned int i, count = 0;
-	struct mtk_drm_private *priv = (struct mtk_drm_private *)data;
-
-	if (IS_ERR_OR_NULL(priv))
-		return -1;
-
-	if (priv->data->pwr_on_async_id > 0 &&
-		priv->data->pwr_on_async_id < priv->data->pwr_length)
-		count = priv->data->pwr_on_async_id;
-	else
-		count = priv->data->pwr_length;
-
-	mtk_drm_trace_begin("mtcmos:0~%u block", count - 1);
-	for (i = 0; i < count; i++)
-		clk_prepare_enable(priv->pwr_clks[priv->data->pwr_on_order[i]]);
-	mtk_drm_trace_end();
-	return 0;
-}
-
-static int mtk_drm_subsys_poweron_thread_async(void *data)
-{
-	unsigned int i, start;
-	struct mtk_drm_private *priv = (struct mtk_drm_private *)data;
-
-	if (IS_ERR_OR_NULL(priv))
-		return -1;
-
-	if (priv->data->pwr_on_async_id > 0 &&
-		priv->data->pwr_on_async_id < priv->data->pwr_length)
-		start = priv->data->pwr_on_async_id;
-	else
-		return 0;
-
-	mtk_drm_trace_begin("mtcmos:%u~%u async",
-		start, priv->data->pwr_length - 1);
-	for (i = start; i < priv->data->pwr_length; i++)
-		clk_prepare_enable(priv->pwr_clks[priv->data->pwr_on_order[i]]);
-	mtk_drm_trace_end();
-	return 0;
-}
-
-int mtk_drm_pm_ctrl_func(struct drm_crtc *crtc, struct mtk_drm_private *priv, enum disp_pm_action action)
+int mtk_drm_pm_ctrl(struct mtk_drm_private *priv, enum disp_pm_action action)
 {
 	int ret = 0, i;
 
@@ -8037,26 +7995,9 @@ int mtk_drm_pm_ctrl_func(struct drm_crtc *crtc, struct mtk_drm_private *priv, en
 #endif
 		if (priv->pwr_node) {
 			mtk_vidle_mminfra_on_off(true);
-			mtk_drm_trace_begin("pre_cg");
 			mtk_vidle_pre_cg_ctrl(true);
-			mtk_drm_trace_end();
-			if (!IS_ERR_OR_NULL(crtc) && (atomic_read(&debug_power_async) & 0x1) &&
-				priv->data->pwr_on_async_id > 0 &&
-				mtk_drm_idlemgr_get_async_status(crtc)) {
-				mtk_drm_subsys_poweron_thread_block((void *)priv);
-
-				ret = mtk_drm_sw_async_trigger(crtc, USER_SW_ASYNC_POWER,
-							mtk_drm_subsys_poweron_thread_async, (void *)priv);
-				if (ret < 0) {
-					DDPMSG("%s: sw_async_trigger failed, ret: %d\n", __func__, ret);
-					mtk_drm_subsys_poweron_thread_async((void *)priv);
-				}
-			} else {
-				mtk_drm_trace_begin("mtcmos:0~%d block", priv->data->pwr_length - 1);
-				for (i = 0; i < priv->data->pwr_length; i++)
-					clk_prepare_enable(priv->pwr_clks[priv->data->pwr_on_order[i]]);
-				mtk_drm_trace_end();
-			}
+			for (i = 0; i < priv->data->pwr_length; i++)
+				clk_prepare_enable(priv->pwr_clks[priv->data->pwr_on_order[i]]);
 		} else {
 			if (priv->dsi_phy0_dev) {
 				ret = pm_runtime_resume_and_get(priv->dsi_phy0_dev);
@@ -8207,18 +8148,6 @@ err_dpc_dev:
 	return -1;
 }
 
-int mtk_drm_pm_ctrl(struct mtk_drm_private *priv, enum disp_pm_action action)
-{
-	return mtk_drm_pm_ctrl_func(NULL, priv, action);
-}
-
-void mtk_drm_pm_ctrl_async_debug(unsigned int data)
-{
-	DDPMSG("%s, update power async:0x%x->0x%x\n",
-		atomic_read(&debug_power_async), data);
-	atomic_set(&debug_power_async, data);
-}
-
 static void mtk_drm_get_pwr_clk(struct mtk_drm_private *priv)
 {
 	struct device *dev = priv->mmsys_dev;
@@ -8318,25 +8247,6 @@ static void mtk_drm_get_top_clk(struct mtk_drm_private *priv)
 	}
 }
 
-static int mtk_drm_power_on_vidle_func(void *data)
-{
-	struct mtk_drm_private *priv = (struct mtk_drm_private *)data;
-
-	if (IS_ERR_OR_NULL(priv))
-		return -1;
-
-	mtk_drm_trace_begin("vidle_en");
-	mtk_vidle_enable(true, priv);
-	mtk_drm_trace_end();
-	mtk_vidle_hint_update(VIDLE_HINT_MTCMOS_ON);
-
-	mtk_drm_trace_begin("vidle_cfg");
-	mtk_vidle_config_ff(false);
-	mtk_drm_trace_end();
-
-	return 0;
-}
-
 void mtk_drm_top_clk_prepare_enable(struct drm_crtc *crtc)
 {
 	struct mtk_drm_private *priv = crtc->dev->dev_private;
@@ -8344,19 +8254,13 @@ void mtk_drm_top_clk_prepare_enable(struct drm_crtc *crtc)
 	bool en = 1;
 	int ret;
 	unsigned long flags = 0;
-#ifdef OPLUS_FEATURE_DISPLAY
-	struct mtk_crtc_state *mtk_crtc_state = to_mtk_crtc_state(crtc->state);
-#endif /* OPLUS_FEATURE_DISPLAY */
 
 	if (priv->top_clk_num <= 0)
 		return;
 
 	//set_swpm_disp_active(true);
-	mtk_drm_trace_begin("mtcmos_on");
-	mtk_drm_pm_ctrl_func(crtc, priv, DISP_PM_GET);
-	mtk_drm_trace_end();
+	mtk_drm_pm_ctrl(priv, DISP_PM_GET);
 
-	mtk_drm_trace_begin("clk_on");
 	for (i = 0; i < priv->top_clk_num; i++) {
 		if (IS_ERR(priv->top_clk[i])) {
 			DDPPR_ERR("%s invalid %d clk\n", __func__, i);
@@ -8366,50 +8270,25 @@ void mtk_drm_top_clk_prepare_enable(struct drm_crtc *crtc)
 		if (ret)
 			DDPPR_ERR("top clk prepare enable failed:%d\n", i);
 	}
-	mtk_drm_trace_end();
 
 	spin_lock_irqsave(&top_clk_lock, flags);
 	atomic_inc(&top_clk_ref);
 	if (atomic_read(&top_clk_ref) == 1) {
 		DDPFENCE("%s:%d power_state = true\n", __func__, __LINE__);
 		priv->power_state = true;
-
-		/* Enable IRQs and QOS config. Call only after power_state is set to true. */
-		mtk_crtc_vdisp_ao_config(crtc);
 	}
 
 	if (mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_VIDLE_FULL_SCENARIO)) {
-		if ((atomic_read(&debug_power_async) & 0x2) &&
-			atomic_read(&top_clk_ref) == 1 &&
-			mtk_drm_idlemgr_get_async_status(crtc)) {
-			ret = mtk_drm_sw_async_trigger(crtc, USER_SW_ASYNC_VIDLE,
-						mtk_drm_power_on_vidle_func, (void *)priv);
-			if (ret < 0) {
-				DDPMSG("%s: sw_async_trigger failed, ret: %d\n", __func__, ret);
-				mtk_drm_power_on_vidle_func((void *)priv);
-			}
+		if (atomic_read(&top_clk_ref) == 1) {
+			mtk_vidle_enable(true, priv);
+			mtk_vidle_hint_update(VIDLE_HINT_MTCMOS_ON);
 		} else {
-			if (atomic_read(&top_clk_ref) == 1) {
-				mtk_vidle_enable(true, priv);
-				mtk_vidle_hint_update(VIDLE_HINT_MTCMOS_ON);
-			} else {
-				/* disable ff for multi crtc */
-				mtk_vidle_hint_update(VIDLE_HINT_MULTI_CRTC_ON);
-				DDPINFO("%s crtc%d vidle_hint(%#x)\n", __func__, drm_crtc_index(crtc),
-					mtk_vidle_hint_update(VIDLE_HINT_GET));
-			}
-#ifdef OPLUS_FEATURE_DISPLAY
-			if ((crtc->state->mode.hskew == OPLUS_ADFR) || (crtc->state->mode.hskew == OPLUS_MFR)
-					|| (mtk_crtc_state && mtk_crtc_state->prop_val[CRTC_PROP_DOZE_ACTIVE])) {
-				DDPINFO("%s: close vidle in oa and doze mode\n", __func__);
-				mtk_vidle_hint_update(VIDLE_HINT_CLOSE_VIDLE);
-			} else {
-				DDPINFO("%s open vidle\n", __func__);
-				mtk_vidle_hint_update(VIDLE_HINT_OPEN_VIDLE);
-			}
-#endif /* OPLUS_FEATURE_DISPLAY */
-			mtk_vidle_config_ff(false);
+			/* disable ff for multi crtc */
+			mtk_vidle_hint_update(VIDLE_HINT_MULTI_CRTC_ON);
+			DDPINFO("%s crtc%d vidle_hint(%#x)\n", __func__, drm_crtc_index(crtc),
+				mtk_vidle_hint_update(VIDLE_HINT_GET));
 		}
+		mtk_vidle_config_ff(false);
 	} else {
 		struct mtk_drm_crtc *mtk_crtc0 = to_mtk_crtc(priv->crtc[0]);
 
@@ -8427,6 +8306,7 @@ void mtk_drm_top_clk_prepare_enable(struct drm_crtc *crtc)
 	if (priv->data->sodi_config)
 		priv->data->sodi_config(crtc->dev, DDP_COMPONENT_ID_MAX, NULL, &en);
 
+
 	if (priv->data->wla_config)
 		priv->data->wla_config(crtc->dev, NULL);
 
@@ -8439,7 +8319,6 @@ void mtk_drm_top_clk_disable_unprepare(struct drm_crtc *crtc)
 	struct mtk_drm_private *priv = crtc->dev->dev_private;
 	int i = 0, cnt = 0;
 	unsigned long flags = 0;
-	int pending_isr_ref = 0;
 
 	if (priv->top_clk_num <= 0)
 		return;
@@ -8456,20 +8335,7 @@ void mtk_drm_top_clk_disable_unprepare(struct drm_crtc *crtc)
 			usleep_range(20, 40);
 			spin_lock_irqsave(&top_clk_lock, flags);
 		}
-		pending_isr_ref = atomic_xchg(&top_isr_ref, 0);
-		if (pending_isr_ref) {
-			mtk_vidle_user_power_release(DISP_VIDLE_USER_TOP_CLK_ISR);
-			DRM_MMP_EVENT_END(IRQ, 0xdead0000 | pending_isr_ref, 0x22222222);
-		}
-
 		priv->power_state = false;
-
-		/* Disable inten of all subsys before disable all IRQs */
-		if (priv->data->disable_inten)
-			priv->data->disable_inten(crtc->dev);
-
-		/* Disable all IRQs. Call only after power_state is set to false. */
-		mtk_crtc_vdisp_ao_config(crtc);
 
 		if (mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_VIDLE_FULL_SCENARIO)) {
 			mtk_vidle_config_ff(false);
@@ -10314,6 +10180,10 @@ static void mtk_drm_kms_lateinit(struct kthread_work *work)
 	mtk_mminfra_off_gipc();
 	mtk_dump_mminfra_ck(private);
 
+#ifndef DRM_OVL_SELF_PATTERN
+	mtk_drm_assert_init(drm);
+#endif
+
 	if (is_bdg_supported())
 		bdg_first_init();
 }
@@ -11343,8 +11213,6 @@ int mtk_drm_ioctl_retrig(struct drm_device *dev, void *data,
 		return 0;
 	}
 
-	CRTC_MMP_EVENT_START((int)drm_crtc_index(crtc), retrig, 0, 0);
-
 	// get target TE time
 	current_t = ktime_get_ns() / 1000;
 	step_dur = 1000000 / drm_mode_vrefresh(&crtc->state->adjusted_mode);
@@ -11481,7 +11349,6 @@ int mtk_drm_ioctl_retrig(struct drm_device *dev, void *data,
 	mtk_drm_trace_end();
 
 retrig_end:
-	CRTC_MMP_EVENT_END((int)drm_crtc_index(crtc), retrig, 0, 0);
 	DDP_MUTEX_UNLOCK_CONDITION(&mtk_crtc->lock, __func__, __LINE__, false);
 	DDP_COMMIT_UNLOCK(&private->commit.lock, __func__, retrig->present_fence_idx);
 	DDP_PROFILE("[PROFILE] %s-\n", __func__);
@@ -13178,7 +13045,7 @@ SKIP_MMLSYS_CONFIG:
 		of_node_put(infra_node);
 	}
 
-	atomic_set(&private->kernel_pm.wakelock_cnt, 0);
+	atomic_set(&private->kernel_pm.wakelock_cnt, -1);
 	atomic_set(&private->kernel_pm.status, KERNEL_PM_RESUME);
 	init_waitqueue_head(&private->kernel_pm.wq);
 	/* The priority must be higher than VCP to have the opportunity to interrupt its suspend flow */
@@ -13451,15 +13318,6 @@ SKIP_MMLSYS_CONFIG:
 
 	memcpy(&mydev, pdev, sizeof(mydev));
 
-#ifdef OPLUS_FEATURE_DISPLAY
-	pr_info("[%s] get_boot_mode() is %d\n", __func__, get_boot_mode());
-	if ((get_boot_mode() == SILENCE_BOOT)
-			||(get_boot_mode() == OPPO_SAU_BOOT)) {
-		pr_info("[%s] set silence_mode to 1\n", __func__);
-		silence_mode = 1;
-	}
-#endif /* OPLUS_FEATURE_DISPLAY */
-
 	return 0;
 
 err_pm:
@@ -13485,17 +13343,10 @@ static void mtk_drm_shutdown(struct platform_device *pdev)
 
 	/* skip all next atomic commit */
 	atomic_set(&private->kernel_pm.status, KERNEL_SHUTDOWN);
-	DDPMSG("%s status(%d) top_clk_ref(%d) wakelock_cnt(%d)\n", __func__, atomic_read(&private->kernel_pm.status),
-		atomic_read(&top_clk_ref), atomic_read(&private->kernel_pm.wakelock_cnt));
+	DDPMSG("%s status(%d)\n", __func__, atomic_read(&private->kernel_pm.status));
 
 	/* skip shutdown flow if already suspended */
 	if (atomic_read(&private->kernel_pm.wakelock_cnt) == 0) {
-#ifdef OPLUS_FEATURE_DISPLAY
-		if (oplus_display0_params && oplus_display0_params->oplus_pmic_reset_enable) {
-			gpiod_set_value(oplus_display0_params->reset_gpio, 0);
-			gpiod_set_value(oplus_display0_params->vddr_aod_enable_gpio, 0);
-		}
-#endif
 		DDPMSG("%s skipped, disp wakelock already released\n", __func__);
 		return;
 	}
@@ -13505,12 +13356,6 @@ static void mtk_drm_shutdown(struct platform_device *pdev)
 	drm_atomic_helper_shutdown(drm);
 	mtk_drm_pm_ctrl(private, DISP_PM_PUT);
 	mtk_vidle_user_power_release(DISP_VIDLE_USER_NST_LOCK);
-
-	if (atomic_read(&top_clk_ref) != 0) {
-		DDPMSG("power off display before shutdown, top_clk_ref(%d) wakelock_cnt(%d)\n", __func__,
-			atomic_read(&top_clk_ref), atomic_read(&private->kernel_pm.wakelock_cnt));
-		mtk_drm_top_clk_disable_unprepare(private->crtc[0]);
-	}
 }
 
 static void mtk_drm_remove(struct platform_device *pdev)
@@ -13749,12 +13594,6 @@ static int __init mtk_drm_init(void)
 			goto err;
 		}
 	}
-#ifdef OPLUS_FEATURE_DISPLAY
-	oplus_display_private_api_init();
-	oplus_display_panel_init();
-	oplus_display_proc_init();
-	oplus_display_trackpoint_report_init();
-#endif /* OPLUS_FEATURE_DISPLAY  */
 	DDPINFO("%s-\n", __func__);
 
 	return 0;

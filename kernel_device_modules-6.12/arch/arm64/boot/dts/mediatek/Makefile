@@ -4,7 +4,7 @@
 # common, for include/dt-bindings
 DTC_INCLUDE += $(DEVICE_MODULES_PATH)/include
 # arm64
-DTC_INCLUDE += $(DEVICE_MODULES_PATH)/arch/$(SRCARCH)/boot/dts $(DEVICE_MODULES_PATH)/arch/$(SRCARCH)/boot/dts/mediatek $(DEVICE_MODULES_PATH)/arch/$(SRCARCH)/boot/dts/oplus
+DTC_INCLUDE += $(DEVICE_MODULES_PATH)/arch/$(SRCARCH)/boot/dts $(DEVICE_MODULES_PATH)/arch/$(SRCARCH)/boot/dts/mediatek
 
 # for cust.dtsi
 #DTC_INCLUDE += $(DEVICE_MODULES_REL_PATH)/arch/$(SRCARCH)/boot/dts
@@ -48,6 +48,3 @@ dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-kukui-krane-sku176.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8183-pumpkin.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8192-evb.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8516-pumpkin.dtb
-# xaga (Xiaomi Redmi Note 11T Pro / POCO X5 Pro, MT6895) board overlay
-dtb-$(CONFIG_ARCH_MEDIATEK) += xaga.dtb
-dtb-$(CONFIG_ARCH_MEDIATEK) += xaga_global.dtb

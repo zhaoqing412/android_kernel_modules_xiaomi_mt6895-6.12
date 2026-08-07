@@ -29,9 +29,6 @@
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/sched/clock.h>
-#ifdef OPLUS_FEATURE_CHG_BASIC
-#include <linux/pm_qos.h>
-#endif
 
 #define I2C_CONFERR			(1 << 9)
 #define I2C_RS_TRANSFER			(1 << 4)
@@ -420,10 +417,6 @@ struct mtk_i2c {
 #ifdef CONFIG_FPGA_EARLY_PORTING
 	void __iomem *clk_base;		/* i2c clk base addr */
 	struct mtk_i2c_clk_reg  clk_info;
-#endif
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	bool request_cpu_qos;
-	struct pm_qos_request i2c_qos_request;
 #endif
 };
 
@@ -2400,22 +2393,12 @@ static int mtk_i2c_transfer(struct i2c_adapter *adap,
 	struct i2c_msg multi_msg[1];
 	struct mtk_i2c *i2c = i2c_get_adapdata(adap);
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	/* update qos to prevent deep idle during transfer */
-	if (i2c->request_cpu_qos)
-		cpu_latency_qos_update_request(&i2c->i2c_qos_request, 150);
-#endif
-
 	if (i2c->wake_scp_check_en) {
 		if (scp_wake.count == 0)
 			dev_dbg(i2c->dev, "[Error]:user no wake before use\n");
 		ret = scp_wake_request(adap);
 		if (ret) {
 			dev_info(i2c->dev, "%s: scp_wake_request error\n", __func__);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-			if (i2c->request_cpu_qos)
-				cpu_latency_qos_update_request(&i2c->i2c_qos_request, PM_QOS_DEFAULT_VALUE);
-#endif
 			return ret;
 		}
 	}
@@ -2539,10 +2522,6 @@ err_clk:
 		if (result)
 			dev_info(i2c->dev, "%s: scp_wake_release error\n", __func__);
 	}
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	if (i2c->request_cpu_qos)
-		cpu_latency_qos_update_request(&i2c->i2c_qos_request, PM_QOS_DEFAULT_VALUE);
-#endif
 	return ret;
 }
 
@@ -2656,10 +2635,6 @@ static int mtk_i2c_parse_dt(struct device_node *np, struct mtk_i2c *i2c)
 	i2c->fifo_use_polling = of_property_read_bool(np, "mediatek,fifo-use-polling");
 	dev_info(i2c->dev, "fifo-use-polling=%d, auto_suspend_delay=%d\n",
 		i2c->fifo_use_polling, i2c->auto_suspend_delay);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	i2c->request_cpu_qos = of_property_read_bool(np, "mediatek,request-cpu-qos");
-	dev_info(i2c->dev, "request-cpu-qos=%d\n", i2c->request_cpu_qos);
-#endif
 
 	if ((i2c->ch_offset_i2c == i2c->i2c_offset_scp) && (!scp_wake.is_initialized)) {
 
@@ -2980,10 +2955,6 @@ static int mtk_i2c_probe(struct platform_device *pdev)
 	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_runtime_set_autosuspend_delay(&pdev->dev, i2c->auto_suspend_delay);
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	if (i2c->request_cpu_qos)
-		cpu_latency_qos_add_request(&i2c->i2c_qos_request, PM_QOS_DEFAULT_VALUE);
-#endif
 	ret = devm_request_irq(&pdev->dev, irq, mtk_i2c_irq,
 			       IRQF_NO_SUSPEND | IRQF_TRIGGER_NONE,
 			       I2C_DRV_NAME, i2c);

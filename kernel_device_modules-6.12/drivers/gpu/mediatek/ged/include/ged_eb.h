@@ -638,7 +638,6 @@ enum action_map {
 	NR_ACTION_MAP
 };
 
-
 /**************************************************
  * GPU FAST DVFS IPI CMD
  **************************************************/
@@ -671,7 +670,6 @@ enum {
 	GPUFDVFS_IPI_SET_CONFIG             = 22,
 	GPUFDVFS_IPI_SET_FB_MFRC_POLICY     = 23,
 	GPUFDVFS_IPI_GET_LOADING_MODE    	= 24,
-	GPUFDVFS_IPI_GET_FB_MARGIM          = 25,
 
 	NR_GPUFDVFS_IPI,
 };
@@ -702,7 +700,6 @@ enum ged_eb_config_cmd {
 	GPUFDVFS_IPI_GET_LOADING_SELECT,
 	GPUFDVFS_IPI_SET_DUMMY_SWITCH,
 	GPUFDVFS_IPI_GET_DUMMY_SWITCH,
-	GPUFDVFS_IPI_SET_DCS_DEBUG_EX,
 	GPUFDVFS_IPI_SET_MAX_CONFIG_INDEX,
 
 };
@@ -825,6 +822,7 @@ extern int mtk_set_ged_ready(int ged_ready_flag);
 void mtk_gpueb_set_power_state(enum ged_gpu_power_state power_state);
 u64 mtk_gpueb_read_soc_timer(void);
 void mtk_gpueb_record_soc_timer(u64 soc_timer);
+
 
 extern int fastdvfs_proc_init(void);
 extern void fastdvfs_proc_exit(void);
@@ -1053,12 +1051,7 @@ GEN("fix_freq_id", GPU_FIX_FREQ_ID, 2, "enable|id") \
 GEN("gpu_version", GPU_EB_VERSION, 1, "gpu_version") \
 GEN("desire_mask", GOV_DESIRE_MASK, 1, "desire_mask") \
 GEN("fb_mfrc", GPU_FB_MFRC_2, 1, "fb_mfrc_2") \
-GEN("ultra_loading_flag", ULTRA_LOADING_FLAG, 1, "ultra_loading_flag") \
-GEN("dvfs_margin_value", GPU_EB_CMD_DVFS_MARGIN_VALUE, 1, "dvfs_margin_value_cmd") \
-GEN("ap_cur_core_mask", GPU_AP_CUR_MASK, 1, "ap_cur_core_mask") \
-GEN("fix_ex_enable_flag", GPU_DEBUG_EX_ENABLE, 2, "fix_ex_enable_flag") \
-GEN("fix_ex_valid_flag", GPU_DEBUG_EX_VALID, 1, "fix_ex_valid_flag")
-
+GEN("ultra_loading_flag", ULTRA_LOADING_FLAG, 1, "ultra_loading_flag")
 
 // generate sysram index list according to FDVFS_V2_COUNTER
 #define GEN(name, index, count, var) index,

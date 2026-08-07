@@ -85,7 +85,6 @@ static int cm_mgr_num_perf;
 static int cm_mgr_perf_enable = 1;
 static int cm_mgr_perf_force_enable;
 static int cm_passive;
-static int cm_passive_rescure;
 
 static int debounce_times_perf_down = 50;
 static int debounce_times_perf_force_down = 100;
@@ -359,13 +358,6 @@ void cm_mgr_unregister_hook(struct cm_mgr_hook *hook)
 }
 EXPORT_SYMBOL_GPL(cm_mgr_unregister_hook);
 
-void cm_mgr_cm_passive_rescure(int val)
-{
-	cm_passive_rescure = val;
-	cm_mgr_to_sspm_command(IPI_CM_MGR_PASSIVE, val ? val : cm_passive);
-}
-EXPORT_SYMBOL_GPL(cm_mgr_cm_passive_rescure);
-
 #if IS_ENABLED(CONFIG_DEVICE_MODULES_DRM_MEDIATEK)
 static int cm_mgr_fb_notifier_callback(struct notifier_block *nb,
 				       unsigned long value, void *v)
@@ -518,11 +510,6 @@ static void cm_mgr_cpu_map_update_table(void)
 	}
 }
 
-#ifdef CONFIG_OPLUS_FEATURE_SLC
-static int cm_disguise = 1;
-module_param(cm_disguise, int, 0644);
-#endif
-
 static ssize_t dbg_cm_mgr_show(struct kobject *kobj,
 			       struct kobj_attribute *attr, char *buff)
 {
@@ -561,15 +548,7 @@ static ssize_t dbg_cm_mgr_show(struct kobject *kobj,
 		len += cm_mgr_print("\n");
 	}
 	len += cm_mgr_print("cm_dbg_info %d\n", cm_dbg_info);
-#ifdef CONFIG_OPLUS_FEATURE_SLC
-	if (cm_disguise)
-		len += cm_mgr_print("cm_passive %d\n", (cm_passive > 1024) ? 1024 : cm_passive);
-	else
-		len += cm_mgr_print("cm_passive %d\n", cm_passive);
-	len += cm_mgr_print("cm_passive_rescure %d\n", cm_passive_rescure);
-#else
 	len += cm_mgr_print("cm_passive %d\n", cm_passive);
-#endif
 	len += cm_mgr_print("cm_perf_mode_enable %d\n",
 		    cm_mgr_get_perf_mode_enable());
 	len += cm_mgr_print("cm_perf_mode_ceiling_opp %d\n",
@@ -655,13 +634,6 @@ static ssize_t dbg_cm_mgr_show(struct kobject *kobj,
 
 	return (len > 4096) ? 4096 : len;
 }
-
-#ifdef CONFIG_OPLUS_FEATURE_SLC
-#define CM_AWARE_GPA (1 << 0)
-#define CM_AWARE_SLC (1 << 1)
-static int cm_aware_flag = CM_AWARE_GPA | CM_AWARE_SLC;
-module_param(cm_aware_flag, int, 0644);
-#endif
 
 static ssize_t dbg_cm_mgr_store(struct kobject *kobj,
 				struct kobj_attribute *attr, const char *buff,
@@ -819,30 +791,8 @@ static ssize_t dbg_cm_mgr_store(struct kobject *kobj,
 		cm_mgr_aggr = val_1;
 		cm_mgr_to_sspm_command(IPI_CM_MGR_AGGRESSIVE, val_1);
 	} else if (!strcmp(cmd, "cm_passive")) {
-#ifdef CONFIG_OPLUS_FEATURE_SLC
-		if (cm_aware_flag & CM_AWARE_GPA) {
-			cm_passive = val_1;
-
-			if (cm_passive_rescure) {
-				cm_mgr_to_sspm_command(IPI_CM_MGR_PASSIVE, cm_passive_rescure);
-			} else {
-				cm_mgr_to_sspm_command(IPI_CM_MGR_PASSIVE, val_1);
-			}
-		}
-	} else if (!strcmp(cmd, "cm_passive_2")) {
-		if (cm_aware_flag & CM_AWARE_SLC) {
-			cm_passive = val_1;
-
-			if (cm_passive_rescure) {
-				cm_mgr_to_sspm_command(IPI_CM_MGR_PASSIVE, cm_passive_rescure);
-			} else {
-				cm_mgr_to_sspm_command(IPI_CM_MGR_PASSIVE, val_1);
-			}
-		}
-#else
 		cm_passive = val_1;
 		cm_mgr_to_sspm_command(IPI_CM_MGR_PASSIVE, val_1);
-#endif
 	} else if (!strcmp(cmd, "cm_hint")) {
 		cm_hint = val_1;
 	} else if (!strcmp(cmd, "cm_mgr_dram_opp_ceiling")) {

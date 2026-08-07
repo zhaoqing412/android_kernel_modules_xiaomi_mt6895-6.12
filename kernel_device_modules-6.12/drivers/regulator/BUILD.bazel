@@ -44,7 +44,6 @@ SIMPLE_MODULE_NAME = [
     "rt4803",
     "fan53870-ldo",
     "wl2868c-regulator",
-    "wl28681c-regulator",
 ]
 
 [define_mgk_ddk_ko(
@@ -53,10 +52,6 @@ SIMPLE_MODULE_NAME = [
         "{}.c".format(mod),
     ],
     includes = ["."],
-    
-    local_defines = [
-        "OPLUS_FEATURE_CHG_BASIC"
-    ],
     copts = [
         "-I$(srctree)/drivers/regulator",
     ],

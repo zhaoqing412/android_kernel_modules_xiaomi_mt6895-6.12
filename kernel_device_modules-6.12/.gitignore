@@ -105,7 +105,6 @@ modules.order
 /include/generated/
 /include/ksym/
 /arch/*/include/generated/
-/include/linux/geas_ctrl.h
 
 # stgit generated dirs
 patches-*
@@ -163,7 +162,3 @@ x509.genkey
 
 # Documentation toolchain
 sphinx_*/
-
-# oplus display-drivers
-drivers/gpu/drm/mediatek/mediatek_v2/oplus_drm
-drivers/gpu/drm/panel/oplus_panel

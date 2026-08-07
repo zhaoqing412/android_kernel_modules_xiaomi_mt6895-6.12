@@ -119,18 +119,24 @@ static void mrdump_ka_work_func(struct work_struct *work)
 	kinfo = &(dbg_kinfo->info);
 	if (dbg_kinfo->magic_number == DEBUG_KINFO_MAGIC) {
 		_mrdump_kns = kinfo->num_syms;
-		_mrdump_krb = kinfo->_relative_pa + kimage_voffset;
-		mrdump_ko = (void *)(kinfo->_offsets_pa + kimage_voffset);
+		/*
+		 * debug_kinfo should update, after that, revert this WA
+		 * _mrdump_krb = kinfo->_relative_pa + kimage_voffset;
+		 * mrdump_ko = (void *)(kinfo->_offsets_pa + kimage_voffset);
+		 */
 		mrdump_kn = (void *)(kinfo->_names_pa + kimage_voffset);
 		mrdump_ktt = (void *)(kinfo->_token_table_pa + kimage_voffset);
 		mrdump_kti = (void *)(kinfo->_token_index_pa + kimage_voffset);
+		mrdump_ko = (void *)mrdump_kti + 256 * sizeof(u16);
 		mrdump_km = (void *)(kinfo->_markers_pa + kimage_voffset);
 		p_stext = __phys_to_kimg(kinfo->_stext_pa);
 		p_etext = __phys_to_kimg(kinfo->_etext_pa);
 		p_text = __phys_to_kimg(kinfo->_text_pa);
+		_mrdump_krb = p_stext - SEGMENT_ALIGN;
 		p_init_begin = __phys_to_kimg(kinfo->_sinittext_pa);
 		aee_base_addrs_init();
 		mrdump_cblock_late_init();
+		init_ko_addr_list_late();
 		mrdump_mini_add_klog();
 		mrdump_mini_add_kallsyms();
 		mrdump_ka_done = MRDUMP_KA_MAGIC;
@@ -152,20 +158,7 @@ static unsigned int mrdump_checking_names(unsigned int off,
 	data = mrdump_kn + off;
 	len = *data;
 	data++;
-	off++;
-
-	/* If MSB is 1, it is a "big" symbol, so needs an additional byte. */
-	if ((len & 0x80) != 0) {
-		len = (len & 0x7F) | (*data << 7);
-		data++;
-		off++;
-	}
-
-	/*
-	 * Update the offset to return the offset for the next symbol on
-	 * the compressed stream.
-	 */
-	off += len;
+	off += len + 1;
 
 	while (len) {
 		tptr = mrdump_ktt + *(mrdump_kti + *data);
@@ -262,6 +255,25 @@ unsigned long aee_get_init_begin(void)
 }
 EXPORT_SYMBOL(aee_get_init_begin);
 
+#ifdef CONFIG_MODULES
+static struct list_head *p_modules;
+struct list_head *aee_get_modules(void)
+{
+
+	if (p_modules)
+		return p_modules;
+
+	p_modules = (void *)aee_addr_find("modules");
+
+	if (!p_modules) {
+		pr_info("%s failed", __func__);
+		return NULL;
+	}
+
+	return p_modules;
+}
+#endif
+
 static void *p_log_ptr;
 void *aee_log_buf_addr_get(void)
 {
@@ -319,12 +331,24 @@ static void aee_base_addrs_init(void)
 	char strbuf[NAME_LEN];
 	unsigned long i;
 	unsigned int off;
-	unsigned int search_num = 1;
+	unsigned int search_num = 2;
+
+#ifndef CONFIG_MODULES
+	search_num--;
+#endif
 
 	for (i = 0, off = 0; i < _mrdump_kns; i++) {
 		if (!search_num)
 			return;
 		off = mrdump_checking_names(off, strbuf, ARRAY_SIZE(strbuf));
+
+#ifdef CONFIG_MODULES
+		if (!p_modules && strcmp(strbuf, "modules") == 0) {
+			p_modules = (void *)mrdump_idx2addr(i);
+			search_num--;
+			continue;
+		}
+#endif
 
 		if (strcmp(strbuf, "prb") == 0) {
 			if (!p_log_ptr)
@@ -337,6 +361,26 @@ static void aee_base_addrs_init(void)
 		pr_info("mrdump addr init incomplete %d\n", search_num);
 }
 #else /* #ifdef MODULE*/
+
+
+#ifdef CONFIG_MODULES
+static struct list_head *p_modules;
+struct list_head *aee_get_modules(void)
+{
+
+	if (p_modules)
+		return p_modules;
+
+	p_modules = (void *)kallsyms_lookup_name("modules");
+
+	if (!p_modules) {
+		pr_info("%s failed", __func__);
+		return NULL;
+	}
+
+	return p_modules;
+}
+#endif
 
 static void *p_log_ptr;
 void *aee_log_buf_addr_get(void)

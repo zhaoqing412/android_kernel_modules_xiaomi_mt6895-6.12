@@ -39,19 +39,6 @@
 #if IS_ENABLED(CONFIG_MTK_AUDIODSP_SUPPORT)
 #include "mtk-afe-external.h"
 #endif
-#ifdef OPLUS_TRACKPOINT_REPORT
-#include "oplus_display_trackpoint_report.h"
-#endif
-
-#ifdef OPLUS_FEATURE_DISPLAY_ADFR
-#include "oplus_adfr.h"
-#endif /* OPLUS_FEATURE_DISPLAY_ADFR */
-#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
-#include "oplus_display_onscreenfingerprint.h"
-#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
-#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
-extern int mutex_sof_ns;
-#endif /* OPLUS_FEATURE_DISPLAY_APOLLO */
 
 #define DISPSYS0	0
 #define DISPSYS1	1
@@ -31487,8 +31474,6 @@ void mtk_disp_dbg_cmdq_use_mutex(struct mtk_drm_crtc *mtk_crtc,
 	cmdq_pkt_write(handle, cmdq_base,
 		ddp->regs_pa + DISP_REG_MUTEX_EN(mutex_id), 1, ~0);
 	cmdq_pkt_write(handle, cmdq_base,
-		ddp->regs_pa + DISP_REG_MUTEX_INTEN, 0, val);
-	cmdq_pkt_write(handle, cmdq_base,
 		ddp->regs_pa + DISP_REG_MUTEX_INTEN, val, val);
 
 	if (ddp->ovlsys0_regs_pa) {
@@ -31502,8 +31487,6 @@ void mtk_disp_dbg_cmdq_use_mutex(struct mtk_drm_crtc *mtk_crtc,
 			ddp->ovlsys0_regs_pa + DISP_REG_MUTEX_EN(mutex_id), 0, ~0);
 		cmdq_pkt_write(handle, cmdq_base,
 			ddp->ovlsys0_regs_pa + DISP_REG_MUTEX_EN(mutex_id), 1, ~0);
-		cmdq_pkt_write(handle, cmdq_base,
-			ddp->ovlsys0_regs_pa + DISP_REG_MUTEX_INTEN, 0, val);
 		cmdq_pkt_write(handle, cmdq_base,
 			ddp->ovlsys0_regs_pa + DISP_REG_MUTEX_INTEN, val, val);
 	}
@@ -31523,8 +31506,6 @@ void mtk_disp_dbg_cmdq_use_mutex(struct mtk_drm_crtc *mtk_crtc,
 	cmdq_pkt_write(handle, cmdq_base,
 		ddp->side_regs_pa + DISP_REG_MUTEX_EN(mutex_id), 1, ~0);
 	cmdq_pkt_write(handle, cmdq_base,
-		ddp->side_regs_pa + DISP_REG_MUTEX_INTEN, 0, val);
-	cmdq_pkt_write(handle, cmdq_base,
 		ddp->side_regs_pa + DISP_REG_MUTEX_INTEN, val, val);
 
 	if (ddp->ovlsys1_regs_pa) {
@@ -31538,8 +31519,6 @@ void mtk_disp_dbg_cmdq_use_mutex(struct mtk_drm_crtc *mtk_crtc,
 			ddp->ovlsys1_regs_pa + DISP_REG_MUTEX_EN(mutex_id), 0, ~0);
 		cmdq_pkt_write(handle, cmdq_base,
 			ddp->ovlsys1_regs_pa + DISP_REG_MUTEX_EN(mutex_id), 1, ~0);
-		cmdq_pkt_write(handle, cmdq_base,
-			ddp->ovlsys1_regs_pa + DISP_REG_MUTEX_INTEN, 0, val);
 		cmdq_pkt_write(handle, cmdq_base,
 			ddp->ovlsys1_regs_pa + DISP_REG_MUTEX_INTEN, val, val);
 	}
@@ -31556,8 +31535,6 @@ void mtk_disp_dbg_cmdq_use_mutex(struct mtk_drm_crtc *mtk_crtc,
 		cmdq_pkt_write(handle, cmdq_base,
 			ddp->ovlsys2_regs_pa + DISP_REG_MUTEX_EN(mutex_id), 1, ~0);
 		cmdq_pkt_write(handle, cmdq_base,
-			ddp->ovlsys2_regs_pa + DISP_REG_MUTEX_INTEN, 0, val);
-		cmdq_pkt_write(handle, cmdq_base,
 			ddp->ovlsys2_regs_pa + DISP_REG_MUTEX_INTEN, val, val);
 	}
 
@@ -31573,8 +31550,6 @@ void mtk_disp_dbg_cmdq_use_mutex(struct mtk_drm_crtc *mtk_crtc,
 		cmdq_pkt_write(handle, cmdq_base,
 			ddp->sys_b_regs_pa + DISP_REG_MUTEX_EN(mutex_id), 1, ~0);
 		cmdq_pkt_write(handle, cmdq_base,
-			ddp->sys_b_regs_pa + DISP_REG_MUTEX_INTEN, 0, val);
-		cmdq_pkt_write(handle, cmdq_base,
 			ddp->sys_b_regs_pa + DISP_REG_MUTEX_INTEN, val, val);
 	}
 
@@ -31589,8 +31564,6 @@ void mtk_disp_dbg_cmdq_use_mutex(struct mtk_drm_crtc *mtk_crtc,
 			ddp->sys_b_side_regs_pa + DISP_REG_MUTEX_EN(mutex_id), 0, ~0);
 		cmdq_pkt_write(handle, cmdq_base,
 			ddp->sys_b_side_regs_pa + DISP_REG_MUTEX_EN(mutex_id), 1, ~0);
-		cmdq_pkt_write(handle, cmdq_base,
-			ddp->sys_b_side_regs_pa + DISP_REG_MUTEX_INTEN, 0, val);
 		cmdq_pkt_write(handle, cmdq_base,
 			ddp->sys_b_side_regs_pa + DISP_REG_MUTEX_INTEN, val, val);
 	}
@@ -37081,14 +37054,12 @@ void mtk_disp_mutex_inten_enable(struct mtk_disp_mutex *mutex)
 {
 	struct mtk_ddp *ddp =
 		container_of(mutex, struct mtk_ddp, mutex[mutex->id]);
-	unsigned int val, mask;
+	unsigned int val;
 
 	val = readl_relaxed(ddp->regs + DISP_REG_MUTEX_INTEN);
-	mask = (0x1 << (unsigned int)mutex->id);
-	val |= mask;
+	val |= (0x1 << (unsigned int)mutex->id);
 	if (mutex->is_vdo)
 		val |= (0x1 << (unsigned int)(mutex->id + ddp->data->disp_mutex_total));
-	writel_relaxed(val & ~mask, ddp->regs + DISP_REG_MUTEX_INTEN);
 	writel_relaxed(val, ddp->regs + DISP_REG_MUTEX_INTEN);
 
 //	if (ddp->ovlsys0_regs) {
@@ -37102,11 +37073,9 @@ void mtk_disp_mutex_inten_enable(struct mtk_disp_mutex *mutex)
 		return;
 
 	val = readl_relaxed(ddp->side_regs + DISP_REG_MUTEX_INTEN);
-	mask = (0x1 << (unsigned int)mutex->id);
-	val |= mask;
+	val |= (0x1 << (unsigned int)mutex->id);
 	if (mutex->is_vdo)
 		val |= (0x1 << (unsigned int)(mutex->id + ddp->data->disp_mutex_total));
-	writel_relaxed(val & ~mask, ddp->side_regs + DISP_REG_MUTEX_INTEN);
 	writel_relaxed(val, ddp->side_regs + DISP_REG_MUTEX_INTEN);
 
 //	if (ddp->ovlsys1_regs) {
@@ -37153,8 +37122,6 @@ void mtk_disp_mutex_inten_enable_cmdq(struct mtk_disp_mutex *mutex,
 	if (mutex->is_vdo)
 		val |= (0x1 << (unsigned int)(mutex->id + ddp->data->disp_mutex_total));
 	cmdq_pkt_write(handle, ddp->cmdq_base,
-		       ddp->regs_pa + DISP_REG_MUTEX_INTEN, 0, val);
-	cmdq_pkt_write(handle, ddp->cmdq_base,
 		       ddp->regs_pa + DISP_REG_MUTEX_INTEN, val, val);
 //	if (ddp->ovlsys0_regs_pa)
 //		cmdq_pkt_write(handle, ddp->cmdq_base,
@@ -37163,8 +37130,6 @@ void mtk_disp_mutex_inten_enable_cmdq(struct mtk_disp_mutex *mutex,
 	if (!(ddp->data->dispsys_map && ddp->side_regs_pa))
 		return;
 
-	cmdq_pkt_write(handle, ddp->cmdq_base,
-		       ddp->side_regs_pa + DISP_REG_MUTEX_INTEN, 0, val);
 	cmdq_pkt_write(handle, ddp->cmdq_base,
 		       ddp->side_regs_pa + DISP_REG_MUTEX_INTEN, val, val);
 //	if (ddp->ovlsys1_regs_pa)
@@ -37537,9 +37502,10 @@ static irqreturn_t mtk_disp_mutex_irq_handler(int irq, void *dev_id)
 		val = readl(ddp->side_regs + DISP_REG_MUTEX_INTSTA);
 
 	if (!val) {
+		ret = IRQ_NONE;
 		DRM_MMP_MARK(IRQ, 0xdeadbeef, ddp->side_regs_pa);
-		mtk_drm_top_clk_isr_put(&ddp->ddp_comp);
-		return IRQ_HANDLED;
+		mtk_dump_dbg_slot();
+		goto out;
 	}
 
 	DDPIRQ("MM_MUTEX irq, val:0x%x\n", val);
@@ -37596,41 +37562,11 @@ static irqreturn_t mtk_disp_mutex_irq_handler(int irq, void *dev_id)
 		if (!ddp->mutex[m_id].is_vdo)
 			val = val & ~(0x1 << (m_id + ddp->data->disp_mutex_total));
 		if (val & (0x1 << m_id)) {
-			unsigned int *addr = NULL;
-
 			DDPIRQ("[IRQ] mutex%d sof!\n", m_id);
-
-			if (m_id == 4) {
-				addr = mtk_get_gce_backup_slot_va(mtk_crtc0, DISP_SLOT_MUTEX4_DEBUG);
-				if ( *addr == 1) {
-					DRM_MMP_MARK(mutex[m_id], val, 0xFFFF);
-					DDP_DBGTP("debug top and fifo mon enable\n");
-				} else
-					DRM_MMP_MARK(mutex[m_id], val, 0);
-				*addr = 0;
-			} else if (m_id == 5) {
-				addr = mtk_get_gce_backup_slot_va(mtk_crtc0, DISP_SLOT_MUTEX5_DEBUG);
-				if ( *addr == 1) {
-					DRM_MMP_MARK(mutex[m_id], val, 0xFFFF);
-					DDP_DBGTP("trigger stop\n");
-				} else
-					DRM_MMP_MARK(mutex[m_id], val, 0);
-				*addr = 0;
-			} else if (m_id == 6) {
-				addr = mtk_get_gce_backup_slot_va(mtk_crtc0, DISP_SLOT_MUTEX6_DEBUG);
-				if ( *addr == 1) {
-					DDP_DBGTP("debug top and fifo mon disable\n");
-					DRM_MMP_MARK(mutex[m_id], val, 0xFFFF);
-				} else
-					DRM_MMP_MARK(mutex[m_id], val, 0);
-				*addr = 0;
-			} else {
-				DRM_MMP_MARK(mutex[m_id], val, 0);
-
-				if (m_id == 0) {
-					drm_trace_tag_mark("mutex0_sof");
-					DRM_MMP_EVENT_START(drm, 0, 0);
-				}
+			DRM_MMP_MARK(mutex[m_id], val, 0);
+			if (m_id == 0) {
+				drm_trace_tag_mark("mutex0_sof");
+				DRM_MMP_EVENT_START(drm, 0, 0);
 			}
 
 			if (priv && (priv->data->mmsys_id == MMSYS_MT6991
@@ -37646,24 +37582,6 @@ static irqreturn_t mtk_disp_mutex_irq_handler(int irq, void *dev_id)
 					}
 				}
 			}
-
-#ifdef OPLUS_FEATURE_DISPLAY_ADFR
-			oplus_adfr_irq_handler(mtk_crtc0, OPLUS_ADFR_MUTEX_SOF);
-#endif /* OPLUS_FEATURE_DISPLAY_ADFR */
-
-#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
-				if (oplus_ofp_is_supported()) {
-					if (oplus_ofp_video_mode_aod_fod_is_enabled()) {
-						oplus_ofp_pressed_icon_status_update(OPLUS_OFP_TE_RDY);
-						/* send ui ready */
-						oplus_ofp_notify_uiready(mtk_crtc0);
-					}
-				}
-#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
-
-#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
-				mutex_sof_ns = ktime_get();
-#endif /* OPLUS_FEATURE_DISPLAY_APOLLO */
 
 			if (irq_time_index < IRQ_DEBUG_MAX) {
 				irq_time[irq_time_index].comp = NULL;
@@ -44506,64 +44424,22 @@ void mtk_ddp_disable_merge_irq_MT6993(struct drm_device *drm)
 {
 	struct mtk_drm_private *priv = drm->dev_private;
 
-	if (priv->ovlsys0_regs) {
-		writel_relaxed(1, priv->ovlsys0_regs);
-		writel_relaxed(0, priv->ovlsys0_regs + OVLSYS_INTMERGE);
-	}
-	if (priv->ovlsys1_regs) {
-		writel_relaxed(1, priv->ovlsys1_regs);
-		writel_relaxed(0, priv->ovlsys1_regs + OVLSYS_INTMERGE);
-	}
-	if (priv->ovlsys2_regs) {
-		writel_relaxed(1, priv->ovlsys2_regs);
-		writel_relaxed(0, priv->ovlsys2_regs + OVLSYS_INTMERGE);
-	}
-	if (priv->config_regs) {
-		writel_relaxed(1, priv->config_regs);
-		writel_relaxed(0, priv->config_regs + MT6993_DISPSYS_INTMERGE);
-	}
-	if (priv->side_config_regs) {
-		writel_relaxed(1, priv->side_config_regs);
-		writel_relaxed(0, priv->side_config_regs + MT6993_DISPSYS1_INTMERGE);
-	}
-	if (priv->sys_b_config_regs) {
-		writel_relaxed(1, priv->sys_b_config_regs);
-		writel_relaxed(0, priv->sys_b_config_regs + MT6993_DISPSYS_INTMERGE);
-	}
-	if (priv->sys_b_side_config_regs) {
-		writel_relaxed(1, priv->sys_b_side_config_regs);
-		writel_relaxed(0, priv->sys_b_side_config_regs + MT6993_DISPSYS1_INTMERGE);
-	}
-}
-
-void mtk_ddp_disable_inten_MT6993(struct drm_device *drm)
-{
-	struct mtk_drm_private *priv = drm->dev_private;
-	struct mtk_ddp *ddp = dev_get_drvdata(priv->mutex_dev);
-
 	if (priv->ovlsys0_regs)
-		writel_relaxed(0, priv->ovlsys0_regs);
+		writel_relaxed(0, priv->ovlsys0_regs + OVLSYS_INTMERGE);
 	if (priv->ovlsys1_regs)
-		writel_relaxed(0, priv->ovlsys1_regs);
+		writel_relaxed(0, priv->ovlsys1_regs + OVLSYS_INTMERGE);
 	if (priv->ovlsys2_regs)
-		writel_relaxed(0, priv->ovlsys2_regs);
-	if (priv->config_regs)						// disp0a 0x3e300000
-		writel_relaxed(0, priv->config_regs);
-	if (priv->side_config_regs)					// disp1a 0x3e700000
-		writel_relaxed(0, priv->side_config_regs);
-	if (priv->sys_b_config_regs)					// disp0b 0x3e500000
-		writel_relaxed(0, priv->sys_b_config_regs);
-	if (priv->sys_b_side_config_regs)				// disp1b 0x3e900000
-		writel_relaxed(0, priv->sys_b_side_config_regs);
-	if (ddp->side_regs)						// disp1a mutex0 0x3e720000
-		writel_relaxed(0, ddp->side_regs);
-	if (ddp->sys_b_regs)						// disp0b mutex0 0x3e520000
-		writel_relaxed(0, ddp->sys_b_regs);
-	if (ddp->regs)							// disp0a mutex0 0x3e320000
-		writel_relaxed(0, ddp->regs);
-	if (ddp->sys_b_side_regs)					// disp1b mutex0 0x3e920000
-		writel_relaxed(0, ddp->sys_b_side_regs);
+		writel_relaxed(0, priv->ovlsys2_regs + OVLSYS_INTMERGE);
+	if (priv->config_regs)
+		writel_relaxed(0, priv->config_regs + MT6993_DISPSYS_INTMERGE);
+	if (priv->side_config_regs)
+		writel_relaxed(0, priv->side_config_regs + MT6993_DISPSYS1_INTMERGE);
+	if (priv->sys_b_config_regs)
+		writel_relaxed(0, priv->sys_b_config_regs + MT6993_DISPSYS_INTMERGE);
+	if (priv->sys_b_side_config_regs)
+		writel_relaxed(0, priv->sys_b_side_config_regs + MT6993_DISPSYS1_INTMERGE);
 }
+
 
 void mtk_ddp_clean_ovl_pq_crossbar(struct mtk_drm_crtc *mtk_crtc, struct cmdq_pkt *handle)
 {
@@ -44790,7 +44666,6 @@ SKIP_OVLSYS_CONFIG:
 	ddp->cmdq_base = cmdq_register_device(dev);
 
 	if (num_irqs) {
-		writel_relaxed(0, ddp->regs + DISP_REG_MUTEX_INTEN);
 		ret = devm_request_irq(dev, irq, mtk_disp_mutex_irq_handler,
 				       IRQF_TRIGGER_NONE | IRQF_SHARED, dev_name(dev),
 				       ddp);
@@ -44799,9 +44674,6 @@ SKIP_OVLSYS_CONFIG:
 					__func__, __LINE__,
 					irq, ret);
 			return ret;
-#ifdef OPLUS_TRACKPOINT_REPORT
-		display_exception_trackpoint_report("DisplayDriverID@@504$$ mtk_ddp_probe failed to request irq:%d ret:%d", irq, ret);
-#endif
 		}
 	}
 

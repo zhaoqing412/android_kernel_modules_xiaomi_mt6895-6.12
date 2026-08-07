@@ -130,8 +130,7 @@
 #define	MASK_PATH_SEL			GENMASK(19, 16)
 
 #define SMI_USER_SET_MISC_NR		(32)
-#define TARGET_LARB_MASK ((1U << 9) | (1U << 10) | (1U << 11) | (1U << 12) | \
-              (1U << 15) | (1U << 18) | (1U << 22) | (1U << 23))
+
 void __iomem *smi_mmsys_base;
 static u32 DISABLED_GALS;
 
@@ -693,7 +692,7 @@ static int mtk_smi_clk_enable(const struct mtk_smi *smi, enum smi_ctrl_type ctrl
 			continue;
 		ret = clk_prepare_enable(smi->clks[i]);
 		if (ret) {
-			dev_notice(smi->dev, "mtk_debug CLK%d enable failed:%d\n", i, ret);
+			dev_info(smi->dev, "CLK%d enable failed:%d\n", i, ret);
 			for (j = i - 1; j >= 0; j--)
 				clk_disable_unprepare(smi->clks[j]);
 			return ret;
@@ -4218,6 +4217,7 @@ static int mtk_smi_larb_probe(struct platform_device *pdev)
 		return ret;
 	else
 		return 0;
+
 }
 
 static void mtk_smi_larb_remove(struct platform_device *pdev)
@@ -4243,17 +4243,15 @@ static int __maybe_unused mtk_smi_larb_resume(struct device *dev, enum smi_ctrl_
 		goto out;
 	}
 	rs_start = ktime_get();
-	if (TARGET_LARB_MASK & (1U << larb->larbid))
-		dev_notice(dev, "mtk_debug larb:%d is to enable clk in callback get new ref_count:%d\n",
-			larb->larbid, atomic_read(&larb->smi.ref_count));
+	SMI_MME_INFO("larb:%d is to enable clk in callback get new ref_count:%d\n",
+		larb->larbid, atomic_read(&larb->smi.ref_count));
 	if (larb_gen->resource_ctrl[larb->larbid])
 		larb_gen->resource_ctrl[larb->larbid](dev, true);
 	clk_start = ktime_get();
 	ret = mtk_smi_clk_enable(&larb->smi, ctrl_type);
 	clk_end = ktime_get();
-	if (TARGET_LARB_MASK & (1U << larb->larbid))
-		dev_notice(dev, "mtk_debug larb:%d has enabled clk in callback get new ref_count:%d\n",
-			larb->larbid, atomic_read(&larb->smi.ref_count));
+	SMI_MME_INFO("larb:%d has enabled clk in callback get new ref_count:%d\n",
+		larb->larbid, atomic_read(&larb->smi.ref_count));
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable clock(%d).\n", ret);
 		if (larb_gen->resource_ctrl[larb->larbid])
@@ -4513,9 +4511,8 @@ static int __maybe_unused mtk_smi_larb_suspend(struct device *dev, enum smi_ctrl
 		return 0;
 	}
 
-	if (TARGET_LARB_MASK & (1U << larb->larbid))
-		dev_notice(dev, "mtk_debug larb:%d is to disable clk in callback put new ref_count:%d\n",
-			larb->larbid, atomic_read(&larb->smi.ref_count));
+	SMI_MME_INFO("larb:%d is to disable clk in callback put new ref_count:%d\n",
+		larb->larbid, atomic_read(&larb->smi.ref_count));
 
 	if (larb_gen->resource_ctrl[larb->larbid])
 		larb_gen->resource_ctrl[larb->larbid](dev, true);
@@ -4534,9 +4531,8 @@ static int __maybe_unused mtk_smi_larb_suspend(struct device *dev, enum smi_ctrl
 	mtk_smi_clk_disable(&larb->smi, ctrl_type);
 	if (larb_gen->resource_ctrl[larb->larbid])
 		larb_gen->resource_ctrl[larb->larbid](dev, false);
-	if (TARGET_LARB_MASK & (1U << larb->larbid))
-		dev_notice(dev, "mtk_debug larb:%d has disabled clk in callback put new ref_count:%d\n",
-			larb->larbid, atomic_read(&larb->smi.ref_count));
+	SMI_MME_INFO("larb:%d has disabled clk in callback put new ref_count:%d\n",
+		larb->larbid, atomic_read(&larb->smi.ref_count));
 
 	return 0;
 }

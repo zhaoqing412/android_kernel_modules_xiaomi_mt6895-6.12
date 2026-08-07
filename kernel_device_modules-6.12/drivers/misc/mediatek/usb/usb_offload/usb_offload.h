@@ -395,12 +395,13 @@ extern unsigned int debug_memory_log;
 
 int xhci_mtk_realloc_transfer_ring(unsigned int slot_id, unsigned int ep_id,
 	enum uo_provider_type id, bool is_rsv);
-struct usb_audio_dev *usb_offload_get_uadev(unsigned int slot_id);
 
-#define wait_condition(condition, timeout) ({ \
-	u64 __start = ktime_get_ns(); \
-	while (!condition && (ktime_get_ns() - __start < (timeout))) { \
+#define wait_condition(condition, timeout) ({ struct timespec64 ref, cur;\
+	ktime_get_ts64(&ref); \
+	cur = ref; \
+	while (!condition && (cur.tv_nsec - ref.tv_nsec) < timeout) { \
 		mdelay(1); \
+		ktime_get_ts64(&cur); \
 	} \
 	(condition) ? 0 : -ETIMEDOUT; \
 })

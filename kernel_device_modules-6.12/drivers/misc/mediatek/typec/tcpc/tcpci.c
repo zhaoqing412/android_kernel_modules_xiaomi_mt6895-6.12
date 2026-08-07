@@ -132,32 +132,6 @@ bool tcpci_check_vsafe0v(struct tcpc_device *tcpc)
 }
 EXPORT_SYMBOL(tcpci_check_vsafe0v);
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-int tcpci_get_chip_id(struct tcpc_device *tcpc,uint32_t *chip_id)
-{
-	if (tcpc->ops->get_chip_id == NULL)
-		return -ENOTSUPP;
-	return tcpc->ops->get_chip_id(tcpc,chip_id);
-}
-EXPORT_SYMBOL(tcpci_get_chip_id);
-int tcpci_get_chip_pid(struct tcpc_device *tcpc,uint32_t *chip_pid)
-{
-	if (tcpc->ops->get_chip_pid == NULL)
-		return -ENOTSUPP;
-
-	return tcpc->ops->get_chip_pid(tcpc,chip_pid);
-}
-EXPORT_SYMBOL(tcpci_get_chip_pid);
-int tcpci_get_chip_vid(struct tcpc_device *tcpc,uint32_t *chip_vid)
-{
-	if (tcpc->ops->get_chip_vid == NULL)
-		return -ENOTSUPP;
-
-	return tcpc->ops->get_chip_vid(tcpc,chip_vid);;
-}
-EXPORT_SYMBOL(tcpci_get_chip_vid);
-#endif
-
 int tcpci_alert_status_clear(
 	struct tcpc_device *tcpc, uint32_t mask)
 {
@@ -389,15 +363,7 @@ int tcpci_alert_vendor_defined_handler(struct tcpc_device *tcpc)
 	return ret;
 }
 EXPORT_SYMBOL(tcpci_alert_vendor_defined_handler);
-int tcpci_is_vsafe0v(struct tcpc_device *tcpc)
-{
-	int rv = -ENOTSUPP;
 
-	if (tcpc->ops->is_vsafe0v)
-		rv = tcpc->ops->is_vsafe0v(tcpc);
-
-	return rv;
-}
 #if CONFIG_WATER_DETECTION
 int tcpci_set_water_protection(struct tcpc_device *tcpc, bool en)
 {
@@ -517,85 +483,6 @@ int tcpci_notify_vbus_short_cc_status(struct tcpc_device *tcpc, int vsc_status)
 }
 EXPORT_SYMBOL(tcpci_notify_vbus_short_cc_status);
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-/* oplus charge add for uvlo */
-int tcpci_notify_chrdet_state(struct tcpc_device *tcpc, bool chrdet_state)
-{
-	struct tcp_notify tcp_noti;
-
-	tcp_noti.chrdet_state.chrdet = chrdet_state;
-
-	pr_err("%s chrdet: %d\n", __func__, chrdet_state);
-	TCPC_DBG("chrdet: %d\n", chrdet_state);
-	return tcpc_check_notify_time(tcpc, &tcp_noti, TCP_NOTIFY_IDX_MISC,
-					TCP_NOTIFY_CHRDET_STATE);
-}
-EXPORT_SYMBOL(tcpci_notify_chrdet_state);
-
-int tcpci_notify_bc12_complete_state(struct tcpc_device *tcpc, bool bc12_complete_state)
-{
-	struct tcp_notify tcp_noti;
-
-	tcp_noti.bc12_complete_state.bc12_complete = bc12_complete_state;
-
-	pr_err("%s bc12_complete_state: %d\n", __func__, bc12_complete_state);
-	TCPC_DBG("bc12_complete_state: %d\n", bc12_complete_state);
-	return tcpc_check_notify_time(tcpc, &tcp_noti, TCP_NOTIFY_IDX_MISC,
-					TCP_NOTIFY_BC12_COMPLETE_STATE);
-}
-EXPORT_SYMBOL(tcpci_notify_bc12_complete_state);
-
-int tcpci_notify_hvdcp_detect_dn(struct tcpc_device *tcpc, bool hvdcp_detect_dn)
-{
-	struct tcp_notify tcp_noti;
-
-	tcp_noti.hvdcp_detect.hvdcp_detect_dn = hvdcp_detect_dn;
-
-	pr_err("%s hvdcp_detect_dn: %d\n", __func__, hvdcp_detect_dn);
-	TCPC_DBG("hvdcp_detect_dn: %d\n", hvdcp_detect_dn);
-	return tcpc_check_notify_time(tcpc, &tcp_noti, TCP_NOTIFY_IDX_MISC,
-					TCP_NOTIFY_HVDCP_DETECT_DN);
-}
-EXPORT_SYMBOL(tcpci_notify_hvdcp_detect_dn);
-
-#if IS_ENABLED(CONFIG_OPLUS_PD_SOURCECAP_UPDATE_SUPPORT)
-int tcpci_notify_sourcecap_done(struct tcpc_device *tcpc, struct power_caps *info)
-{
-	struct tcp_notify tcp_noti;
-
-	tcp_noti.caps_msg.caps = info;
-
-	pr_err("%s srccap_done, cap num: %d\n", __func__, info->nr);
-	return tcpc_check_notify_time(tcpc, &tcp_noti, TCP_NOTIFY_IDX_MISC,
-					TCP_NOTIFY_PD_SOURCECAP_DONE);
-}
-EXPORT_SYMBOL(tcpci_notify_sourcecap_done);
-#endif
-#endif
-
-#ifdef OPLUS_FEATURE_CHG_BASIC
-int tcpci_notify_switch_get_state(struct tcpc_device *tcpc, bool (*pfunc)(int))
-{
-	struct tcp_notify tcp_noti;
-
-	tcp_noti.switch_get_status.pfunc = pfunc;
-	return tcpc_check_notify_time(tcpc, &tcp_noti, TCP_NOTIFY_IDX_MISC,
-				TCP_NOTIFY_SWITCH_GET_STATE);
-}
-EXPORT_SYMBOL(tcpci_notify_switch_get_state);
-
-int tcpci_notify_switch_set_state(struct tcpc_device *tcpc, bool state, bool (*pfunc)(int))
-{
-	struct tcp_notify tcp_noti;
-
-	tcp_noti.switch_set_status.state = state;
-	tcp_noti.switch_set_status.pfunc = pfunc;
-	pr_err("%s state: %d\n", __func__, state);
-	return tcpc_check_notify_time(tcpc, &tcp_noti, TCP_NOTIFY_IDX_MISC,
-			TCP_NOTIFY_SWITCH_SET_STATE);
-}
-EXPORT_SYMBOL(tcpci_notify_switch_set_state);
-#endif
 #if IS_ENABLED(CONFIG_USB_POWER_DELIVERY)
 
 int tcpci_set_msg_header(struct tcpc_device *tcpc,

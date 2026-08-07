@@ -170,9 +170,6 @@ struct charger_ops {
 	int (*enable_otg)(struct charger_device *dev, bool en);
 	int (*enable_discharge)(struct charger_device *dev, bool en);
 	int (*set_boost_current_limit)(struct charger_device *dev, u32 uA);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	int (*set_boost_voltage_limit)(struct charger_device *dev, u32 uv);
-#endif
 
 	/* charger type detection */
 	int (*enable_chg_type_det)(struct charger_device *dev, bool en);
@@ -223,26 +220,6 @@ struct charger_ops {
 	int (*get_property)(struct charger_device *dev,
 			    enum charger_property prop,
 			    union charger_propval *val);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	int (*enable_bc12)(struct charger_device *dev, bool en);
-	int (*enable_ship_mode)(struct charger_device *dev);
-	int (*set_usbid_period)(struct charger_device *dev, u32 period);
-	int (*get_usbid_stat)(struct charger_device *dev, u8 *status);
-#endif
-
-	/* Xiaomi charge-pump ops (ported from 5.10) */
-	int (*is_bypass_enabled)(struct charger_device *dev, bool *en);
-	int (*enable_bypass)(struct charger_device *dev, bool en);
-	int (*qc3_dpdm_pulse)(struct charger_device *dev, int type, int count);
-	int (*select_qc_mode)(struct charger_device *dev, int type);
-	int (*cp_set_mode)(struct charger_device *dev, int value);
-	int (*cp_device_init)(struct charger_device *dev, int value);
-	int (*cp_get_vbatt)(struct charger_device *dev, u32 *vbatt);
-	int (*cp_get_ibatt)(struct charger_device *dev, u32 *ibatt);
-	int (*cp_enable_adc)(struct charger_device *dev, bool en);
-	int (*cp_get_bypass_support)(struct charger_device *chg_dev, bool *enabled);
-	int (*cp_reset_check)(struct charger_device *chg_dev);
-	int (*cp_init_check)(struct charger_device *chg_dev);
 };
 
 static inline void *charger_dev_get_drvdata(
@@ -276,17 +253,6 @@ static inline void *charger_get_data(
 
 extern int charger_dev_enable(struct charger_device *charger_dev, bool en);
 extern int charger_dev_is_enabled(struct charger_device *charger_dev, bool *en);
-extern int charger_dev_is_bypass_enabled(struct charger_device *charger_dev, bool *en);
-extern int charger_dev_cp_get_bypass_support(struct charger_device *charger_dev, bool *en);
-extern int charger_dev_cp_reset_check(struct charger_device *charger_dev);
-extern int charger_dev_cp_init_check(struct charger_device *charger_dev);
-extern int charger_dev_cp_set_mode(struct charger_device *charger_dev, int value);
-extern int charger_dev_cp_device_init(struct charger_device *charger_dev, int value);
-extern int charger_dev_cp_get_vbatt(struct charger_device *charger_dev, u32 *vbatt);
-extern int charger_dev_cp_get_ibatt(struct charger_device *charger_dev, u32 *ibatt);
-extern int charger_dev_cp_enable_adc(struct charger_device *dev, bool en);
-extern int charger_dev_qc3_dpdm_pulse(struct charger_device *dev, int type, int count);
-extern int charger_dev_select_qc_mode(struct charger_device *dev, int type);
 extern int charger_dev_plug_in(struct charger_device *charger_dev);
 extern int charger_dev_plug_out(struct charger_device *charger_dev);
 extern int charger_dev_set_charging_current(
@@ -444,11 +410,6 @@ extern int charger_dev_enable_usbid(struct charger_device *dev, bool en);
 extern int charger_dev_set_usbid_rup(struct charger_device *dev, u32 rup);
 extern int charger_dev_set_usbid_src_ton(struct charger_device *dev,
 					 u32 src_ton);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-extern int charger_dev_set_usbid_period(struct charger_device *dev,
-					 u32 period);
-extern int charger_dev_get_usbid_stat(struct charger_device *dev, u8 *status);
-#endif
 extern int charger_dev_enable_usbid_floating(struct charger_device *dev,
 					     bool en);
 extern int charger_dev_enable_force_typec_otp(struct charger_device *dev,
@@ -465,10 +426,6 @@ extern int charger_dev_get_property(struct charger_device *dev,
 
 /* For buck1 FPWM */
 extern int charger_dev_enable_hidden_mode(struct charger_device *dev, bool en);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-extern int charger_dev_enable_ship_mode(struct charger_device *charger_dev);
-extern int charger_dev_set_boost_voltage_limit(struct charger_device *chg_dev, u32 uv);
-#endif
 
 extern int register_charger_device_notifier(
 	struct charger_device *charger_dev,

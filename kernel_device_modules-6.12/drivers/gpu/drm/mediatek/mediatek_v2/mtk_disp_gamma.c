@@ -464,7 +464,6 @@ static bool disp_gamma_flush_sram(struct mtk_ddp_comp *comp, int cmd_type)
 
 	switch (cmd_type) {
 	case GAMMA_USERSPACE:
-		DDPINFO("%s: (comp: %s)\n", __func__, mtk_dump_comp_str(comp));
 		CRTC_MMP_MARK(0, gamma_ioctl, comp->id, (unsigned long)cmdq_handle);
 		if (gamma_data->auto_flip == 1) {
 			cmdq_pkt_refinalize(cmdq_handle);
@@ -474,8 +473,6 @@ static bool disp_gamma_flush_sram(struct mtk_ddp_comp *comp, int cmd_type)
 
 				atomic_inc(&gamma1_data->clock_ref);
 			}
-
-			DDPMSG("%s: cmdq_pkt_flush_async(handle: 0x%x)\n", __func__, cmdq_handle);
 
 			if (cmdq_pkt_flush_async(cmdq_handle,
 					disp_gamma_async_flush_done_cb, (void *)cb_data) < 0) {
@@ -620,11 +617,11 @@ static int disp_gamma_cfg_set_12bit_gammalut(struct mtk_ddp_comp *comp,
 
 	mtk_drm_idlemgr_kick(__func__, &mtk_crtc->base, 0);
 
+	DDP_MUTEX_UNLOCK_CONDITION(&mtk_crtc->lock, __func__, __LINE__, false);
+
+	CRTC_MMP_EVENT_START(0, gamma_ioctl, 0, 0);
 	// 2. lock for protect crtc & power
 	clock_ret = disp_gamma_acquire_clock(comp);
-	DDP_MUTEX_UNLOCK_CONDITION(&mtk_crtc->lock, __func__, __LINE__, false);
-	CRTC_MMP_EVENT_START(0, gamma_ioctl, 0, 0);
-
 	if (clock_ret == 0) {
 		memcpy(&primary_data->gamma_12b_lut, data,
 				sizeof(struct DISP_GAMMA_12BIT_LUT_T));
@@ -1159,20 +1156,26 @@ static void disp_gamma_unprepare(struct mtk_ddp_comp *comp)
 	struct mtk_disp_gamma *gamma = comp_to_gamma(comp);
 	struct mtk_disp_gamma_primary *primary_data = gamma->primary_data;
 	struct cmdq_client *client = NULL;
+	int retry = 0;
 
 	DDPINFO("%s: compid +: %d\n", __func__, comp->id);
 	mutex_lock(&primary_data->clk_lock);
 	atomic_dec(&gamma->clock_ref);
 	primary_data->need_refinalize = true;
 	while (atomic_read(&gamma->clock_ref) > 0) {
+		if (retry >= 5) {
+			PQ_ERR("%s: can't wait clk_ref to 0\n", __func__);
+			break;
+		}
+		DDPMSG("%s: retry: %d\n", __func__, retry);
 		mutex_unlock(&primary_data->clk_lock);
-		usleep_range(500, 600);
+		usleep_range(50, 100);
+		retry++;
 		mutex_lock(&primary_data->clk_lock);
 	}
 
 	if (mtk_crtc->gce_obj.client[CLIENT_PQ]) {
 		client = mtk_crtc->gce_obj.client[CLIENT_PQ];
-		cmdq_mbox_thread_check_empty(client->chan);
 		cmdq_mbox_disable(client->chan);
 	}
 	mtk_ddp_comp_clk_unprepare(comp);

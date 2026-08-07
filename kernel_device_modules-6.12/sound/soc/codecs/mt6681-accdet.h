@@ -139,9 +139,6 @@ struct tag_chipid {
 	u32 hw_ver;
 	u32 sw_ver;
 };
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-extern void oplus_set_feedback_ctrl_val(unsigned int ctrl_val);
-#endif
 /* just be called by audio module for DC trim */
 extern void mt6681_accdet_late_init(unsigned long data);
 extern const struct file_operations *accdet_get_fops(void);

@@ -632,12 +632,8 @@ static int scpsys_power_on(struct generic_pm_domain *genpd)
 		goto err_regulator;
 
 	ret = scpsys_clk_enable(scpd->clk, MAX_CLKS);
-
 	if (ret)
 		goto err_clk;
-
-	if (strcmp("isp_main", genpd->name) == 0)
-		pr_info("%s: %s: scpsys_clk_enable clk\n", __func__, genpd->name);
 
 	ret = scpsys_clk_enable(scpd->lp_clk, MAX_CLKS);
 	if (ret)
@@ -743,12 +739,6 @@ static int scpsys_power_on(struct generic_pm_domain *genpd)
 		if (ret < 0)
 			goto err_pwr_ack;
 
-		if (strcmp("isp_main", genpd->name) == 0 ||
-			strcmp("isp_dip1", genpd->name) == 0 ||
-			strcmp("isp_ipe", genpd->name) == 0) {
-			pr_info("%s: %s: scpsys_clk_enable subsys_clk\n", __func__, genpd->name);
-		}
-
 		ret = scpsys_clk_enable(scpd->subsys_lp_clk, MAX_SUBSYS_CLKS);
 		if (ret < 0)
 			goto err_pwr_ack;
@@ -848,11 +838,6 @@ static int scpsys_power_off(struct generic_pm_domain *genpd)
 
 	if (!MTK_SCPD_CAPS(scpd, MTK_SCPD_BYPASS_CLK)) {
 		scpsys_clk_disable(scpd->subsys_clk, MAX_SUBSYS_CLKS);
-		if (strcmp("isp_main", genpd->name) == 0 ||
-			strcmp("isp_dip1", genpd->name) == 0 ||
-			strcmp("isp_ipe", genpd->name) == 0) {
-			pr_info("%s: %s: scpsys_clk_disable subsys_clk\n", __func__, genpd->name);
-		}
 		scpsys_clk_disable(scpd->subsys_lp_clk, MAX_SUBSYS_CLKS);
 	}
 
@@ -931,9 +916,6 @@ static int scpsys_power_off(struct generic_pm_domain *genpd)
 		goto out;
 
 	scpsys_clk_disable(scpd->clk, MAX_CLKS);
-
-	if (strcmp("isp_main", genpd->name) == 0)
-		pr_info("%s: %s: scpsys_clk_disable clk\n", __func__, genpd->name);
 
 	scpsys_clk_disable(scpd->lp_clk, MAX_CLKS);
 
@@ -1949,13 +1931,27 @@ int mtk_register_power_domains(struct platform_device *pdev,
 				struct scp *scp, int num)
 {
 	struct genpd_onecell_data *pd_data;
-	int i, ret = 0;
+
+	int i = 0, ret = 0;
+	struct scp_domain *scpd;
+	struct generic_pm_domain *genpd;
+	bool on = true;
+
+	for (i = num - 1; i >= 0; i--) {
+		scpd = &scp->domains[i];
+		genpd = &scpd->genpd;
+		if (MTK_SCPD_CAPS(scpd, MTK_SCPD_DISABLE_INIT_ON) &&
+			(scpsys_pwr_ack_2nd_is_on(scpd))) {
+			on = WARN_ON(genpd->power_off(genpd) < 0);
+			dev_notice(&pdev->dev, "disable not reset power_domain:%s, on:%d\n",
+				genpd->name, on);
+			pm_genpd_init(genpd, NULL, !on);
+		}
+	}
 
 	for (i = 0; i < num; i++) {
-		struct scp_domain *scpd = &scp->domains[i];
-		struct generic_pm_domain *genpd = &scpd->genpd;
-		bool on;
-
+		scpd = &scp->domains[i];
+		genpd = &scpd->genpd;
 		if (MTK_SCPD_CAPS(scpd, MTK_SCPD_BYPASS_CLK))
 			bypass_first_cg_off = true;
 
@@ -1989,7 +1985,6 @@ int mtk_register_power_domains(struct platform_device *pdev,
 	ret = of_genpd_add_provider_onecell(pdev->dev.of_node, pd_data);
 	if (ret)
 		dev_err(&pdev->dev, "Failed to add OF provider: %d\n", ret);
-
 	return ret;
 }
 EXPORT_SYMBOL(mtk_register_power_domains);

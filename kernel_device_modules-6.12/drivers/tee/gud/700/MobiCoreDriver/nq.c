@@ -24,8 +24,6 @@
 #include <linux/delay.h> /* msleep */
 #include <linux/version.h>
 #include <linux/sched.h>
-#include <linux/sched/types.h>
-#include <uapi/linux/sched/types.h>
 #include <linux/wait.h>
 #include <linux/mm.h>
 #include <linux/cpumask.h>
@@ -153,19 +151,6 @@ enum counter_id {
 	TEE_WORKER_COUNTER_BUSY,
 	TEE_WORKER_COUNTER_RESUME
 };
-
-#define OPLUS_SCHED_UTIL_MIN_TEE 1
-static const struct sched_attr op_attr = {
-	.sched_policy = SCHED_NORMAL,
-	.sched_flags = SCHED_FLAG_UTIL_CLAMP_MIN,
-	.sched_util_min = OPLUS_SCHED_UTIL_MIN_TEE,
-};
-
-static inline int op_sched_setattr(struct task_struct * p, const struct sched_attr *attr,
-				unsigned int flags) {
-	(void)flags;
-	return sched_setattr(p, attr);
-}
 
 static unsigned long get_tee_affinity(void)
 {
@@ -1553,8 +1538,6 @@ int nq_start(void)
 						       (void *)((uintptr_t)cnt),
 						       "%s", worker_name);
 
-		op_sched_setattr(l_ctx.tee_worker[cnt], &op_attr, 0);
-
 		if (IS_ERR(l_ctx.tee_worker[cnt])) {
 			ret = PTR_ERR(l_ctx.tee_worker[cnt]);
 			mc_dev_err(ret, "tee_worker thread creation failed");
@@ -1898,19 +1881,3 @@ int nq_cpu_on(unsigned int cpu)
 	return 0;
 }
 #endif
-
-void boost_tee(void)
-{
-    int cnt;
-    for (cnt = 0; cnt < NQ_TEE_WORKER_THREADS; cnt++) {
-        set_user_nice(l_ctx.tee_worker[cnt], MIN_NICE);
-    }
-}
-
-void deboost_tee(void)
-{
-    int cnt;
-    for (cnt = 0; cnt < NQ_TEE_WORKER_THREADS; cnt++) {
-        set_user_nice(l_ctx.tee_worker[cnt], 0);
-    }
-}

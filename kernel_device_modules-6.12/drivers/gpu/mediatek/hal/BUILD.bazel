@@ -32,8 +32,5 @@ define_mgk_ddk_ko(
         "-I$(srctree)/drivers/gpu/mediatek/gpufreq",
         "-I$(srctree)/drivers/gpu/mediatek/mt-plat",
     ],
-
-    ko_deps = [
-    ],
 )
 

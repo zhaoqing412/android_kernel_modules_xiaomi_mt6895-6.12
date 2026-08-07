@@ -30,7 +30,6 @@ struct mtk_disp_dbi_count_data {
 	irqreturn_t (*irq_handler)(int irq, void *dev_id);
 	unsigned int stash_lead_time;
 	unsigned int min_stash_port_bw;
-	unsigned int min_port_bw;
 	bool use_slot_trigger;
 };
 
@@ -77,21 +76,12 @@ struct mtk_disp_dbi_count {
 	uint32_t last_hrt;
 	uint32_t irq_num;
 	uint32_t show_gain;
-	uint32_t frame_done_irq_en;
 };
 
 struct dbi_count_block_info {
 	uint32_t block_h;
 	uint32_t block_v;
 	uint32_t channel;
-};
-
-struct mtk_dbi_count_irq {
-	ktime_t irq_time[10];
-	unsigned long irq_idx;
-	unsigned long irq_full;
-	unsigned long irq_err;
-	unsigned long irq_need_check;
 };
 
 int mtk_dbi_count_wait_disable_finish(struct mtk_ddp_comp *comp, void *data);

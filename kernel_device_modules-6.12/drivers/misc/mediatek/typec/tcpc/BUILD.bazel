@@ -1,17 +1,10 @@
 load("//build/bazel_mgk_rules:mgk_ddk_ko.bzl", "define_mgk_ddk_ko")
-load("//build/kernel/kleaf:kernel.bzl", "ddk_headers")
 load("@mgk_info//:kernel_version.bzl", "kernel_version",)
 
 package(
     default_visibility = [
         "//visibility:public",
     ],
-)
-
-ddk_headers(
-    name = "ddk_public_headers",
-    includes = ["." , "inc"],
-    hdrs = glob(["**/*.h","inc/*.h"]), # export all headers for other modules to use
 )
 
 filegroup(
@@ -39,8 +32,6 @@ CHIP_NAME = [
     "mt6379",
     "rt1711h",
     "rt1718s",
-    "sgm7220",
-    "wusb3801x",
 ]
 
 define_mgk_ddk_ko(
@@ -107,9 +98,6 @@ define_mgk_ddk_ko(
     includes = ["inc", "."],
     hdrs = glob(["inc/*.h", "pd_dpm_prv.h"]),
     ko_deps = [":pd_dbg_info",],
-    local_defines = [
-        "OPLUS_FEATURE_CHG_BASIC"
-    ],
     copts = [
         "-Wall",
         "-Werror",

@@ -1,9 +1,3 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
-source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/Kconfig"
-source "$(KCONFIG_EXT_PREFIX)drivers/misc/hwid/Kconfig"
-
-config SIMTRAY_STATUS
-	tristate "Xiaomi SIM tray status"
-	help
-	  Say Y here to enable the Xiaomi SIM tray status driver (xiaomi,simtray-status).
+source "drivers/misc/mediatek/Kconfig"

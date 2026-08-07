@@ -56,21 +56,6 @@ int mtk_dvfsrc_query_opp_info(u32 id)
 }
 EXPORT_SYMBOL(mtk_dvfsrc_query_opp_info);
 
-int (*apudvfs_debug_force_vcore_handle)(u32 vcore_opp);
-void register_apudvfs_debug_force_vcore_notify(int (*handler)(u32 vcore_opp))
-{
-	apudvfs_debug_force_vcore_handle = handler;
-}
-EXPORT_SYMBOL(register_apudvfs_debug_force_vcore_notify);
-
-int mtk_apudvfs_debug_force_vcore_notify(u32 vcore_opp)
-{
-	if (apudvfs_debug_force_vcore_handle != NULL)
-		return apudvfs_debug_force_vcore_handle(vcore_opp);
-
-	return 0;
-}
-
 int mtk_dvfsrc_vcore_uv_table(u32 opp)
 {
 	u32 opp_idx;
@@ -500,13 +485,6 @@ static int dvfsrc_aee_trigger(struct mtk_dvfsrc *dvfsrc, u32 aee_type)
 	return NOTIFY_DONE;
 }
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SLC)
-int osml_get_dvfsrc_sw_bw(int idx) {
-	return dvfsrc_drv ? get_dvfsrc_sw_bw(dvfsrc_drv, idx) : -1;
-}
-EXPORT_SYMBOL(osml_get_dvfsrc_sw_bw);
-#endif
-
 static int dvfsrc_get_vcore_voltage(struct mtk_dvfsrc *dvfsrc)
 {
 	int ret;
@@ -681,51 +659,28 @@ static void dvfsrc_force_opp(struct mtk_dvfsrc *dvfsrc, u32 opp)
 		if (__ratelimit(&dvfsrc_ratelimit_force))
 			pr_info("dvfsrc_force_opp\n");
 
-		if (opp != 0xFF) {
+		if (dvfsrc->dvd->mmdvfs_notify && (opp != 0xFF)) {
 			if (dvfsrc->force_opp_idx == 0xFF) {
-				if (dvfsrc->dvd->mmdvfs_notify)
-					mtk_mmdvfs_debug_force_vcore_notify(
-						dvfsrc->opp_desc->opps[0].vcore_opp);
-				if (dvfsrc->dvd->apudvfs_notify)
-					mtk_apudvfs_debug_force_vcore_notify(
-						dvfsrc->opp_desc->opps[0].vcore_opp);
+				mtk_mmdvfs_debug_force_vcore_notify(
+					dvfsrc->opp_desc->opps[0].vcore_opp);
 			} else if (dvfsrc->opp_desc->opps[max_opp - opp].vcore_opp
-					< dvfsrc->opp_desc->opps[max_opp - dvfsrc->force_opp_idx].vcore_opp) {
-				if (dvfsrc->dvd->mmdvfs_notify)
-					mtk_mmdvfs_debug_force_vcore_notify(
-						dvfsrc->opp_desc->opps[max_opp - opp].vcore_opp);
-				if (dvfsrc->dvd->apudvfs_notify)
-					mtk_apudvfs_debug_force_vcore_notify(
-						dvfsrc->opp_desc->opps[max_opp - opp].vcore_opp);
-			}
+					< dvfsrc->opp_desc->opps[max_opp - dvfsrc->force_opp_idx].vcore_opp)
+				mtk_mmdvfs_debug_force_vcore_notify(
+					dvfsrc->opp_desc->opps[max_opp - opp].vcore_opp);
 		}
 
 		mtk_dvfsrc_send_request(dvfsrc->dev->parent,
 			MTK_DVFSRC_CMD_FORCEOPP_REQUEST, opp);
 
-		if (dvfsrc->force_opp_idx != 0xFF) {
+		if (dvfsrc->dvd->mmdvfs_notify && (dvfsrc->force_opp_idx != 0xFF)) {
 			if (opp == 0xFF) {
-				if (dvfsrc->dvd->mmdvfs_notify)
-					mtk_mmdvfs_debug_force_vcore_notify(0xFF);
-				if (dvfsrc->dvd->apudvfs_notify)
-					mtk_apudvfs_debug_force_vcore_notify(0xFF);
+				mtk_mmdvfs_debug_force_vcore_notify(0xFF);
 			} else if (dvfsrc->opp_desc->opps[max_opp - opp].vcore_opp
-					> dvfsrc->opp_desc->opps[max_opp - dvfsrc->force_opp_idx].vcore_opp) {
-				if (dvfsrc->dvd->mmdvfs_notify)
-					mtk_mmdvfs_debug_force_vcore_notify(
-						dvfsrc->opp_desc->opps[max_opp - opp].vcore_opp);
-				if (dvfsrc->dvd->apudvfs_notify)
-					mtk_apudvfs_debug_force_vcore_notify(
-						dvfsrc->opp_desc->opps[max_opp - opp].vcore_opp);
-			}
+					> dvfsrc->opp_desc->opps[max_opp - dvfsrc->force_opp_idx].vcore_opp)
+				mtk_mmdvfs_debug_force_vcore_notify(
+					dvfsrc->opp_desc->opps[max_opp - opp].vcore_opp);
 		}
-		if (dvfsrc->dvd->apudvfs_notify && (dvfsrc->force_opp_idx == 0xFF) && (opp != 0xFF))
-			mtk_apudvfs_debug_force_vcore_notify(
-							dvfsrc->opp_desc->opps[max_opp - opp].vcore_opp);
 	}
-
-
-
 	dvfsrc->force_opp_idx = opp;
 }
 
@@ -1487,7 +1442,6 @@ static const struct dvfsrc_debug_data mt6993_data = {
 	.emi_opp_req_enmode = 1,
 	.dump_flag = DVFSRC_EMI_DUMP_FLAG,
 	.mmdvfs_notify = true,
-	.apudvfs_notify = true,
 };
 
 static const struct dvfsrc_debug_data mt6899_data = {

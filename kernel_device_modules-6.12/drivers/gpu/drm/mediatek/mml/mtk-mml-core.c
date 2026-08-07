@@ -310,7 +310,7 @@ u32 mml_topology_get_mode_caps(void)
 	mutex_lock(&tp_mutex);
 	tp_node = list_first_entry_or_null(&tp_ips, typeof(*tp_node), entry);
 	if (tp_node) {
-		if (tp_node->op->support_dc2)
+		if (tp_node->op->support_dc2 && tp_node->op->support_dc2())
 			modes = BIT(MML_MODE_MML_DECOUPLE) | BIT(MML_MODE_MML_DECOUPLE2);
 		else
 			/* enable mdp decouple bit if no mml dc2 support */
@@ -1099,20 +1099,15 @@ static void mml_core_qos_update_dpc(struct mml_frame_config *cfg, bool trigger)
 	struct mml_task_pipe *task_pipe;
 	struct mml_task *task;
 	const struct mml_topology_path *path = cfg->path[0];
-	const u8 *larb_sys_map;
 	u32 srt_bw[MML_MAX_LARB] = {0}, hrt_bw[MML_MAX_LARB] = {0}, srt_bw_max = 0, hrt_bw_max = 0;
 	u32 stash_srt_bw[MML_MAX_LARB] = {0}, stash_hrt_bw[MML_MAX_LARB] = {0};
 	u32 dpc_dvfs_lv = 0;
 	enum mml_sys_id sysid;
-	u8 larb_idx, sys_idx;
+	u8 larb_idx;
 	u32 i;
-	bool bw_en = false;
 
 	if (unlikely(!tp))
 		return;
-
-	/* use assign platform larb map if support */
-	larb_sys_map = tp->larb_sys_map;
 
 	for (i = 0; i < ARRAY_SIZE(tp->path_clts); i++) {
 		u32 task_srt_max[MML_MAX_LARB] = {0}, task_hrt_max[MML_MAX_LARB] = {0};
@@ -1123,45 +1118,30 @@ static void mml_core_qos_update_dpc(struct mml_frame_config *cfg, bool trigger)
 			task = task_pipe->task;
 
 			for (larb_idx = 0; larb_idx < MML_MAX_LARB; larb_idx++) {
-				sys_idx = larb_sys_map ? larb_sys_map[larb_idx] : larb_idx;
+				task_srt_max[larb_idx] =
+					max_t(u32, task_srt_max[larb_idx], task->dpc_srt_bw[larb_idx]);
+				task_hrt_max[larb_idx] =
+					max_t(u32, task_hrt_max[larb_idx], task->dpc_hrt_bw[larb_idx]);
 
-#if IS_ENABLED(CONFIG_MTK_MML_DEBUG)
-				if (sys_idx >= mml_max_sys) {
-					mml_err("%s sysid %u wrong from larb idx %u map %p",
-						__func__, sys_idx, larb_idx, larb_sys_map);
-					sys_idx = mml_sys_dma;
-				}
-#endif
-
-				task_srt_max[sys_idx] =
-					max_t(u32, task_srt_max[sys_idx], task->dpc_srt_bw[larb_idx]);
-				task_hrt_max[sys_idx] =
-					max_t(u32, task_hrt_max[sys_idx], task->dpc_hrt_bw[larb_idx]);
-
-				task_stash_srt_max[sys_idx] = max_t(u32, task_stash_srt_max[sys_idx],
+				task_stash_srt_max[larb_idx] = max_t(u32, task_stash_srt_max[larb_idx],
 					task->dpc_srt_write_bw[larb_idx]);
-				task_stash_hrt_max[sys_idx] = max_t(u32, task_stash_hrt_max[sys_idx],
+				task_stash_hrt_max[larb_idx] = max_t(u32, task_stash_hrt_max[larb_idx],
 					task->dpc_hrt_write_bw[larb_idx]);
 			}
-
-			bw_en = true;
 		}
 
-		for (sys_idx = 0; sys_idx < mml_max_sys; sys_idx++) {
-			srt_bw[sys_idx] += task_srt_max[sys_idx];
-			hrt_bw[sys_idx] += task_hrt_max[sys_idx];
-			stash_srt_bw[sys_idx] += task_stash_srt_max[sys_idx];
-			stash_hrt_bw[sys_idx] += task_stash_hrt_max[sys_idx];
+		for (larb_idx = 0; larb_idx < MML_MAX_LARB; larb_idx++) {
+			srt_bw[larb_idx] += task_srt_max[larb_idx];
+			hrt_bw[larb_idx] += task_hrt_max[larb_idx];
+			stash_srt_bw[larb_idx] += task_stash_srt_max[larb_idx];
+			stash_hrt_bw[larb_idx] += task_stash_hrt_max[larb_idx];
 		}
 	}
 
-	for (sys_idx = 0; sys_idx < mml_max_sys; sys_idx++) {
-		srt_bw_max = max_t(u32, srt_bw_max, srt_bw[sys_idx]);
-		hrt_bw_max = max_t(u32, hrt_bw_max, hrt_bw[sys_idx]);
+	for (larb_idx = 0; larb_idx < MML_MAX_LARB; larb_idx++) {
+		srt_bw_max = max_t(u32, srt_bw_max, srt_bw[larb_idx]);
+		hrt_bw_max = max_t(u32, hrt_bw_max, hrt_bw[larb_idx]);
 	}
-
-	if (bw_en && !srt_bw_max && !hrt_bw_max)
-		mml_err("%s fail update task bw last task %p", __func__, task);
 
 	for (sysid = 0; sysid < mml_max_sys; sysid++)
 		dpc_dvfs_lv = max_t(u32, dpc_dvfs_lv, tp->dvfs->current_level[mml_tput_dpc]);
@@ -1179,16 +1159,16 @@ static void mml_core_qos_update_dpc(struct mml_frame_config *cfg, bool trigger)
 	}
 
 	/* set dpc hrt/srt bw */
-	for (sys_idx = 0; sys_idx < mml_max_sys; sys_idx++) {
-		mml_dpc_srt_bw_set(sys_idx, srt_bw[sys_idx], false);
-		mml_dpc_hrt_bw_set(sys_idx, hrt_bw_max, false);
+	for (larb_idx = 0; larb_idx < MML_MAX_LARB; larb_idx++) {
+		mml_dpc_srt_bw_set(larb_idx, srt_bw[larb_idx], false);
+		mml_dpc_hrt_bw_set(larb_idx, hrt_bw_max, false);
 
-		mml_mmp(dpc_bw_srt, MMPROFILE_FLAG_PULSE, sys_idx, srt_bw[sys_idx]);
-		mml_mmp(dpc_bw_hrt, MMPROFILE_FLAG_PULSE, sys_idx, hrt_bw_max);
+		mml_mmp(dpc_bw_srt, MMPROFILE_FLAG_PULSE, larb_idx, srt_bw[larb_idx]);
+		mml_mmp(dpc_bw_hrt, MMPROFILE_FLAG_PULSE, larb_idx, hrt_bw_max);
 
 		/* set channel bw for dpc2.0 */
-		mml_dpc_channel_bw_set_by_idx(sys_idx, stash_srt_bw[sys_idx], false);
-		mml_dpc_channel_bw_set_by_idx(sys_idx, stash_hrt_bw[sys_idx], true);
+		mml_dpc_channel_bw_set_by_idx(larb_idx, stash_srt_bw[larb_idx], false);
+		mml_dpc_channel_bw_set_by_idx(larb_idx, stash_hrt_bw[larb_idx], true);
 	}
 
 	/* set dpc dvfs (mminfra, bus) */
@@ -1589,7 +1569,7 @@ done:
 			mml_core_qos_calc(task_pipe_tmp->task, tmp_pipe, throughput);
 		}
 		/* update the max bw for each comp for first task in this client */
-		mml_core_qos_set(task_pipe_cur->task, tmp_pipe, throughput, tput_up);
+		mml_core_qos_set(task, tmp_pipe, throughput, tput_up);
 		bandwidth = task_pipe_cur->bandwidth;
 	} else {
 		if (task->config->info.dl_pos == MML_DL_POS_RIGHT)
@@ -2226,7 +2206,7 @@ static s32 core_flush(struct mml_task *task, u32 pipe)
 		/* also make sure buffer content flushed by other module */
 		if (task->buf.src.flush) {
 			mml_msg("%s flush source", __func__);
-			mml_trace_ex_begin("%s_src", __func__);
+			mml_trace_ex_begin("%s_flush_src", __func__);
 			mml_buf_flush(&task->buf.src);
 			mml_trace_ex_end();
 		}
@@ -2234,7 +2214,7 @@ static s32 core_flush(struct mml_task *task, u32 pipe)
 		if (cfg->info.dest[0].pq_config.en_region_pq &&
 		    task->buf.seg_map.flush) {
 			mml_msg("%s flush region pq source", __func__);
-			mml_trace_ex_begin("%s_seg_map", __func__);
+			mml_trace_ex_begin("%s_flush_seg_map", __func__);
 			mml_buf_flush(&task->buf.seg_map);
 			mml_trace_ex_end();
 		}
@@ -2243,7 +2223,7 @@ static s32 core_flush(struct mml_task *task, u32 pipe)
 			if (task->buf.dest[i].flush) {
 				mml_msg("%s flush dest %d plane %hhu",
 					__func__, i, task->buf.dest[i].cnt);
-				mml_trace_ex_begin("%s_dst_%u", __func__, i);
+				mml_trace_ex_begin("%s_flush_dst_%u", __func__, i);
 				mml_buf_flush(&task->buf.dest[i]);
 				mml_trace_ex_end();
 			}
@@ -2576,7 +2556,7 @@ void mml_core_destroy_task(struct mml_task *task)
 	}
 	for (i = 0; i < ARRAY_SIZE(task->pkts); i++) {
 		if (task->pkts[i])
-			cmdq_pkt_destroy_no_wq(task->pkts[i]);
+			cmdq_pkt_destroy(task->pkts[i]);
 	}
 	mml_pq_task_release(task);
 	kfree(task->isr_nodes);
@@ -2743,7 +2723,7 @@ void mml_update(u32 comp_id, struct mml_task_reuse *reuse, u16 label_idx, u32 va
 
 	if (comp_id != reuse->label_mods[label_idx])
 		mml_err("%s label idx %u/%u mod %u %u module overwrite value %#x",
-			__func__, label_idx, reuse->label_idx, comp_id,
+			__func__, label_idx, reuse->label_mods[label_idx], comp_id,
 			reuse->label_mods[label_idx], value);
 
 	reuse->labels[label_idx].val = value;
@@ -2758,7 +2738,7 @@ void mml_reuse_touch(u32 comp_id, struct mml_task_reuse *reuse, u16 label_idx)
 
 	if (comp_id != reuse->label_mods[label_idx])
 		mml_err("%s label idx %u/%u mod %u %u module overwrite",
-			__func__, label_idx, reuse->label_idx, comp_id,
+			__func__, label_idx, reuse->label_mods[label_idx], comp_id,
 			reuse->label_mods[label_idx]);
 
 	reuse->label_check[label_idx] = true;
@@ -2846,24 +2826,14 @@ s32 mml_write_array(u32 comp_id, struct cmdq_pkt *pkt, dma_addr_t addr, u32 valu
 void mml_update_array(u32 comp_id, struct mml_task_reuse *reuse,
 	struct mml_reuse_array *reuses, u32 reuse_idx, u32 off_idx, u32 value)
 {
-	u32 label_idx;
-	struct cmdq_reuse *label;
-	u64 *va;
-
-	if (reuse_idx >= reuses->idx) {
-		mml_err("%s comp %u reuses off idx %u reuses cnt %u overflow",
-			__func__, comp_id, reuse_idx, reuses->idx);
-		return;
-	}
-
-	label_idx = reuses->offs[reuse_idx].label_idx;
-	label = &reuse->labels[label_idx];
-	va = label->va + reuses->offs[reuse_idx].offset * off_idx;
+	u32 label_idx = reuses->offs[reuse_idx].label_idx;
+	struct cmdq_reuse *label = &reuse->labels[label_idx];
+	u64 *va = label->va + reuses->offs[reuse_idx].offset * off_idx;
 
 	if (comp_id != reuse->label_mods[label_idx])
 		mml_err("%s label idx %u/%u mod %u %u module overwrite value %#x",
-			__func__, label_idx, reuse->label_idx,
-			comp_id, reuse->label_mods[label_idx], value);
+			__func__, label_idx, comp_id, reuse->label_mods[label_idx],
+			reuse->label_idx, value);
 
 	*va = (*va & GENMASK_ULL(63, 32)) | value;
 	reuse->label_check[label_idx] = true;

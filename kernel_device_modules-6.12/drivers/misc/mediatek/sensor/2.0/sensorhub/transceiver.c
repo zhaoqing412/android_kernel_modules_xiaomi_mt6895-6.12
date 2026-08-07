@@ -150,33 +150,7 @@ static bool transceiver_wakeup_check(uint8_t action, uint8_t sensor_type)
 			sensor_type == SENSOR_TYPE_GLANCE_GESTURE ||
 			sensor_type == SENSOR_TYPE_PICK_UP_GESTURE ||
 			sensor_type == SENSOR_TYPE_STATIONARY_DETECT ||
-			sensor_type == SENSOR_TYPE_MOTION_DETECT ||
-			sensor_type == SENSOR_TYPE_IN_POCKET ||
-			sensor_type == SENSOR_TYPE_ANSWER_CALL ||
-			sensor_type == SENSOR_TYPE_FLAT ||
-//#ifdef OPLUS_SENSOR_FEATURE add for oplus virtual sensor
-			sensor_type == SENSOR_TYPE_SENSOR_MONITOR ||
-			sensor_type == SENSOR_TYPE_LUX_AOD ||
-			sensor_type == SENSOR_TYPE_PICKUP_DETECT ||
-			sensor_type == SENSOR_TYPE_FP_DISPLAY ||
-			sensor_type == SENSOR_TYPE_HOLSTER_HALL ||
-			sensor_type == SENSOR_TYPE_PHONE_PROX ||
-			sensor_type == SENSOR_TYPE_GESTURE_PROX ||
-			sensor_type == SENSOR_TYPE_FOLD_STATE ||
-			sensor_type == SENSOR_TYPE_REAR_PROXIMITY ||
-			sensor_type == SENSOR_TYPE_AMBIENTE_PROX ||
-			sensor_type == SENSOR_TYPE_AP_TIMER ||
-			sensor_type == SENSOR_TYPE_POCKET ||
-			sensor_type == SENSOR_TYPE_ULTRASOUND_PROX ||
-			sensor_type == SENSOR_TYPE_FREE_FALL ||
-			sensor_type == SENSOR_TYPE_SHAKING_DETECT ||
-			sensor_type == SENSOR_TYPE_OPLUS_SLEEP ||
-			sensor_type == SENSOR_TYPE_FLIGHT_DETECT ||
-			sensor_type == SENSOR_TYPE_OPLUS_USND_PROX ||
-			sensor_type == SENSOR_TYPE_CHOP_DETECT ||
-			sensor_type == SENSOR_TYPE_HILL_SCENE ||
-			sensor_type == SENSOR_TYPE_FLIGHT_SCENE))
-//#endif
+			sensor_type == SENSOR_TYPE_MOTION_DETECT))
 		return true;
 
 	return false;
@@ -221,7 +195,7 @@ static void transceiver_update_config(struct transceiver_device *dev,
 	}
 	switch (src->sensor_type) {
 	case SENSOR_TYPE_ACCELEROMETER:
-		transceiver_copy_config(dst, src, 12, 12, 24);
+		transceiver_copy_config(dst, src, 12, 12, 0);
 		break;
 	case SENSOR_TYPE_MAGNETIC_FIELD:
 		transceiver_copy_config(dst, src, 12, 24, 0);
@@ -318,7 +292,6 @@ static int transceiver_translate(struct transceiver_device *dev,
 		case SENSOR_TYPE_ACCELEROMETER:
 		case SENSOR_TYPE_MAGNETIC_FIELD:
 		case SENSOR_TYPE_GYROSCOPE:
-		case SENSOR_TYPE_PROXIMITY:
 			dst->word[0] = src->value[0];
 			dst->word[1] = src->value[1];
 			dst->word[2] = src->value[2];
@@ -355,6 +328,7 @@ static int transceiver_translate(struct transceiver_device *dev,
 			break;
 		case SENSOR_TYPE_LIGHT:
 		case SENSOR_TYPE_PRESSURE:
+		case SENSOR_TYPE_PROXIMITY:
 		case SENSOR_TYPE_STEP_COUNTER:
 			dst->word[0] = src->value[0];
 			break;
@@ -650,36 +624,19 @@ static int transceiver_config(struct hf_device *hf_dev,
 
 	mutex_lock(&dev->config_lock);
 	cfg = dev->state[sensor_type].config;
-
-	if (sensor_type == 8 || sensor_type == 95 || sensor_type == 116) {
+	if (!cfg) {
+		cfg = kzalloc(sizeof(*cfg) + length, GFP_KERNEL);
 		if (!cfg) {
-			pr_err("alsps alloc length:48, %d %d\n", length, sensor_type);
-			cfg = kzalloc(sizeof(*cfg) + 48, GFP_KERNEL);
-			if (!cfg) {
-				mutex_unlock(&dev->config_lock);
-				return -ENOMEM;
-			}
-			dev->state[sensor_type].config = cfg;
-		} else {
-			if (cfg->length != length) {
-				pr_err("length not equal to prev length\n");
-			}
+			mutex_unlock(&dev->config_lock);
+			return -ENOMEM;
 		}
+		dev->state[sensor_type].config = cfg;
 	} else {
-// add for alsps end
-		if (!cfg) {
-			cfg = kzalloc(sizeof(*cfg) + length, GFP_KERNEL);
-			if (!cfg) {
-				mutex_unlock(&dev->config_lock);
-				return -ENOMEM;
-			}
-			dev->state[sensor_type].config = cfg;
-		} else {
-			if (cfg->length != length) {
-				pr_err("length not equal to prev length\n");
-				mutex_unlock(&dev->config_lock);
-				return -EINVAL;
-			}
+		if (cfg->length != length) {
+			pr_err("length not equal to prev length\n");
+			mutex_unlock(&dev->config_lock);
+			return -EINVAL;
+
 		}
 	}
 	cfg->length = length;
@@ -803,21 +760,6 @@ static int transceiver_create_manager(struct transceiver_device *dev)
 	dev->hf_dev.support_size = dev->support_size;
 	return hf_manager_create(hf_dev);
 }
-
-int get_support_sensor_list(struct sensor_info *list)
-{
-	int ret = 0;
-
-	if (list) {
-		struct transceiver_device *dev = &transceiver_dev;
-		memcpy(list, dev->support_list, sizeof(dev->support_list));
-	} else {
-		ret = -1;
-		pr_err("list is NULL\n");
-	}
-	return ret;
-}
-EXPORT_SYMBOL_GPL(get_support_sensor_list);
 
 static void transceiver_destroy_manager(struct transceiver_device *dev)
 {

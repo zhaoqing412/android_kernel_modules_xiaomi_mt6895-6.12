@@ -29,13 +29,6 @@
 #include <linux/mfd/mt6661/core.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/atomic.h>
-#include <soc/oplus/boot/oplus_project.h>
-//#ifdef OPLUS_BUG_STABILITY
-#include <linux/proc_fs.h>
-#include <asm/uaccess.h>
-#include <linux/of_gpio.h>
-#include <linux/seq_file.h>
-//#endif /*OPLUS_BUG_STABILITY*/
 
 /* 6358 pmic define */
 #define MT6358_TOPSTATUS			(0x28)
@@ -276,92 +269,6 @@ static struct mtk_pmic_keys *ktf_pmic_key;
 static atomic_t last_key_status = ATOMIC_INIT(0);
 static bool need_reset_home;
 
-//#ifdef OPLUS_BUG_STABILITY
-/* for AEE manual dump */
-#define AEE_VOLUMEUP_BIT	0
-#define AEE_VOLUMEDOWN_BIT	1
-#define AEE_DELAY_TIME		15
-#define VOLUMEDOWN_PRESSED	1
-
-unsigned long vol_key_password = 0;
-unsigned long start_timer_last = 0;
-u16 TPLGPASSWORD = 3640;
-
-static struct hrtimer aee_timer;
-static unsigned long aee_pressed_keys;
-static bool aee_timer_started;
-int aee_kpd_enable = 0;
-EXPORT_SYMBOL(aee_kpd_enable);
-
-static struct hrtimer voldown_timer;
-static int volume_down_gpio = -ENOENT;
-static bool voldown_pressed = false;
-static bool voldown_debounce = false;
-static int volume_down_debounce_ms = 0;
-
-void kpd_aee_handler(u32 keycode, u16 pressed);
-EXPORT_SYMBOL(kpd_aee_handler);
-
-static inline void kpd_update_aee_state(void);
-
-static inline void kpd_update_aee_state(void)
-{
-	if (aee_pressed_keys == ((1 << AEE_VOLUMEUP_BIT) | (1 << AEE_VOLUMEDOWN_BIT))) {
-		/* if volumeup and volumedown was pressed the same time then start the time of ten seconds */
-		aee_timer_started = true;
-		if (!hrtimer_active(&aee_timer)) {
-			hrtimer_start(&aee_timer, ktime_set(AEE_DELAY_TIME, 0), HRTIMER_MODE_REL);
-			pr_info("aee_timer started\n");
-		}
-	} else {
-		/*
-		 * hrtimer_cancel - cancel a timer and wait for the handler to finish.
-		 * Returns:
-		 * 0 when the timer was not active.
-		 * 1 when the timer was active.
-		 */
-		if (aee_timer_started) {
-			if (hrtimer_cancel(&aee_timer))
-				pr_info("try to cancel hrtimer\n");
-
-			aee_timer_started = false;
-			pr_info("aee_timer canceled\n");
-		}
-	}
-}
-void kpd_aee_handler(u32 keycode, u16 pressed)
-{
-	if (pressed) {
-		if (keycode == KEY_VOLUMEUP)
-			__set_bit(AEE_VOLUMEUP_BIT, &aee_pressed_keys);
-		else if (keycode == KEY_VOLUMEDOWN)
-			__set_bit(AEE_VOLUMEDOWN_BIT, &aee_pressed_keys);
-		else
-			return;
-		kpd_update_aee_state();
-	} else {
-		if (keycode == KEY_VOLUMEUP)
-			__clear_bit(AEE_VOLUMEUP_BIT, &aee_pressed_keys);
-		else if (keycode == KEY_VOLUMEDOWN)
-			__clear_bit(AEE_VOLUMEDOWN_BIT, &aee_pressed_keys);
-		else
-			return;
-		kpd_update_aee_state();
-	}
-}
-
-static enum hrtimer_restart aee_timer_func(struct hrtimer *timer)
-{
-	/* kpd_info("kpd: vol up+vol down AEE manual dump!\n"); */
-	if (aee_kpd_enable && aee_timer_started) {
-		pr_err("%s call bug for aee manual dump.", __func__);
-		BUG();
-	}
-
-	return HRTIMER_NORESTART;
-}
-//#endif /*OPLUS_BUG_STABILITY*/
-
 static void mtk_pmic_keys_lp_reset_setup(struct mtk_pmic_keys *keys,
 		const struct mtk_pmic_regs *pmic_regs)
 {
@@ -542,17 +449,6 @@ static irqreturn_t mtk_pmic_keys_release_irq_handler_thread(
 		__pm_relax(info->suspend_lock);
 	dev_dbg(info->keys->dev, "release key =%d using PMIC\n",
 			info->keycode);
-//#ifdef OPLUS_BUG_STABILITY
-	if (aee_kpd_enable && info->keycode == KEY_VOLUMEUP) {
-		pr_err("pmic volup key triggered, pressed is %u\n", 0);
-		kpd_aee_handler(KEY_VOLUMEUP, 0);
-	}
-	if (aee_kpd_enable && info->keycode == KEY_VOLUMEDOWN) {
-		pr_err("pmic voldown key triggered, pressed is %u\n", 0);
-		kpd_aee_handler(KEY_VOLUMEDOWN, 0);
-	}
-//#endif /*OPLUS_BUG_STABILITY*/
-
 	return IRQ_HANDLED;
 }
 
@@ -577,69 +473,13 @@ static irqreturn_t mtk_pmic_keys_irq_handler_thread(int irq, void *data)
 	input_report_key(info->keys->input_dev, info->keycode, pressed);
 	input_sync(info->keys->input_dev);
 
-//#ifndef OPLUS_FEATURE_TP_BASIC
-//Qicai.gu 2025/4/18 add for powerkey lost up event
-//	if (pressed && info->suspend_lock)
-//		__pm_stay_awake(info->suspend_lock);
-//#else
 	if (pressed && info->suspend_lock)
-		__pm_wakeup_event(info->suspend_lock, msecs_to_jiffies(200000));//200s
-//#endif
+		__pm_stay_awake(info->suspend_lock);
 	else if (info->suspend_lock)
 		__pm_relax(info->suspend_lock);
 	dev_dbg(info->keys->dev, "(%s) key =%d using PMIC\n",
 		 pressed ? "pressed" : "released", info->keycode);
 
-	//#ifdef OPLUS_BUG_STABILITY
-	if (aee_kpd_enable && info->keycode == KEY_VOLUMEUP) {
-		pr_err("pmic volup key triggered, pressed is %u\n", pressed);
-		kpd_aee_handler(KEY_VOLUMEUP, pressed);
-	}
-	if (aee_kpd_enable && info->keycode == KEY_VOLUMEDOWN) {
-		pr_err("pmic voldown key triggered, pressed is %u\n", pressed);
-		kpd_aee_handler(KEY_VOLUMEDOWN, pressed);
-	}
-	//#endif /*OPLUS_BUG_STABILITY*/
-
-	return IRQ_HANDLED;
-}
-
-static enum hrtimer_restart voldown_timer_func(struct hrtimer *timer)
-{
-	int gpio_state = gpio_get_value(volume_down_gpio);
-
-	if (gpio_state == 0) {
-		if (!voldown_pressed) {
-			voldown_pressed = true;
-			pr_err("%s: pmic voldown key pressed\n", __func__);
-			kpd_aee_handler(KEY_VOLUMEDOWN, 1);
-		}
-	}
-	voldown_debounce = false;
-	return HRTIMER_NORESTART;
-}
-
-static irqreturn_t volume_down_irq_handler(int irq, void *dev_id)
-{
-	int gpio_state = gpio_get_value(volume_down_gpio);
-
-	if (gpio_state == 0) {
-		if (!voldown_pressed && !voldown_debounce) {
-			voldown_debounce = true;
-			hrtimer_start(&voldown_timer, ms_to_ktime(volume_down_debounce_ms), HRTIMER_MODE_REL);
-		}
-	} else {
-		if (voldown_debounce) {
-			voldown_debounce = false;
-			hrtimer_cancel(&voldown_timer);
-		}
-
-		if (voldown_pressed) {
-			voldown_pressed = false;
-			pr_err("%s: pmic voldown key release\n", __func__);
-			kpd_aee_handler(KEY_VOLUMEDOWN, 0);
-		}
-	}
 	return IRQ_HANDLED;
 }
 
@@ -730,64 +570,6 @@ static ssize_t powerkey_irq_store(struct device *dev,
 
 static DEVICE_ATTR(powerkey_irq, 0660, powerkey_irq_show, powerkey_irq_store);
 
-void gpio_volume_down_key_init(struct platform_device *pdev)
-{
-	int volume_down_irq = -ENOENT;
-	struct device_node *np;
-	int ret;
-
-	/* get volume_down_key node */
-	np = of_find_node_by_name(NULL, "volume_down_key");
-	if (!np) {
-		pr_err("%s: not find volume_down_key node\n", __func__);
-		return;
-	}
-
-	/* get volume-down-button node */
-	np = of_get_child_by_name(np, "volume-down-button");
-	if (!np) {
-		pr_err("%s: not find volume-down-button node\n", __func__);
-		return;
-	}
-
-	/* get gpio */
-	volume_down_gpio = of_get_named_gpio(np, "gpios", 0);
-	if (volume_down_gpio < 0) {
-		pr_err("get gpio failed: %d\n", volume_down_gpio);
-		return;
-	}
-
-	ret = of_property_read_u32(np, "debounce-interval", &volume_down_debounce_ms);
-	if (ret) {
-		pr_info("%s: debounce-interval not found, use default value\n", __func__);
-		volume_down_debounce_ms = 32;
-	} else {
-		pr_err("%s: get debounce time is %d\n", __func__, volume_down_debounce_ms);
-	}
-
-	ret = gpio_direction_input(volume_down_gpio);
-	if (ret) {
-		pr_err("%s: set gpio direction input failed, ret is %d\n", __func__, ret);
-		return;
-	}
-
-	volume_down_irq = gpio_to_irq(volume_down_gpio);
-	if (volume_down_irq < 0) {
-		pr_err("get gpio irq failed: %d\n", volume_down_irq);
-		return;
-	}
-
-	ret = devm_request_any_context_irq(&pdev->dev, volume_down_irq,
-		volume_down_irq_handler,
-		IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING | IRQF_SHARED,
-		"volume_down_key", &pdev->dev);
-	if (ret) {
-		pr_err("request gpio irq failed, ret is %d\n", ret);
-		return;
-	}
-	pr_err("%s: init success\n", __func__);
-}
-
 static int mtk_pmic_key_setup(struct mtk_pmic_keys *keys,
 		struct mtk_pmic_keys_info *info)
 {
@@ -852,93 +634,6 @@ static int keypad_pinctrl_init(struct mtk_pmic_keys *keys)
 
 	return ret;
 }
-
-//#ifdef OPLUS_BUG_STABILITY
-static int aee_kpd_enable_show(struct seq_file *s, void *v)
-{
-	seq_printf(s, "%d\n", aee_kpd_enable);
-	return 0;
-}
-
-static int aee_kpd_enable_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, aee_kpd_enable_show, inode->i_private);
-}
-
-static ssize_t aee_kpd_enable_read(struct file *filp, char __user *buff,
-				size_t count, loff_t *off)
-{
-	char page[256] = {0};
-	char read_data[16] = {0};
-	int len = 0;
-
-	if (aee_kpd_enable)
-		read_data[0] = '1';
-	else
-		read_data[0] = '0';
-
-	len = sprintf(page, "%s", read_data);
-
-	if(len > *off)
-		len -= *off;
-	else
-		len = 0;
-	if (copy_to_user(buff, page, (len < count ? len : count))) {
-		return -EFAULT;
-	}
-	*off += len < count ? len : count;
-	return (len < count ? len : count);
-}
-
-static ssize_t aee_kpd_enable_write(struct file *filp, const char __user *buff,
-				size_t len, loff_t *data)
-{
-	char temp[16] = {0};
-	if (len >= 16) {
-		pr_err("aee_kpd_enable_write get an illegal value over 16 characters.\n");
-		return -EFAULT;
-	}
-	if (copy_from_user(temp, buff, len)) {
-		pr_err("aee_kpd_enable_write error.\n");
-		return -EFAULT;
-	}
-
-	if(kstrtoint(temp, 10, &aee_kpd_enable) !=0) {
-		return -EINVAL;
-	}
-
-	//#ifdef OPLUS_BUG_STABILITY
-	if( get_eng_version() == PREVERSION ) {
-		pr_err("%s force to enable volumekey dump in preversion build\n", __func__);
-		aee_kpd_enable = 1;
-	}
-	//#endif /* OPLUS_BUG_STABILITY */
-
-	pr_err("%s enable:%d\n", __func__, aee_kpd_enable);
-
-	return len;
-}
-
-static const struct proc_ops aee_kpd_enable_proc_fops = {
-	.proc_open    = aee_kpd_enable_open,
-	.proc_write   = aee_kpd_enable_write,
-	.proc_read    = aee_kpd_enable_read,
-	.proc_lseek   = seq_lseek,
-	.proc_release = single_release,
-};
-
-static void init_proc_aee_kpd_enable(void)
-{
-	struct proc_dir_entry *p = NULL;
-
-	p = proc_create("aee_kpd_enable", 0664,
-				NULL, &aee_kpd_enable_proc_fops);
-	if (!p)
-		pr_err("proc_create aee_kpd_enable ops fail!\n");
-
-	return;
-}
-//#endif /*OPLUS_BUG_STABILITY*/
 
 static int __maybe_unused mtk_pmic_keys_suspend(struct device *dev)
 {
@@ -1133,29 +828,6 @@ static int mtk_pmic_keys_probe(struct platform_device *pdev)
 	mtk_pmic_keys_lp_reset_setup(keys, mtk_pmic_regs);
 
 	platform_set_drvdata(pdev, keys);
-
-	if (of_find_node_by_name(NULL, "volume_down_key")) {
-		pr_err("%s: find volume_down key node, init volume_down_key\n", __func__);
-		gpio_volume_down_key_init(pdev);
-	}
-
-	//#ifdef OPLUS_BUG_STABILITY
-	hrtimer_init(&aee_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-	aee_timer.function = aee_timer_func;
-
-	hrtimer_init(&voldown_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-	voldown_timer.function = voldown_timer_func;
-
-	init_proc_aee_kpd_enable();
-	if(get_eng_version() == AGING ||
-	   get_eng_version() == PREVERSION ||
-	   get_eng_version() == HIGH_TEMP_AGING ||
-	   get_eng_version() == FACTORY) {
-		aee_kpd_enable = 1;
-	} else {
-		aee_kpd_enable = 0;
-	}
-	//#endif /* OPLUS_BUG_STABILITY */
 
 	return 0;
 }

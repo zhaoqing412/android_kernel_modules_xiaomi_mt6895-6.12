@@ -11,11 +11,7 @@
 #include <linux/wait.h>
 
 #define MSG_THREAD_OP_DATA_SIZE   8
-#ifndef OPLUS_FEATURE_GEOFENCE
 #define MSG_THREAD_OP_BUF_SIZE  64
-#else /*OPLUS_FEATURE_GEOFENCE*/
-#define MSG_THREAD_OP_BUF_SIZE  128
-#endif /*OPLUS_FEATURE_GEOFENCE*/
 
 struct msg_op_data {
 	unsigned int op_id;		/* Event ID */

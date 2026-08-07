@@ -84,8 +84,4 @@ void nq_exit(void);
 int nq_cpu_on(unsigned int cpu);
 int nq_cpu_off(unsigned int cpu);
 
-#define FP_OPERATION_ID 0xF9147E18
-void boost_tee(void);
-void deboost_tee(void);
-
 #endif /* MC_NQ_H */

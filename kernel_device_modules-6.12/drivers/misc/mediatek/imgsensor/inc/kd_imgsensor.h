@@ -715,67 +715,13 @@
 #define SENSOR_DRVNAME_MAX96712A2_MIPI_YUV      "max96712a2_mipi_yuv"
 #define SENSOR_DRVNAME_MAX96712A3_MIPI_YUV      "max96712a3_mipi_yuv"
 #define SENSOR_DRVNAME_LT7911_MIPI_YUV          "lt7911_mipi_yuv"
-//MilkWay-S3
-#define SENSOR_ID_OFFSET_24267                          0xA0
-#define OV50D40_SENSOR_ID_24267                         (0x565044 + SENSOR_ID_OFFSET_24267)
-#define SENSOR_DRVNAME_OV50D40_MIPI_RAW_24267           "ov50d40_mipi_raw_24267"
-#define GC32E2_SENSOR_ID_24267                          (0x32e2 + SENSOR_ID_OFFSET_24267)
-#define SENSOR_DRVNAME_GC32E2_MIPI_RAW_24267            "gc32e2_mipi_raw_24267"
-#define OV08D10_SENSOR_ID_24267                         (0x5608471c + SENSOR_ID_OFFSET_24267)
-#define SENSOR_DRVNAME_OV08D10_MIPI_RAW_24267           "ov08d10_mipi_raw_24267"
-#define OV02B10_SENSOR_ID_24267                         (0x002B + SENSOR_ID_OFFSET_24267)
-#define SENSOR_DRVNAME_OV02B10_MIPI_RAW_24267           "ov02b10_mipi_raw_24267"
-
-//Cruiser-L4
-#define SENSOR_ID_OFFSET_CRUISERL4                        0x80
-#define OV50D40_SENSOR_ID_CRUISERL4                       (0x565044 + SENSOR_ID_OFFSET_CRUISERL4)
-#define SENSOR_DRVNAME_OV50D40_MIPI_RAW_CRUISERL4         "ov50d40_mipi_raw_cruiserl4"
-#define IMX480_SENSOR_ID_CRUISERL4                        (0x0471 + SENSOR_ID_OFFSET_CRUISERL4)
-#define SENSOR_DRVNAME_IMX480_MIPI_RAW_CRUISERL4          "imx480_mipi_raw_cruiserl4"
-#define OV08F10_SENSOR_ID_CRUISERL4                       (0x56084610 + SENSOR_ID_OFFSET_CRUISERL4)
-#define SENSOR_DRVNAME_OV08F10_MIPI_RAW_CRUISERL4         "ov08f10_mipi_raw_cruiserl4"
-#define GC50F6_SENSOR_ID_CRUISERL4                        (0x50f6 + SENSOR_ID_OFFSET_CRUISERL4)
-#define SENSOR_DRVNAME_GC50F6_MIPI_RAW_CRUISERL4          "gc50f6_mipi_raw_cruiserl4"
-#define SC201CS_SENSOR_ID_CRUISERL4                       (0xeb52 + SENSOR_ID_OFFSET_CRUISERL4)
-#define SENSOR_DRVNAME_SC201CS_MIPI_RAW_CRUISERL4         "sc201cs_mipi_raw_cruiserl4"
-
-//Fiji
-#define SC520CS_SENSOR_ID_MAIN_FIJI                    (0xee4b + 1)
-#define SENSOR_DRVNAME_SC520CS_MIPI_RAW_MAIN_FIJI      "sc520cs_mipi_raw_main_fiji"
-#define SC520CSSUB_SENSOR_ID_FRONT_FIJI                (0xee4b + 2)
-#define SENSOR_DRVNAME_SC520CSSUB_MIPI_RAW_FRONT_FIJI  "sc520cssub_mipi_raw_front_fiji"
-
-/*OMEGAC2*/
-#define OMEGAC2WIDE_SENSOR_ID                        0x0355
-#define SENSOR_ID_OFFSET_23081                       0x0A00        // 23081
-#define OMEGAC2MAIN_SENSOR_ID_23081                  (0x0882 + SENSOR_ID_OFFSET_23081)        // MAIN
-#define SENSOR_DRVNAME_OMEGAC2MAIN_MIPI_RAW_23081    "omegac2main_mipi_raw_23081"
-#define OMEGAC2FRONT_SENSOR_ID_23081                 (0x010A + SENSOR_ID_OFFSET_23081)        // FRONT
-#define SENSOR_DRVNAME_OMEGAC2FRONT_MIPI_RAW_23081   "omegac2front_mipi_raw_23081"
-#define OMEGAC2WIDE_SENSOR_ID_23081                  (0x0355 + SENSOR_ID_OFFSET_23081)        // WIDE
-#define SENSOR_DRVNAME_OMEGAC2WIDE_MIPI_RAW_23081    "omegac2wide_mipi_raw_23081"
-#define OMEGAC2TELE_SENSOR_ID_23081                  (0x010B + SENSOR_ID_OFFSET_23081 + 1)    // TELE
-#define SENSOR_DRVNAME_OMEGAC2TELE_MIPI_RAW_23081    "omegac2tele_mipi_raw_23081"
-
-/*huahai、Supreme*/
-#define SENSOR_ID_OFFSET_23021                       0xf000
-#define IMX882_SENSOR_ID_23021                       (0x0882 + SENSOR_ID_OFFSET_23021)
-#define SENSOR_DRVNAME_IMX882_MIPI_RAW_23021         "imx882_mipi_raw_23021"
-#define IMX709_SENSOR_ID_23021                       (0x0709 + SENSOR_ID_OFFSET_23021)
-#define SENSOR_DRVNAME_IMX709_MIPI_RAW_23021         "imx709_mipi_raw_23021"
-#define IMX355_SENSOR_ID_23021                       (0x0355 + SENSOR_ID_OFFSET_23021)
-#define SENSOR_DRVNAME_IMX355_MIPI_RAW_23021         "imx355_mipi_raw_23021"
-#define IMX709TELE_SENSOR_ID_23021                   (0x0709 + SENSOR_ID_OFFSET_23021 + 1)
-#define SENSOR_DRVNAME_IMX709TELE_MIPI_RAW_23021      "imx709tele_mipi_raw_23021"
-#define IMX890_SENSOR_ID_23251                       (0x0766 + SENSOR_ID_OFFSET_23021)
-#define SENSOR_DRVNAME_IMX890_MIPI_RAW_23251         "imx890_mipi_raw_23251"
-
 /************************************
  * I3C SENSOR PID (TOTAL 48-BITS)
  ************************************/
 /* SONY */
 #define IMX866RGB_I3C_PID							0x036008660000
 #define S5KHP9SP_I3C_PID							0x02161b730000
+
 
 /************************************
  * ADD I3C SENSOR To TABLE

@@ -51,14 +51,6 @@
 #define MTK_WAIT_GHWV_IRQ_DONE_CNT    10000
 #define MTK_WAIT_GHWV_IRQ_DONE_US     1
 
-/* VMM voting bits (10~13) */
-#define VMM_VOTE_VAL			(0x3C00)
-/* VMM mtcmos chk bits */
-#define VMM_MTCMOS0_ACK_MASK		(0x10004)
-#define VMM_MTCMOS1_ACK_MASK		(0x2)
-/* VMM voting bits (18~22) */
-#define VMM_DBG_VOTE_VAL		(0x7C0000)
-
 #define MMUP_CORE_R_GPR11_ADDR (0x31a041ec)
 static void __iomem *__infra2hfrp_base, *__CORE_R_GPR11_reg;
 static phys_addr_t __infra2hfrp_base_phys;
@@ -777,11 +769,9 @@ static int _v1_hwccf_irq_voter_nowait(struct regmap *regmap, uint32_t setclr_ofs
 						uint32_t done_ofs, uint32_t done_ack_msk, uint32_t sta_ofs)
 {
 	bool is_set = IS_SET_FROM_VOTER_ADDR(setclr_ofs);
-	bool con1, con2;
 	uint32_t en_ofs = setclr_ofs + (is_set ? 0x8 : 0x4);
 	int ret = 0;
 	uint32_t val;
-	int i;
 
 	// Check args
 	if (!setclr_ofs || !vote_val || !done_ofs || !done_ack_msk) {
@@ -794,12 +784,6 @@ static int _v1_hwccf_irq_voter_nowait(struct regmap *regmap, uint32_t setclr_ofs
 	HWCCF_PROFILE_RESET(nowait);
 	HWCCF_PROFILE_START(nowait);
 
-	if (regmap == regmaps[MM_HWCCF]) {
-		// dummy read mmup reg
-		val = readl(__CORE_R_GPR11_reg);
-		HWCCF_DBG("__CORE_R_GPR11_reg = 0x%08x\n", val);
-	}
-
 	// Check repeat vote
 	val = hwccf_read(regmap, en_ofs);
 	if (is_set ? IS_MASK_SET(val, vote_val) : IS_MASK_CLR(val, vote_val)) {
@@ -807,36 +791,6 @@ static int _v1_hwccf_irq_voter_nowait(struct regmap *regmap, uint32_t setclr_ofs
 		HWCCF_ERR("%x = %x, %x = %x, %d\n", setclr_ofs, vote_val, en_ofs, val, is_set);
 		goto skip;
 	}
-
-	// Polling mtcmos ack == 0 when last backup unvote for VMM (MM_HWCCF only)
-	if (regmap != regmaps[AP_HWCCF]) {
-		if (!is_set && ((vote_val & VMM_VOTE_VAL) != 0x0)) {
-			i = 0;
-			do {
-				/* condition1: check current vote_val is the last unvote */
-				con1 = ((hwccf_read(regmap, XPU_B0_GLB_EN) & VMM_VOTE_VAL) & ~vote_val) == 0;
-				/* condition2: check isp_vcore, cam_vcore, vde_vcore mtcmos_ack == 0 */
-				con2 = (hwccf_read(regmap, CCF_MTCMOS_PM_ACK_0) & VMM_MTCMOS0_ACK_MASK) == 0;
-				con2 = con2 && ((hwccf_read(regmap, CCF_MTCMOS_PM_ACK_1) & VMM_MTCMOS1_ACK_MASK) == 0);
-
-				if (!con1 || con2)
-					break;
-
-				if (i > MTK_WAIT_GHWV_IRQ_DONE_CNT) {
-					HWCCF_ERR("VMM polling unvote timeout: %d %d\n", con1, con2);
-					HWCCF_ERR("all_en=%x, mtcmos0_ack=%x, mtcmos1_ack=%x\n",
-						hwccf_read(regmap, CCF_BACKUP1_EN),
-						hwccf_read(regmap, CCF_MTCMOS_PM_ACK_0),
-						hwccf_read(regmap, CCF_MTCMOS_PM_ACK_1));
-					goto ERR;
-				}
-
-				udelay(MTK_WAIT_GHWV_IRQ_DONE_US);
-				i++;
-			} while (1);
-		}
-	}
-
 
 	// Pre-Polling sta
 	ret = regmap_read_poll_timeout_atomic(regmap, sta_ofs, val,
@@ -1023,23 +977,6 @@ static int _v1_hwccf_irq_voter_wait_done(struct regmap *regmap, uint32_t setclr_
 		udelay(100);
 	}
 
-	if (!is_set) {
-		if (vote_val & VMM_DBG_VOTE_VAL) {
-			for (i = 0; i <= MTK_WAIT_GHWV_MTCMOS_DONE_CNT; i++) {
-				val = hwccf_read(regmap, all_en_ofs);
-				udelay(MTK_WAIT_GHWV_MTCMOS_DONE_US);
-
-				if (IS_MASK_CLR(val, done_ack_msk))
-					break;
-
-				if (i == MTK_WAIT_GHWV_MTCMOS_DONE_CNT) {
-					HWCCF_ERR("%s check bit18~22 unvote timeout\n", is_set ? "set" : "clr");
-					ret = -HWV_SET_TIMEOUT;
-					goto ERR;
-				}
-			}
-		}
-	}
 
 	// Polling sta
 	ret = regmap_read_poll_timeout_atomic(regmap, sta_ofs, val,
@@ -1398,7 +1335,7 @@ int _v1_mm_hwccf_mtcmos_fsm_err_handle(struct cb_params *params)
 		}
 		/* step8 */
 		ret = regmap_read_poll_timeout_atomic(params->regmap, mtcmos_pm_ack_ofs, val,
-			IS_MASK_SET(val, BIT(m)),
+			IS_MASK_CLR(val, BIT(m)),
 			MTK_WAIT_GHWV_VOTE_US, MTK_WAIT_GHWV_VOTE_CNT);
 		if (ret) {
 			HWCCF_ERR("%s polling pm_ack(%x = %x) timeout\n",

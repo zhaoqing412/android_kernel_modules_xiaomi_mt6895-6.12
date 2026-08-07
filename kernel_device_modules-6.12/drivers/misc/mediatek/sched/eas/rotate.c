@@ -25,12 +25,6 @@
 #include "common.h"
 #include <mt-plat/mtk_irq_mon.h>
 #include "sugov/cpufreq.h"
-#if IS_ENABLED(CONFIG_OPLUS_CPU_SKIP_ROTATION)
-#include <linux/sa_common.h>
-#endif
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_ABNORMAL_FLAG)
-#include <linux/task_overload.h>
-#endif
 
 DEFINE_PER_CPU(struct task_rotate_work, task_rotate_works);
 bool big_task_rotation_enable = true;
@@ -155,10 +149,6 @@ void task_rotate_init(void)
 	} else
 		pr_info("scheduler: can not find min_cap_orig_cpu\n");
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_ABNORMAL_FLAG)
-	walt_update_cluster_id(min_orig_cap, SCHED_CAPACITY_SCALE);
-#endif /* #OPLUS_FEATURE_ABNORMAL_FLAG */
-
 	/* init rotate work */
 	task_rotate_work_init();
 }
@@ -275,11 +265,6 @@ void task_check_for_rotation(struct rq *src_rq)
 
 		if (READ_ONCE(rq->curr->policy) != SCHED_NORMAL)
 			continue;
-
-		#if IS_ENABLED(CONFIG_OPLUS_CPU_SKIP_ROTATION)
-		if (test_task_ux(rq->curr))
-			continue;
-		#endif
 
 		if (READ_ONCE(rq->nr_running) > 1)
 			continue;

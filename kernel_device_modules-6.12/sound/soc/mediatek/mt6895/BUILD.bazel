@@ -26,9 +26,6 @@ define_mgk_ddk_ko(
     ],
     hdrs = glob(["**/*.h"]),
     includes = ["."],
-    local_defines = [
-        "CONFIG_OPLUS_FEATURE_MM_FEEDBACK",
-    ],
     header_deps = [
         "//kernel_device_modules-{}/sound/soc/mediatek/common:ddk_public_headers".format(kernel_version),
 		"//kernel_device_modules-{}/sound/soc/mediatek/ultrasound/ultra_scp:headers".format(kernel_version),
@@ -42,7 +39,6 @@ define_mgk_ddk_ko(
         "//kernel_device_modules-{}/sound/soc/mediatek/common:snd-soc-mtk-common".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/aee/aed:aee_aed".format(kernel_version),
         "//kernel_device_modules-{}/sound/soc/mediatek/ultrasound/ultra_scp:snd-soc-mtk-scp-ultra".format(kernel_version),
-        "//kernel_device_modules-{}/sound/soc/codecs/multimedia/feedback/bazel:oplus_mm_kevent_fb".format(kernel_version),
     ],
 )
 
@@ -60,17 +56,11 @@ define_mgk_ddk_ko(
     copts = [
         "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
     ],
-    local_defines = [
-        "CONFIG_OPLUS_FEATURE_MM_FEEDBACK",
-    ],
     ko_deps = [
         "//kernel_device_modules-{}/sound/soc/codecs:snd-soc-mt6368".format(kernel_version),
         "//kernel_device_modules-{}/sound/soc/mediatek/common:mtk-sp-spk-amp".format(kernel_version),
         "//kernel_device_modules-{}/sound/soc/mediatek/mt6895:snd-soc-mt6895-afe".format(kernel_version),
         "//kernel_device_modules-{}/sound/soc/codecs:mt6368-accdet".format(kernel_version),
-        "//kernel_device_modules-{}/sound/soc/codecs/audio/bazel:snd-audio-extend".format(kernel_version),
-        "//kernel_device_modules-{}/sound/soc/codecs/audio/bazel:snd-hal-feedback".format(kernel_version),
-        "//kernel_device_modules-{}/sound/soc/codecs/multimedia/feedback/bazel:oplus_mm_kevent_fb".format(kernel_version),
     ],
 )
 

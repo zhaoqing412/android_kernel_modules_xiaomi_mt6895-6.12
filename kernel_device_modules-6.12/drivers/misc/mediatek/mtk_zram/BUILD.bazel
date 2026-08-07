@@ -70,17 +70,11 @@ define_mgk_ddk_ko(
     srcs = [
     "mtk_zram_drv.c",
     "zcomp.c",
-    "hybridswap/hybridmain.c",
-    "hybridswap/hybridswapd.c",
-    "hybridswap/hybridswap.c",
-    "hybridswap/display.c",
     ],
     hdrs = glob(["**/*.h"]),
     ko_deps = [
         "//kernel_device_modules-{}/drivers/misc/mediatek/kcompressd:kcompressd".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/mtk_zram:mtk_hwz".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/gpu/drm/mediatek/mediatek_v2:mtk_disp_notify".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/dma-buf/heaps:oplus_bsp_mm_osvelte".format(kernel_version),
     ],
     includes = ["."],
     copts = [
@@ -88,11 +82,5 @@ define_mgk_ddk_ko(
     "-I$(srctree)/$(src)",
     "-I$(DEVICE_MODULES_PATH)/include/linux",
     "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mtk_zram",
-    ],
-    local_defines = [
-        "CONFIG_HYBRIDSWAP",
-        "CONFIG_HYBRIDSWAP_SWAPD",
-        "CONFIG_HYBRIDSWAP_CORE",
-        "CONFIG_OPLUS_MTK_DRM_GKI_NOTIFY"
     ],
 )

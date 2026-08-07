@@ -29,11 +29,6 @@
 #include <linux/rbtree.h>
 #include "eas_plus.h"
 #include "eas_trace.h"
-#ifdef CONFIG_OPLUS_ADD_CORE_CTRL_MASK
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-#include <linux/sa_fair.h>
-#endif
-#endif /* CONFIG_OPLUS_ADD_CORE_CTRL_MASK */
 
 #ifdef CONFIG_HOTPLUG_CPU
 
@@ -639,11 +634,7 @@ void sched_pause_init(void)
 		printk_deferred("Error creating pause_drain_rqs\n");
 		return;
 	}
-#ifdef CONFIG_OPLUS_ADD_CORE_CTRL_MASK
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-	init_ux_halt_mask(&__cpu_pause_mask);
-#endif
-#endif /* CONFIG_OPLUS_ADD_CORE_CTRL_MASK */
+
 	sched_setscheduler_nocheck(pause_drain_thread, SCHED_FIFO, &param);
 
 	register_trace_android_rvh_is_cpu_allowed(hook_rvh_is_cpus_allowed, NULL);

@@ -17,6 +17,8 @@ static enum mtk_dpc_version mml_dpc_version;
 	(sysid == mml_sys_frame ? DPC_SUBSYS_MML1 : DPC_SUBSYS_MML0)
 #define mml_sysid_to_dpc_user(sysid)	\
 	(sysid == mml_sys_frame ? DISP_VIDLE_USER_MML1 : DISP_VIDLE_USER_MML0)
+#define mml_sysid_to_dpc_user_cmdq(sysid)	\
+	(sysid == mml_sys_frame ? DISP_VIDLE_USER_MML1_CMDQ : DISP_VIDLE_USER_MML0_CMDQ)
 #define mml_sysid_to_dpc_srt_read_idx(sysid)	\
 	(sysid == mml_sys_frame ? 8 : (sysid == mml_sys_tile ? 0 : 8))
 #define mml_sysid_to_dpc_hrt_read_idx(sysid)	\
@@ -29,6 +31,9 @@ static enum mtk_dpc_version mml_dpc_version;
 #define mml_sysid_to_dpc_user_v3(sysid)	\
 	(sysid == mml_sys_tile ? DISP_VIDLE_USER_MML0 : \
 	(sysid == mml_sys_frame ? DISP_VIDLE_USER_MML1 : DISP_VIDLE_USER_MML2))
+#define mml_sysid_to_dpc_user_cmdq_v3(sysid)	\
+	(sysid == mml_sys_tile ? DISP_VIDLE_USER_MML0_CMDQ : \
+	(sysid == mml_sys_frame ? DISP_VIDLE_USER_MML1_CMDQ : DISP_VIDLE_USER_MML2_CMDQ))
 #define mml_larb_idx_to_dpc_subsys(larb_idx)	\
 	(larb_idx == 0 ? DPC3_SUBSYS_MML0 : (larb_idx == 1 ? DPC3_SUBSYS_MML1 : DPC3_SUBSYS_MML2))
 /* larb_idx [larb2, larb3, larb56, larb57] */
@@ -71,7 +76,7 @@ void mml_dpc_mtcmos_auto(u32 sysid, const bool en, const s8 mode)
 {
 	enum mtk_dpc_mtcmos_mode mtcmos_mode = en ? DPC_MTCMOS_AUTO : DPC_MTCMOS_MANUAL;
 
-	if (mml_dpc_version == DPC_VER2)
+	if (mml_dpc_version == DPC_VER2 || mml_dpc_version == DPC_VER3)
 		return;
 
 	if (mml_dpc_funcs.dpc_mtcmos_auto == NULL) {
@@ -83,10 +88,6 @@ void mml_dpc_mtcmos_auto(u32 sysid, const bool en, const s8 mode)
 	case DPC_VER1:
 		mml_dpc_funcs.dpc_mtcmos_auto(
 			mml_sysid_to_dpc_subsys(sysid), mtcmos_mode);
-		break;
-	case DPC_VER3:
-		mml_msg_dpc("%s dpc_mtcmos_auto %s", __func__, en ? "auto" : "manual");
-		mml_dpc_funcs.dpc_mtcmos_auto(DPC3_SUBSYS_MML, mtcmos_mode);
 		break;
 	default:
 		mml_err("%s mml_dpc_version %d", __func__, mml_dpc_version);
@@ -158,24 +159,20 @@ void mml_dpc_isr_release(void)
 		mml_dpc_funcs.dpc_vidle_power_release(DISP_VIDLE_USER_MML_CLK_ISR);
 }
 
-int mml_dpc_power_keep_gce(enum mml_mode mode, struct cmdq_pkt *pkt, u16 gpr, struct cmdq_reuse *reuse)
+int mml_dpc_power_keep_gce(u32 sysid, struct cmdq_pkt *pkt, u16 gpr, struct cmdq_reuse *reuse)
 {
-	enum mtk_vidle_voter_user user = DISP_VIDLE_USER_MML0_CMDQ;
+	enum mtk_vidle_voter_user user = DISP_VIDLE_USER_MML_CMDQ;
 
-	switch (mode) {
-	case MML_MODE_DIRECT_LINK:
-	case MML_MODE_RACING:
-	case MML_MODE_MML_DECOUPLE:
-		user = DISP_VIDLE_USER_MML0_CMDQ;
+	switch (mml_dpc_version) {
+	case DPC_VER1:
+	case DPC_VER2:
+		user = mml_sysid_to_dpc_user_cmdq(sysid);
 		break;
-	case MML_MODE_MML_DECOUPLE2:
-		user = DISP_VIDLE_USER_MML1_CMDQ;
-		break;
-	case MML_MODE_DDP_ADDON:
-		user = DISP_VIDLE_USER_MML2_CMDQ;
+	case DPC_VER3:
+		user = mml_sysid_to_dpc_user_cmdq_v3(sysid);
 		break;
 	default:
-		mml_err("%s mode %d without dpc user cmdq", __func__, mode);
+		mml_err("%s mml_dpc_version %d", __func__, mml_dpc_version);
 		break;
 	}
 
@@ -190,24 +187,20 @@ int mml_dpc_power_keep_gce(enum mml_mode mode, struct cmdq_pkt *pkt, u16 gpr, st
 	return 0;
 }
 
-void mml_dpc_power_release_gce(enum mml_mode mode, struct cmdq_pkt *pkt, struct cmdq_reuse *reuse)
+void mml_dpc_power_release_gce(u32 sysid, struct cmdq_pkt *pkt, struct cmdq_reuse *reuse)
 {
-	enum mtk_vidle_voter_user user = DISP_VIDLE_USER_MML0_CMDQ;
+	enum mtk_vidle_voter_user user = DISP_VIDLE_USER_MML_CMDQ;
 
-	switch (mode) {
-	case MML_MODE_DIRECT_LINK:
-	case MML_MODE_RACING:
-	case MML_MODE_MML_DECOUPLE:
-		user = DISP_VIDLE_USER_MML0_CMDQ;
+	switch (mml_dpc_version) {
+	case DPC_VER1:
+	case DPC_VER2:
+		user = mml_sysid_to_dpc_user_cmdq(sysid);
 		break;
-	case MML_MODE_MML_DECOUPLE2:
-		user = DISP_VIDLE_USER_MML1_CMDQ;
-		break;
-	case MML_MODE_DDP_ADDON:
-		user = DISP_VIDLE_USER_MML2_CMDQ;
+	case DPC_VER3:
+		user = mml_sysid_to_dpc_user_cmdq_v3(sysid);
 		break;
 	default:
-		mml_err("%s mode %d without dpc user cmdq", __func__, mode);
+		mml_err("%s mml_dpc_version %d", __func__, mml_dpc_version);
 		break;
 	}
 

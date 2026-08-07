@@ -16,11 +16,7 @@ define_mgk_ddk_ko(
         "leds-mtk.h",
     ],
     includes = ["."],
-#OPLUS_FEATURE_DISPLAY
-    local_defines = [
-        "OPLUS_FEATURE_DISPLAY_APOLLO",
-    ],
-#end OPLUS_FEATURE_DISPLAY
+
     ko_deps = [
         "//kernel_device_modules-{}/drivers/gpu/drm/mediatek/mediatek_v2:mtk_panel_ext".format(kernel_version)
     ],

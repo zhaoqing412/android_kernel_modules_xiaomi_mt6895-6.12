@@ -86,7 +86,6 @@ struct dpt_task_struct {
 	perf_scaling_factor_arr perf_scaling_factor;
 	perf_scaling_factor_arr inv_perf_scaling_factor;
 	int power_scaling_factor;
-	int without_DPT_ctrl;
 };
 
 typedef struct dpt_rq_struct {
@@ -239,11 +238,6 @@ struct cpuqos_task_struct {
 	int rank;
 };
 
-struct uest_task_struct {
-	bool set;
-	unsigned int weight_shift;
-};
-
 /* for dynamic task vendor data*/
 struct mtk_task {
 	struct soft_affinity_task sa_task;
@@ -258,7 +252,6 @@ struct mtk_task {
 	struct cpuqos_task_struct cpuqos_task;
 	struct cpumask kernel_allowed_mask;
 	struct dpt_task_struct dpt_task;
-	struct uest_task_struct uest_task;
 };
 
 /* for static task vendor data*/
@@ -670,9 +663,6 @@ bool is_dsu_idle_enable(void);
 
 void set_flt_coef_margin_ctrl(int set);
 int get_flt_coef_margin_ctrl(void);
-
-void setWithoutDPTCtl(int pid);
-void unsetWithoutDPTCtl(int pid);
 
 int mtk_available_idle_cpu(int cpu);
 

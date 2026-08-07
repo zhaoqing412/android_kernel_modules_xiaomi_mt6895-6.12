@@ -155,10 +155,6 @@ void mhal_dump_reg(struct mtk_dp *mtk_dp)
 	u8  Data[5] = {0};
 
 	for (i = 0x0; i < 0xE00; i += 16) {
-		if (!mtk_dp->regs) {
-			DPTXMSG("[DP Debug] dptx regs are null");
-			break;
-		}
 		reg = 0x3000 + i;
 		val[0] = msRead4Byte(mtk_dp, reg);
 		val[1] = msRead4Byte(mtk_dp, reg + 4);
@@ -169,10 +165,6 @@ void mhal_dump_reg(struct mtk_dp *mtk_dp)
 	}
 
 	for (i = 0x0; i < 0x1500; i += 16) {
-		if (!mtk_dp->phyd_regs) {
-			DPTXMSG("[DP Debug] dptx phy regs are null");
-			break;
-		}
 		reg = 0x0000 + i;
 		val[0] = msPhyRead4Byte(mtk_dp, reg);
 		val[1] = msPhyRead4Byte(mtk_dp, reg + 4);

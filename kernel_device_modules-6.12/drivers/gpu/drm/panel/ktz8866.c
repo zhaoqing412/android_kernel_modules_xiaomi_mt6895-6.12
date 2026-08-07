@@ -33,7 +33,7 @@ static void lcd_bl_i2c_remove(struct i2c_client *client);
  * Extern Area
  *****************************************************************************/
 
-int lcd_bl_write_byte(unsigned char addr, unsigned char value)
+static int lcd_bl_write_byte(unsigned char addr, unsigned char value)
 {
 	int ret = 0;
 	unsigned char write_data[2] = {0};
@@ -52,7 +52,6 @@ int lcd_bl_write_byte(unsigned char addr, unsigned char value)
 
 	return ret;
 }
-EXPORT_SYMBOL(lcd_bl_write_byte);
 
 static int lcd_bl_read_byte(u8 regnum)
 {
@@ -149,7 +148,7 @@ int lcd_set_bl_bias_reg(struct device *pdev, int enable)
 
 		//write backlight reg
 		/* BL_CFG1；OVP=34V，线性调光，PWM Disabled */
-		lcd_bl_write_byte(0x02, 0x3B);
+		lcd_bl_write_byte(0x02, 0X3B);
 		/* BL_OPTION2；电感4.7uH，BL_CURRENT_LIMIT 2.5A；*/
 		lcd_bl_write_byte(0x11, 0x37);
 		 /* Backlight Full-scale LED Current 22.8mA/CH；*/
@@ -235,7 +234,7 @@ static int lcd_bl_i2c_probe(struct i2c_client *client)
 	ret = lcd_bl_write_byte(0x09, 0x9E); /* enable OUTN */
 
 	//write backlight reg
-	ret = lcd_bl_write_byte(0x02, 0x3B); /* BL_CFG1；OVP=34V，线性调光，PWM Disabled */
+	ret = lcd_bl_write_byte(0x02, 0X3B); /* BL_CFG1；OVP=34V，线性调光，PWM Disabled */
 	ret = lcd_bl_write_byte(0x11, 0x37); /* BL_OPTION2；电感4.7uH，BL_CURRENT_LIMIT 2.5A；*/
 	ret = lcd_bl_write_byte(0x15, 0xB0); /* Backlight Full-scale LED Current 22.8mA/CH；*/
 	ret = lcd_bl_write_byte(0x08, 0x5F); /* BL enabled and Current sink 1/2/3/4 /5 enabled；*/

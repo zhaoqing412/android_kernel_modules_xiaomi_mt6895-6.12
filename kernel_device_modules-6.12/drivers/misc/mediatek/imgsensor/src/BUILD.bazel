@@ -28,7 +28,7 @@ filegroup(
 ## ddk ko
 
 # driver list to included
-config_cust_kernel_imgsensor = "gc50f6_mipi_raw_cruiserl4 ov50d40_mipi_raw_cruiserl4 sc201cs_mipi_raw_cruiserl4 s5khp3_mipi_raw s5kjn1sq03_mipi_raw s5khp9sp_mipi_raw s5k4h7sub_mipi_raw s5k4h7_mipi_raw imx06a_mipi_raw imx06c_mipi_raw imx858_mipi_raw imx858dual_mipi_raw imx989_mipi_raw imx989lite_mipi_raw imx758_mipi_raw imx758lite_mipi_raw imx598_mipi_raw imx598lite_mipi_raw imx866rgb_mipi_raw s5kjd1_mipi_raw imx686_mipi_raw imx519_mipi_raw s5k2t7sp_mipi_raw s5k2p7_mipi_raw ov8856_mipi_raw imx386_mipi_raw imx398_mipi_raw s5k2l7_mipi_raw imx586_mipi_raw imx576_mipi_raw imx481_mipi_raw s5khp3sp_mipi_raw s5k3m5sx_mipi_raw ov48b_mipi_raw ov50d_mipi_raw ov50ddual_mipi_raw ov64b_mipi_raw imx766_mipi_raw s5k3p9sp_mipi_raw imx766dual_mipi_raw imx766o_mipi_raw imx709o_mipi_raw imx766dualo_mipi_raw s5k3m5sxo_mipi_raw imx499_mipi_raw imx709_mipi_raw imx866_mipi_raw imx800_mipi_raw s5kgd2_mipi_raw imx6632x_mipi_raw hi847_mipi_raw imx966_mipiw_raw fake_mipi_raw ov13b10main_mipi_raw sc800cs_mipi_raw ov50d40_mipi_raw_24267 gc32e2_mipi_raw_24267 ov08d10_mipi_raw_24267 ov02b10_mipi_raw_24267 sc520cs_mipi_raw_main_fiji sc520cssub_mipi_raw_front_fiji"
+config_cust_kernel_imgsensor = "s5khp3_mipi_raw s5kjn1sq03_mipi_raw s5khp9sp_mipi_raw s5k4h7sub_mipi_raw s5k4h7_mipi_raw imx06a_mipi_raw imx06c_mipi_raw imx858_mipi_raw imx858dual_mipi_raw imx989_mipi_raw imx989lite_mipi_raw imx758_mipi_raw imx758lite_mipi_raw imx598_mipi_raw imx598lite_mipi_raw imx866rgb_mipi_raw s5kjd1_mipi_raw imx686_mipi_raw imx519_mipi_raw s5k2t7sp_mipi_raw s5k2p7_mipi_raw ov8856_mipi_raw imx386_mipi_raw imx398_mipi_raw s5k2l7_mipi_raw imx586_mipi_raw imx576_mipi_raw imx481_mipi_raw s5khp3sp_mipi_raw s5k3m5sx_mipi_raw ov48b_mipi_raw ov50d_mipi_raw ov50ddual_mipi_raw ov64b_mipi_raw imx766_mipi_raw s5k3p9sp_mipi_raw imx766dual_mipi_raw imx766o_mipi_raw imx709o_mipi_raw imx766dualo_mipi_raw s5k3m5sxo_mipi_raw imx499_mipi_raw imx709_mipi_raw imx866_mipi_raw imx800_mipi_raw s5kgd2_mipi_raw imx6632x_mipi_raw hi847_mipi_raw imx966_mipiw_raw fake_mipi_raw ov13b10main_mipi_raw sc800cs_mipi_raw"
 
 # common v1_1 code version
 
@@ -103,13 +103,9 @@ define_mgk_ddk_ko(
     ] + glob(v1_1_subdrvs_c),  # Build subdrivers
     ko_deps = [
         "//kernel_device_modules-{}/drivers/clk/mediatek:clk-common".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/aw37004:aw37004".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/soc/oplus/boot:oplusboot".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/soc/oplus/boot:oplus_bsp_boot_projectinfo".format(kernel_version),
     ],
     header_deps = [
         "//kernel_device_modules-{}/drivers/misc/mediatek/imgsensor:imgsensor_kd_header".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/aw37004:aw37004_headers".format(kernel_version),
     ],
     hdrs = glob([
         "**/*.h"

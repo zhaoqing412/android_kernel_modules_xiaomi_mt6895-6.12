@@ -173,6 +173,31 @@ void mhal_dump_reg(struct mtk_dp *mtk_dp)
 		DPTXMSG("[DP Debug]dptx phy reg[0x%x] = 0x%x 0x%x 0x%x 0x%x",
 			reg, val[0], val[1], val[2], val[3]);
 	}
+	////////////////////////////////////////////////////////
+
+	Data[0]=0x2;
+	drm_dp_dpcd_write(&mtk_dp->aux, 0x10B, Data, 0x1);
+	drm_dp_dpcd_write(&mtk_dp->aux, 0x10C, Data, 0x1);
+	drm_dp_dpcd_write(&mtk_dp->aux, 0x10D, Data, 0x1);
+	drm_dp_dpcd_write(&mtk_dp->aux, 0x10E, Data, 0x1);
+
+	drm_dp_dpcd_read(&mtk_dp->aux, 0x210, Data, 0x1);
+	DPTXMSG("[DP Debug]DPCD 210 = 0x%x\n",Data[0]);
+	drm_dp_dpcd_read(&mtk_dp->aux, 0x211, Data, 0x1);
+	DPTXMSG("[DP Debug]DPCD 211 = 0x%x\n",Data[0]);
+	drm_dp_dpcd_read(&mtk_dp->aux, 0x212, Data, 0x1);
+	DPTXMSG("[DP Debug]DPCD 212 = 0x%x\n",Data[0]);
+	drm_dp_dpcd_read(&mtk_dp->aux, 0x213, Data, 0x1);
+	DPTXMSG("[DP Debug]DPCD 213 = 0x%x\n",Data[0]);
+	drm_dp_dpcd_read(&mtk_dp->aux, 0x214, Data, 0x1);
+	DPTXMSG("[DP Debug]DPCD 214 = 0x%x\n",Data[0]);
+	drm_dp_dpcd_read(&mtk_dp->aux, 0x215, Data, 0x1);
+	DPTXMSG("[DP Debug]DPCD 215 = 0x%x\n",Data[0]);
+	drm_dp_dpcd_read(&mtk_dp->aux, 0x216, Data, 0x1);
+	DPTXMSG("[DP Debug]DPCD 216 = 0x%x\n",Data[0]);
+	drm_dp_dpcd_read(&mtk_dp->aux, 0x217, Data, 0x1);
+	DPTXMSG("[DP Debug]DPCD 217 = 0x%x\n",Data[0]);
+
 }
 
 void mhal_DPTx_Verify_Clock(struct mtk_dp *mtk_dp)
@@ -2806,67 +2831,6 @@ void mhal_DPTx_swing_pre_emp_optimized(struct mtk_dp *mtk_dp)
 		msPhyWrite4Byte(mtk_dp, 0x144C, mtk_dp->phy_params[5]);
 	} else
 		DPTXMSG("set phy_params, use default val");
-}
-
-void mhal_DPTx_swing_pre_emp_optimized_for_certain_linkrate(struct mtk_dp *mtk_dp, u8 ubTargetLinkRate)
-{
-	u8 bit;
-
-	switch (ubTargetLinkRate) {
-	case DP_LINKRATE_RBR:
-		bit = 0;
-		break;
-	case DP_LINKRATE_HBR:
-		bit = 1;
-		break;
-	case DP_LINKRATE_HBR2:
-		bit = 2;
-		break;
-	case DP_LINKRATE_HBR3:
-		bit = 3;
-		break;
-	default:
-		bit = -1;
-		break;
-	}
-
-	if (bit >= 0 && (mtk_dp->phy_params_linkrate_mask & (1 << bit))) {
-		if (mtk_dp->phy_params_special[0] != 0 || mtk_dp->phy_params_special[1] != 0 ||
-				mtk_dp->phy_params_special[2] != 0 || mtk_dp->phy_params_special[3] != 0 ||
-				mtk_dp->phy_params_special[4] != 0 || mtk_dp->phy_params_special[5] != 0) {
-			msPhyWrite4Byte(mtk_dp, 0x1138, mtk_dp->phy_params_special[0]);
-			msPhyWrite4Byte(mtk_dp, 0x1238, mtk_dp->phy_params_special[0]);
-			msPhyWrite4Byte(mtk_dp, 0x1338, mtk_dp->phy_params_special[0]);
-			msPhyWrite4Byte(mtk_dp, 0x1438, mtk_dp->phy_params_special[0]);
-
-			msPhyWrite4Byte(mtk_dp, 0x113C, mtk_dp->phy_params_special[1]);
-			msPhyWrite4Byte(mtk_dp, 0x123C, mtk_dp->phy_params_special[1]);
-			msPhyWrite4Byte(mtk_dp, 0x133C, mtk_dp->phy_params_special[1]);
-			msPhyWrite4Byte(mtk_dp, 0x143C, mtk_dp->phy_params_special[1]);
-
-			msPhyWrite4Byte(mtk_dp, 0x1140, mtk_dp->phy_params_special[2]);
-			msPhyWrite4Byte(mtk_dp, 0x1240, mtk_dp->phy_params_special[2]);
-			msPhyWrite4Byte(mtk_dp, 0x1340, mtk_dp->phy_params_special[2]);
-			msPhyWrite4Byte(mtk_dp, 0x1440, mtk_dp->phy_params_special[2]);
-
-			msPhyWrite4Byte(mtk_dp, 0x1144, mtk_dp->phy_params_special[3]);
-			msPhyWrite4Byte(mtk_dp, 0x1244, mtk_dp->phy_params_special[3]);
-			msPhyWrite4Byte(mtk_dp, 0x1344, mtk_dp->phy_params_special[3]);
-			msPhyWrite4Byte(mtk_dp, 0x1444, mtk_dp->phy_params_special[3]);
-
-			msPhyWrite4Byte(mtk_dp, 0x1148, mtk_dp->phy_params_special[4]);
-			msPhyWrite4Byte(mtk_dp, 0x1248, mtk_dp->phy_params_special[4]);
-			msPhyWrite4Byte(mtk_dp, 0x1348, mtk_dp->phy_params_special[4]);
-			msPhyWrite4Byte(mtk_dp, 0x1448, mtk_dp->phy_params_special[4]);
-
-			msPhyWrite4Byte(mtk_dp, 0x114C, mtk_dp->phy_params_special[5]);
-			msPhyWrite4Byte(mtk_dp, 0x124C, mtk_dp->phy_params_special[5]);
-			msPhyWrite4Byte(mtk_dp, 0x134C, mtk_dp->phy_params_special[5]);
-			msPhyWrite4Byte(mtk_dp, 0x144C, mtk_dp->phy_params_special[5]);
-			DPTXMSG("set phy_params_special by setting in dts");
-		} else
-			DPTXMSG("set phy_params_special, use default val");
-	}
 }
 
 void mhal_DPTx_PHYSetting(struct mtk_dp *mtk_dp, BYTE MAX_LANECOUNT)

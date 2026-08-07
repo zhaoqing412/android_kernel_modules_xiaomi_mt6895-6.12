@@ -495,7 +495,6 @@ static int handle_standard_request(struct mtu3 *mtu,
 
 		if (mtu->address) {
 			usb_gadget_set_state(&mtu->g, USB_STATE_ADDRESS);
-			dev_info(mtu->dev, "set address to 0x%x, USB_STATE=CONNECTED\n", mtu->address);
 
 			usb_pd = mtu3_is_usb_pd(mtu);
 			if (usb_pd >= 0)
@@ -509,17 +508,14 @@ static int handle_standard_request(struct mtu3 *mtu,
 		if (state == USB_STATE_ADDRESS) {
 			usb_gadget_set_state(&mtu->g,
 					USB_STATE_CONFIGURED);
-			dev_info(mtu->dev, "set configured, USB_STATE=CONFIGURED\n");
 		} else if (state == USB_STATE_CONFIGURED) {
 			/*
 			 * USB2 spec sec 9.4.7, if wValue is 0 then dev
 			 * is moved to addressed state
 			 */
-			if (!value) {
+			if (!value)
 				usb_gadget_set_state(&mtu->g,
- 						USB_STATE_ADDRESS);
-				dev_info(mtu->dev, "set address ok, USB_STATE=CONNECTED\n");
-			}
+						USB_STATE_ADDRESS);
 		}
 		handled = 0;
 		break;

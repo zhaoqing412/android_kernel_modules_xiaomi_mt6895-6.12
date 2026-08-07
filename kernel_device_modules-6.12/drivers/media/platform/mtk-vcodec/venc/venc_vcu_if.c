@@ -605,16 +605,12 @@ int vcu_enc_set_param(struct venc_vcu_inst *vcu,
 		out.data[0] = enc_param->highquality;
 		break;
 	case VENC_SET_PARAM_ADJUST_MAX_QP:
-		out.data_item = 3;
-		out.data[0] = enc_param->i_max_qp;
-		out.data[1] = enc_param->p_max_qp;
-		out.data[2] = enc_param->b_max_qp;
+		out.data_item = 1;
+		out.data[0] = enc_param->max_qp;
 		break;
 	case VENC_SET_PARAM_ADJUST_MIN_QP:
-		out.data_item = 3;
-		out.data[0] = enc_param->i_min_qp;
-		out.data[1] = enc_param->p_min_qp;
-		out.data[2] = enc_param->b_min_qp;
+		out.data_item = 1;
+		out.data[0] = enc_param->min_qp;
 		break;
 	case VENC_SET_PARAM_ADJUST_I_P_QP_DELTA:
 		out.data_item = 1;
@@ -750,7 +746,7 @@ int vcu_enc_encode(struct venc_vcu_inst *vcu, unsigned int bs_mode,
 			vsi->qprects_meta_size = 0;
 		}
 
-		if (frm_buf->dyparams_dma_addr) {
+		if (frm_buf->dyparams_dma) {
 			vsi->dynamicparams_addr = frm_buf->dyparams_dma_addr;
 			vsi->dynamicparams_size = sizeof(struct inputqueue_dynamic_info);
 			vsi->dynamicparams_offset = frm_buf->dyparams_offset;

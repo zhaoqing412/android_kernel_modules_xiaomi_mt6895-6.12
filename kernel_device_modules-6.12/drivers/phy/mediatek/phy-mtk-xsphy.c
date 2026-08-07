@@ -324,10 +324,6 @@
 
 #define XSP_MODE_UART_STR "usb2uart_mode=1"
 #define XSP_MODE_JTAG_STR "usb2jtag_mode=1"
-#ifdef OPLUS_FEATURE_CHG_BASIC
-#define OPLUS_USB_PATH		"oplus_usb_xsphy"
-#define OPLUS_XSPHY_PATH	"xsphy"
-#endif
 
 #define TCPC_NORMAL     0
 #define TCPC_FLIP       1
@@ -406,51 +402,6 @@ static char *efuse_name[24] = {
 	"hstx_impn",
 	"hstx_impp",
 };
-
-
-#ifdef OPLUS_FEATURE_CHG_BASIC
-enum oplus_xsphy_type {
-	PHY_EFUSE_INTR = 0,
-	U2_EFUSE_TERM,
-	U2_EYE_SRC,
-	U2_EYE_VRT,
-	U2_EYE_TERM,
-	U2_DISTACH,
-	U2_RX_SQTH,
-	U2_REV6,
-	U2_INTR_OFS,
-	U2_TERM_OFS,
-	U2_PLL_FBKSEL,
-	U2_PLL_POSDIV,
-	U3_EFUSE_TX_IMP,
-	U3_EFUSE_RX_IMP,
-	U3_TX_LCXCM1,
-	U3_TX_LCXC0,
-	U3_TX_LCXCP1,
-	XSPHY_MAX_PARAMS_NUM
-};
-
-static const char *const params_name[] = {
-	"efuse-intr",
-	"efuse-term",
-	"eye-src",
-	"eye-vrt",
-	"eye-term",
-	"discth",
-	"rx-sqth",
-	"rev6",
-	"intr-ofs",
-	"term-ofs",
-	"pll-fbksel",
-	"pll-posdiv",
-	"efuse-tx-imp",
-	"efuse-rx-imp",
-	"tx-lctxcm1",
-	"tx-lctxc0",
-	"tx-lctxcp1",
-	"max-params-len",
-};
-#endif
 
 struct xsphy_instance {
 	struct phy *phy;
@@ -538,12 +489,6 @@ struct mtk_xsphy {
 	struct phy **repeater;
 	int (*suspend)(struct device *dev);
 	int (*resume)(struct device *dev);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	struct proc_dir_entry * oplus_usb_root;
-	int def_params_val[XSPHY_MAX_PARAMS_NUM];
-	int params_id_seq[XSPHY_MAX_PARAMS_NUM];
-	int params_update_num;
-#endif
 };
 
 struct tag_chipid {
@@ -1699,427 +1644,6 @@ static int u2_phy_procfs_exit(struct xsphy_instance *inst)
 	return 0;
 }
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-static int oplus_u2_xsphy_params_set_def(struct xsphy_instance *inst)
-{
-	struct device *dev = &inst->phy->dev;
-	struct mtk_xsphy *xsphy = dev_get_drvdata(dev->parent);
-
-	if (!inst)
-		return -EINVAL;
-
-	inst->efuse_intr = xsphy->def_params_val[PHY_EFUSE_INTR];
-	inst->efuse_term_cal = xsphy->def_params_val[U2_EFUSE_TERM];
-	inst->eye_src = xsphy->def_params_val[U2_EYE_SRC];
-	inst->eye_vrt = xsphy->def_params_val[U2_EYE_VRT];
-	inst->eye_term = xsphy->def_params_val[U2_EYE_TERM];
-	inst->discth = xsphy->def_params_val[U2_DISTACH];
-	inst->rx_sqth = xsphy->def_params_val[U2_RX_SQTH];
-	inst->rev6 = xsphy->def_params_val[U2_REV6];
-	inst->intr_ofs = xsphy->def_params_val[U2_INTR_OFS];
-	inst->term_ofs = xsphy->def_params_val[U2_TERM_OFS];
-	inst->pll_fbksel = xsphy->def_params_val[U2_PLL_FBKSEL];
-	inst->pll_posdiv = xsphy->def_params_val[U2_PLL_POSDIV];
-
-	return 0;
-}
-
-static int oplus_u3_xsphy_params_set_def(struct xsphy_instance *inst)
-{
-	struct device *dev = &inst->phy->dev;
-	struct mtk_xsphy *xsphy = dev_get_drvdata(dev->parent);
-	if (!inst)
-		return -EINVAL;
-
-	inst->efuse_intr = xsphy->def_params_val[PHY_EFUSE_INTR];
-	inst->efuse_tx_imp = xsphy->def_params_val[U3_EFUSE_TX_IMP];
-	inst->efuse_rx_imp = xsphy->def_params_val[U3_EFUSE_RX_IMP];
-	inst->tx_lctxcm1 = xsphy->def_params_val[U3_TX_LCXCM1];
-	inst->tx_lctxc0 = xsphy->def_params_val[U3_TX_LCXC0];
-	inst->tx_lctxcp1 = xsphy->def_params_val[U3_TX_LCXCP1];
-
-	return 0;
-}
-
-static int oplus_xsphy_params_set_def(struct xsphy_instance *inst)
-{
-	struct device *dev = &inst->phy->dev;
-	struct mtk_xsphy *xsphy = dev_get_drvdata(dev->parent);
-	if (!inst)
-		return -EINVAL;
-
-	dev_info(dev, "set xsphy params default\n");
-
-	xsphy->params_update_num = 0;
-
-	if (inst->type == PHY_TYPE_USB2)
-		return oplus_u2_xsphy_params_set_def(inst);
-	else if (inst->type == PHY_TYPE_USB3)
-		return oplus_u3_xsphy_params_set_def(inst);
-
-	return 0;
-}
-
-static int oplus_u2_xsphy_params_get(struct xsphy_instance *inst, u32 *params_val)
-{
-	if (!inst)
-		return -EINVAL;
-
-	params_val[PHY_EFUSE_INTR] = inst->efuse_intr;
-	params_val[U2_EFUSE_TERM] = inst->efuse_term_cal;
-	params_val[U2_EYE_SRC] = inst->eye_src;
-	params_val[U2_EYE_VRT] = inst->eye_vrt;
-	params_val[U2_EYE_TERM] = inst->eye_term;
-	params_val[U2_DISTACH] = inst->discth;
-	params_val[U2_RX_SQTH] = inst->rx_sqth;
-	params_val[U2_REV6] = inst->rev6;
-	params_val[U2_INTR_OFS] = inst->intr_ofs ;
-	params_val[U2_TERM_OFS] = inst->term_ofs ;
-	params_val[U2_PLL_FBKSEL] = inst->pll_fbksel;
-	params_val[U2_PLL_POSDIV] = inst->pll_posdiv;
-
-	return 0;
-}
-
-static int oplus_u3_xsphy_params_get(struct xsphy_instance *inst, u32 *params_val)
-{
-	if (!inst)
-		return -EINVAL;
-
-	params_val[PHY_EFUSE_INTR] = inst->efuse_intr;
-	params_val[U3_EFUSE_TX_IMP] = inst->efuse_tx_imp;
-	params_val[U3_EFUSE_RX_IMP] = inst->efuse_rx_imp;
-	params_val[U3_TX_LCXCM1] = inst->tx_lctxcm1;
-	params_val[U3_TX_LCXC0] = inst->tx_lctxc0;
-	params_val[U3_TX_LCXCP1] = inst->tx_lctxcp1;
-
-	return 0;
-}
-
-static int proc_oplus_xsphy_params_show(struct seq_file *s, void *unused)
-{
-	struct xsphy_instance *inst = s->private;
-	struct device *dev = &inst->phy->dev;
-	struct mtk_xsphy *xsphy = dev_get_drvdata(dev->parent);
-	u32 index;
-	u32 params_val[XSPHY_MAX_PARAMS_NUM] = {0};
-
-	if (xsphy->params_update_num == 0) {
-		seq_printf(s, "default");
-		return 0;
-	}
-
-	if (inst->type == PHY_TYPE_USB2) {
-		oplus_u2_xsphy_params_get(inst, params_val);
-	} else if (inst->type == PHY_TYPE_USB3) {
-		oplus_u3_xsphy_params_get(inst, params_val);
-	}
-
-	for (index = 0; index < xsphy->params_update_num; index++) {
-		if (xsphy->params_id_seq[index] < 0)
-			continue;
-
-		if (index == xsphy->params_update_num - 1)
-			seq_printf(s, "%s:0x%02x", params_name[xsphy->params_id_seq[index]], params_val[xsphy->params_id_seq[index]]);
-		else
-			seq_printf(s, "%s:0x%02x,", params_name[xsphy->params_id_seq[index]], params_val[xsphy->params_id_seq[index]]);
-	}
-
-	return 0;
-}
-
-static int proc_oplus_xsphy_params_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, proc_oplus_xsphy_params_show, pde_data(inode));
-}
-
-static int oplus_xsphy_params_parse(u32 *params_seq, int* params_val, u32 cnt, struct xsphy_instance *inst)
-{
-	int index;
-	int seq_i;
-	struct device *dev = &inst->phy->dev;
-	struct mtk_xsphy *xsphy = dev_get_drvdata(dev->parent);
-
-	for (index = 0, seq_i = 0; index < cnt && seq_i < xsphy->params_update_num; index = index + 2, ++seq_i) {
-		if (params_seq[index] >= XSPHY_MAX_PARAMS_NUM) {
-			oplus_xsphy_params_set_def(inst);
-			return -EINVAL;
-		}
-
-		xsphy->params_id_seq[seq_i] = params_seq[index];
-		params_val[params_seq[index]] = params_seq[index + 1];
-		dev_info(dev, "update xsphy params:%s=0x%x\n", params_name[params_seq[index]], params_seq[index + 1]);
-	}
-
-
-	return 0;
-}
-
-static void oplus_check_params(int* params_val, struct xsphy_instance *inst)
-{
-	int id;
-	struct device *dev = &inst->phy->dev;
-	struct mtk_xsphy *xsphy = dev_get_drvdata(dev->parent);
-
-	for (id = 0; id < XSPHY_MAX_PARAMS_NUM; ++id) {
-		if (xsphy->def_params_val[id] == -EINVAL
-		  || (id == U2_INTR_OFS && xsphy->def_params_val[id] == -(P2AR_RG_INTR_CAL_MASK + 1))
-		  || (id == U2_TERM_OFS && xsphy->def_params_val[id] == -(P2ARA_RG_TERM_CAL_MASK + 1))) {
-			dev_info(&inst->phy->dev, "param: %s is not configured in dtsi, reset default\n", params_name[id]);
-			params_val[id] = xsphy->def_params_val[id];
-		}
-	}
-}
-
-static int oplus_u2_xsphy_params_init(struct xsphy_instance *inst, int *params_val)
-{
-	int index;
-
-	if (!inst)
-		return -EINVAL;
-
-	for (index = 0; index < XSPHY_MAX_PARAMS_NUM; index++) {
-		if (params_val[index] < 0)    //This parameter is not configured
-			continue;
-
-		switch (index) {
-		case PHY_EFUSE_INTR:
-			inst->efuse_intr = params_val[PHY_EFUSE_INTR];
-			break;
-		case U2_EFUSE_TERM:
-			inst->efuse_term_cal = params_val[U2_EFUSE_TERM];
-			break;
-		case U2_EYE_SRC:
-			inst->eye_src = params_val[U2_EYE_SRC];
-			break;
-		case U2_EYE_VRT:
-			inst->eye_vrt = params_val[U2_EYE_VRT];
-			break;
-		case U2_EYE_TERM:
-			inst->eye_term = params_val[U2_EYE_TERM];
-			break;
-		case U2_DISTACH:
-			inst->discth = params_val[U2_DISTACH];
-			break;
-		case U2_RX_SQTH:
-			inst->rx_sqth = params_val[U2_RX_SQTH];
-			break;
-		case U2_REV6:
-			inst->rev6 = params_val[U2_REV6];
-			break;
-		case U2_INTR_OFS:
-			inst->intr_ofs = params_val[U2_INTR_OFS];
-			break;
-		case U2_TERM_OFS:
-			inst->term_ofs = params_val[U2_TERM_OFS];
-			break;
-		case U2_PLL_FBKSEL:
-			inst->pll_fbksel = params_val[U2_PLL_FBKSEL];
-			break;
-		case U2_PLL_POSDIV:
-			inst->pll_posdiv = params_val[U2_PLL_POSDIV];
-			break;
-		default:
-			dev_info(&inst->phy->dev, "invalid index, index=%d\n", index);
-			break;
-		}
-	}
-
-	return 0;
-}
-
-static int oplus_u3_xsphy_params_init(struct xsphy_instance *inst, int *params_val)
-{
-	int index;
-
-	if (!inst)
-		return -EINVAL;
-
-	for (index = 0; index < XSPHY_MAX_PARAMS_NUM; index++) {
-		if (params_val[index] < 0)    //This parameter is not configured
-			continue;
-
-		switch (index) {
-		case PHY_EFUSE_INTR:
-			inst->efuse_intr = params_val[PHY_EFUSE_INTR];
-			break;
-		case U3_EFUSE_TX_IMP:
-			inst->efuse_tx_imp = params_val[U3_EFUSE_TX_IMP];
-			break;
-		case U3_EFUSE_RX_IMP:
-			inst->efuse_rx_imp = params_val[U3_EFUSE_RX_IMP];
-			break;
-		case U3_TX_LCXCM1:
-			inst->tx_lctxcm1 = params_val[U3_TX_LCXCM1];
-			break;
-		case U3_TX_LCXC0:
-			inst->tx_lctxc0 = params_val[U3_TX_LCXC0];
-			break;
-		case U3_TX_LCXCP1:
-			inst->tx_lctxcp1 = params_val[U3_TX_LCXCP1];
-			break;
-		default:
-			dev_info(&inst->phy->dev, "invalid index, index=%d\n", index);
-			break;
-		}
-	}
-
-	return 0;
-}
-
-static ssize_t proc_oplus_xsphy_params_write(struct file *file,
-	const char __user *ubuf, size_t count, loff_t *ppos)
-{
-	struct seq_file *s = file->private_data;
-	struct xsphy_instance *inst = s->private;
-	struct device *dev = &inst->phy->dev;
-	struct mtk_xsphy *xsphy = dev_get_drvdata(dev->parent);
-	size_t ret = 0;
-	char buf[1024];
-	char val_str[128];
-	char *str = buf;
-	char *pos = NULL;
-	u32 params_seq[XSPHY_MAX_PARAMS_NUM * 2];
-	int params_val[XSPHY_MAX_PARAMS_NUM];
-	u32 cnt = 0;
-	u32 val = 0;
-	u32 id = 0;
-
-	xsphy->params_update_num = 0;
-
-	memset(buf, 0x00, sizeof(buf));
-	memset(params_seq, 0x00, sizeof(params_seq));
-	memset(params_val, 0xFF, sizeof(params_val));
-	memset(xsphy->params_id_seq, 0x00, sizeof(xsphy->params_id_seq));
-
-	if (count > sizeof(buf) - 1) {
-		dev_info(&inst->phy->dev, "data length out of range, count=%zu\n", count);
-		return -EFAULT;
-	}
-
-	if (copy_from_user(&buf, ubuf, min_t(size_t, sizeof(buf) - 1, count)))
-		return -EFAULT;
-
-	if (strncmp(buf, "reset", strlen("reset")) == 0) {
-		dev_info(&inst->phy->dev, "parameters reset\n");
-		oplus_xsphy_params_set_def(inst);
-		return count;
-	}
-
-	while (*str != '\0' && *str != '\n') {
-		pos = strchr(str, ':');
-		if (!pos || pos - str >= 128) {
-			dev_info(&inst->phy->dev, "invalid data, buffer=%s\n", str);
-			return -EFAULT;
-		}
-
-		strncpy(val_str, str, pos - str);
-		val_str[pos - str] = '\0';
-		str = pos + 1;
-
-		for (id = 0; id < XSPHY_MAX_PARAMS_NUM; id++) {
-			if (!strncmp(params_name[id], val_str, strlen(params_name[id]))) {
-				dev_info(&inst->phy->dev, "cmp id=%d\n", id);
-				break;
-			}
-		}
-		params_seq[cnt++] = id;
-
-		if (sscanf(str, "%x", &val) == 1) {
-			params_seq[cnt++] = val;
-			str = strstr(str, ",");
-			if (!str)
-				break;
-			++str;
-		} else {
-			dev_info(&inst->phy->dev, "invalid data, buffer=%s\n", str);
-			return -EFAULT;
-		}
-
-		if (cnt == XSPHY_MAX_PARAMS_NUM * 2)
-			break;
-	}
-
-	if (cnt % 2) {
-		dev_info(&inst->phy->dev, "params quantity error, cnt=%d\n", cnt);
-		return -EINVAL;
-	}
-
-	xsphy->params_update_num = cnt / 2;
-	ret = oplus_xsphy_params_parse(params_seq, params_val, cnt, inst);
-	if (ret) {
-		dev_info(&inst->phy->dev, "params parse error\n");
-		return -EINVAL;
-	}
-
-	oplus_check_params(params_val, inst);
-
-	if (inst->type == PHY_TYPE_USB2)
-		ret = oplus_u2_xsphy_params_init(inst, params_val);
-	else if (inst->type == PHY_TYPE_USB3)
-		ret = oplus_u3_xsphy_params_init(inst, params_val);
-	if (ret) {
-		dev_info(&inst->phy->dev, "init params error\n");
-		return -EINVAL;
-	}
-
-	return count;
-}
-
-static const struct proc_ops proc_oplus_xsphy_params_ops = {
-	.proc_open = proc_oplus_xsphy_params_open,
-	.proc_write = proc_oplus_xsphy_params_write,
-	.proc_read = seq_read,
-	.proc_lseek = seq_lseek,
-	.proc_release = single_release,
-};
-
-static int oplus_xsphy_procfs_init(struct mtk_xsphy *xsphy,
-							struct xsphy_instance *inst)
-{
-	struct device *dev = &inst->phy->dev;
-	struct proc_dir_entry *oplus_usb_root = NULL;
-	struct proc_dir_entry *oplus_xsphy = NULL;
-	int ret = 0;
-
-	dev_info(xsphy->dev, "oplus_xsphy_procfs_inits, inst->type=%d\n", inst->type);
-
-	oplus_usb_root = proc_mkdir(OPLUS_USB_PATH, NULL);
-	if (!oplus_usb_root) {
-		dev_info(dev, "failed to creat dir proc %s\n", OPLUS_USB_PATH);
-		ret = -ENOMEM;
-		goto err0;
-	}
-
-	oplus_xsphy = proc_create_data(OPLUS_XSPHY_PATH, 0644,
-			oplus_usb_root, &proc_oplus_xsphy_params_ops, inst);
-	if (!oplus_xsphy) {
-		dev_info(dev, "failed to creat proc file: %s\n", OPLUS_XSPHY_PATH);
-		ret = -ENOMEM;
-		goto err1;
-	}
-
-	xsphy->oplus_usb_root = oplus_usb_root;
-	xsphy->params_update_num = 0;
-
-	return 0;
-
-err1:
-	proc_remove(xsphy->oplus_usb_root);
-
-err0:
-	return ret;
-}
-
-static int oplus_xsphy_procfs_exit(struct mtk_xsphy *xsphy)
-{
-	if (xsphy->oplus_usb_root)
-		proc_remove(xsphy->oplus_usb_root);
-
-	return 0;
-}
-#endif
-
 static void mtk_xsphy_procfs_init_worker(struct work_struct *data)
 {
 	struct xsphy_instance *inst = container_of(data,
@@ -2128,11 +1652,6 @@ static void mtk_xsphy_procfs_init_worker(struct work_struct *data)
 	struct mtk_xsphy *xsphy = dev_get_drvdata(dev->parent);
 
 	mutex_lock(&procfs_mutex);
-
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	if (inst->type == PHY_TYPE_USB2)
-		oplus_xsphy_procfs_init(xsphy, inst);
-#endif
 
 	if (!usb_root) {
 		usb_root = proc_mkdir(MTK_USB_STR, NULL);
@@ -2158,7 +1677,6 @@ static void mtk_xsphy_procfs_init_worker(struct work_struct *data)
 
 	if (inst->type == PHY_TYPE_USB3)
 		u3_phy_procfs_init(xsphy, inst);
-
 exit:
 	mutex_unlock(&procfs_mutex);
 }
@@ -3018,20 +2536,6 @@ static void phy_parse_property(struct mtk_xsphy *xsphy,
 			inst->rev6_host, inst->rx_sqd, inst->host_rx_sqd);
 		dev_dbg(dev, "u2-sw-efuse:%d hwpll-mode:%d, refclk-sel:%d, chp-en-disable:%d",
 				inst->u2_sw_efuse, inst->hwpll_mode, inst->refclk_sel, inst->chp_en_disable);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		xsphy->def_params_val[PHY_EFUSE_INTR] = inst->efuse_intr;
-		xsphy->def_params_val[U2_EFUSE_TERM] = inst->efuse_term_cal;
-		xsphy->def_params_val[U2_EYE_SRC] = inst->eye_src;
-		xsphy->def_params_val[U2_EYE_VRT] = inst->eye_vrt;
-		xsphy->def_params_val[U2_EYE_TERM] = inst->eye_term;
-		xsphy->def_params_val[U2_DISTACH] = inst->discth;
-		xsphy->def_params_val[U2_RX_SQTH] = inst->rx_sqth;
-		xsphy->def_params_val[U2_REV6] = inst->rev6;
-		xsphy->def_params_val[U2_INTR_OFS] = inst->intr_ofs ;
-		xsphy->def_params_val[U2_TERM_OFS] = inst->term_ofs ;
-		xsphy->def_params_val[U2_PLL_FBKSEL] = inst->pll_fbksel;
-		xsphy->def_params_val[U2_PLL_POSDIV] = inst->pll_posdiv;
-#endif
 		break;
 	case PHY_TYPE_USB3:
 		if (device_property_read_u32(dev, "mediatek,efuse-intr",
@@ -3065,14 +2569,6 @@ static void phy_parse_property(struct mtk_xsphy *xsphy,
 
 		inst->orientation = 0;
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		xsphy->def_params_val[PHY_EFUSE_INTR] = inst->efuse_intr;
-		xsphy->def_params_val[U3_EFUSE_TX_IMP] = inst->efuse_tx_imp;
-		xsphy->def_params_val[U3_EFUSE_RX_IMP] = inst->efuse_rx_imp;
-		xsphy->def_params_val[U3_TX_LCXCM1] = inst->tx_lctxcm1;
-		xsphy->def_params_val[U3_TX_LCXC0] = inst->tx_lctxc0;
-		xsphy->def_params_val[U3_TX_LCXCP1] = inst->tx_lctxcp1;
-#endif
 		break;
 	default:
 		dev_err(xsphy->dev, "incompatible phy type\n");
@@ -3940,10 +3436,6 @@ static const struct dev_pm_ops mtk_xsphy_pm_ops = {
 static void mtk_xsphy_remove(struct platform_device *pdev)
 {
 	struct mtk_xsphy *xsphy = dev_get_drvdata(&pdev->dev);
-
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	oplus_xsphy_procfs_exit(xsphy);
-#endif
 
 	mtk_xsphy_procfs_exit(xsphy);
 }

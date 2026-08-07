@@ -15,8 +15,6 @@
 #include <linux/dma-heap.h>
 #include <linux/vmalloc.h>
 #include <linux/of_platform.h>
-#include <linux/jiffies.h>
-#include <linux/ktime.h>
 
 #include "mtk_drm_crtc.h"
 #include "mtk_drm_ddp_comp.h"
@@ -287,8 +285,6 @@ static int mtk_dbi_count_get_mode_by_fmt(struct mtk_dbi_count_helper *helper, en
 	} while (0)
 
 #define log_en (1)
-
-static struct mtk_dbi_count_irq irq_check = { 0 };
 
 #define DBI_COUNT_INFO(fmt, arg...) do { \
 			if (log_en) \
@@ -588,7 +584,6 @@ void mtk_crtc_dbi_count_cfg(struct mtk_drm_crtc *mtk_crtc, struct mtk_crtc_state
 					DISP_DBI_COUNT_IRQ_CLR, value, handle);
 				mtk_dbi_count_write_mask(dbi_count, value,
 					DISP_DBI_COUNT_IRQ_MASK, value, handle);
-				count_data->frame_done_irq_en = 1;
 			}
 
 			disp_pq_set_test_flag(TEST_FLAG_DBI_COUNT);
@@ -979,11 +974,6 @@ struct dbi_count_block_info mtk_dbi_count_get_block_info(uint32_t block_h, uint3
 		ret.block_v = 2;
 		ret.channel = 3;
 		return ret;
-	} else if((block_h == 4) && (block_v == 4)){
-		ret.block_h = 4;
-		ret.block_v = 4;
-		ret.channel = 3;
-		return ret;
 	}
 	return ret;
 }
@@ -1291,62 +1281,31 @@ static void mtk_dbi_set_reg_by_mode(struct mtk_ddp_comp *comp,
 	}
 }
 
-static  int mtk_dbi_intp_int32_round(int x, int x1, int y1, int x2, int y2)
+int mtk_dbi_curve_interpolate(struct mtk_dbi_curve_2d *curve, uint32_t x)
 {
-	int start_x, end_x, start_y, end_y;
-	long long numerator;
-
-	if (x1 == x2)
-		return y1;
-
-	if (x1 < x2) {
-		start_x = x1;
-		end_x = x2;
-		start_y = y1;
-		end_y = y2;
-	} else {
-		start_x = x2;
-		end_x = x1;
-		start_y = y2;
-		end_y = y1;
-	}
-
-	if(x<= start_x)
-		return start_y;
-	if(x >= end_x)
-		return end_y;
-
-	const int dx = end_x -start_x;
-	const int dy = end_y -start_y;
-	const int offset = x - start_x;
-
-	numerator = ((long long)offset) * dy;
-	return start_y + (int)((numerator + dx/2)/dx);
-}
-
-int mtk_dbi_curve_interpolate_signed(struct mtk_dbi_curve_2d *curve, int x)
-{
-	int x_l;
-	int x_r;
-	int y_l;
-	int y_r;
+	uint32_t x_l;
+	uint32_t x_r;
+	uint32_t y_l;
+	uint32_t y_r;
 
 	if(curve->num <=0)
 		return 0;
 
-	if(x<=curve->x[0])
-		return curve->y[0];
+	if(x<=curve->ux[0])
+		return curve->uy[0];
 
-	if (x>=curve->x[curve->num-1])
-		return curve->y[curve->num-1];
+	if (x>=curve->ux[curve->num-1])
+		return curve->uy[curve->num-1];
 
 	for (int r=1; r<curve->num; r++) {
-		if (x <= curve->x[r]) {
-			x_l = curve->x[r-1];
-			x_r = curve->x[r];
-			y_l = curve->y[r-1];
-			y_r = curve->y[r];
-			return mtk_dbi_intp_int32_round(x, x_l, y_l, x_r, y_r);
+		if (x==curve->ux[r])
+			return curve->uy[r];
+		else if (x < curve->ux[r]) {
+			x_l = curve->ux[r-1];
+			x_r = curve->ux[r];
+			y_l = curve->uy[r-1];
+			y_r = curve->uy[r];
+			return ((x-x_l)*y_r + (x_r-x)*y_l)/(x_r - x_l);
 		}
 	}
 	return 0;
@@ -1374,17 +1333,16 @@ void mtk_dbi_debug(struct drm_crtc *crtc, const char *opt)
 void mtk_dbi_show_gain_status(uint32_t dbv, uint32_t fps, int temp,
 	uint32_t *dbv_gain, uint32_t *fps_gain, uint32_t *temp_gain, uint32_t *irdrop_gain)
 {
-	uint32_t b, rsh, dbv_rsh;
+	uint32_t b, rsh;
 
-	b = 8;
+	b = 4;
 	rsh = 10-b;
-	dbv_rsh = 14-b;
 
 	DBI_COUNT_MSG("dbv:%u, dbv_gain:R = %u / G = %u / B = %u (format=fix point .%d)\n",
-		dbv, dbv_gain[DBI_CH_R] >> dbv_rsh, dbv_gain[DBI_CH_G] >> dbv_rsh, dbv_gain[DBI_CH_B] >> dbv_rsh, b);
+		dbv, dbv_gain[DBI_CH_R] >> rsh, dbv_gain[DBI_CH_G] >> rsh, dbv_gain[DBI_CH_B] >> rsh, b);
 	DBI_COUNT_MSG("fps:%u, fps_gain:R = %u / G = %u / B = %u (format=fix point .%d)\n",
 		fps, fps_gain[DBI_CH_R] >> rsh, fps_gain[DBI_CH_G] >> rsh, fps_gain[DBI_CH_B] >> rsh, b);
-	DBI_COUNT_MSG("temp:%d, temp_gain:R = %u / G = %u / B = %u (format=fix point .%d)\n",
+	DBI_COUNT_MSG("temp:%u, temp_gain:R = %u / G = %u / B = %u (format=fix point .%d)\n",
 		temp, temp_gain[DBI_CH_R] >> rsh, temp_gain[DBI_CH_G] >> rsh, temp_gain[DBI_CH_B] >> rsh, b);
 	DBI_COUNT_MSG("irdrop_gain:R = %u / G = %u / B = %u (format=fix point .%d)\n",
 		irdrop_gain[DBI_CH_R] >> rsh, irdrop_gain[DBI_CH_G] >> rsh, irdrop_gain[DBI_CH_B] >> rsh, b);
@@ -1420,13 +1378,13 @@ void mtk_dbi_get_irdrop_gain(struct mtk_dbi_count_hw_param *count_param, uint32_
 		weight_sum += weight;
 
 		ratio = code_square_sum[ch] == 0 ? 0:(avg_code*code_sum[ch]/code_square_sum[ch])>>2;
-		ratio_gain = mtk_dbi_curve_interpolate_signed(&count_param->irdrop_ratio_gain_curve[ch],ratio);
-		dbv_gain = mtk_dbi_curve_interpolate_signed(&count_param->irdrop_dbv_gain_curve[ch],dbv);
+		ratio_gain = mtk_dbi_curve_interpolate(&count_param->irdrop_ratio_gain_curve[ch],ratio);
+		dbv_gain = mtk_dbi_curve_interpolate(&count_param->irdrop_dbv_gain_curve[ch],dbv);
 		irdrop_gain_tmp[ch] = (dbv_gain * ratio_gain) >> 10;
 	}
 
 	total_code = weight_code_sum / weight_sum;
-	total_code_gain = mtk_dbi_curve_interpolate_signed(&count_param->irdrop_total_gain_curve,total_code);
+	total_code_gain = mtk_dbi_curve_interpolate(&count_param->irdrop_total_gain_curve,total_code);
 
 	for(int ch= 0;ch<DBI_CHANNEL_NUM;ch++) {
 		ret_irdrop_gain[ch] = (total_code_gain * irdrop_gain_tmp[ch]) >> 10;
@@ -1442,8 +1400,7 @@ static void mtk_dbi_update_count_gain(struct mtk_ddp_comp *comp,
 	int mode_id = atomic_read(&dbi_count->current_count_mode);
 	struct mtk_dbi_count_hw_param *count_param = &dbi_count->count_cfg.count_cfg.hw_count_param[mode_id];
 	struct mtk_dbi_count_helper *count_helper = &dbi_count->count_cfg.count_helper;
-	uint32_t dbv_gain, fps_gain, temp_gain, gain_norm, irdrop_gain;
-	uint64_t total_gain;
+	uint32_t dbv_gain, fps_gain, temp_gain, gain_norm, total_gain, irdrop_gain;
 	uint32_t gains[DBI_CHANNEL_NUM] = { 0 };
 	uint32_t max_gain = 0;
 	uint32_t sh = 0;
@@ -1524,17 +1481,15 @@ static void mtk_dbi_update_count_gain(struct mtk_ddp_comp *comp,
 	}
 
 	for (int ch = 0; ch < DBI_CHANNEL_NUM; ch++) {
-		dbv_gain = mtk_dbi_curve_interpolate_signed(&count_param->dbv_gain_curve[ch],dbv);
-		fps_gain = mtk_dbi_curve_interpolate_signed(&count_param->fps_gain_curve[ch],fps);
-		temp_gain = mtk_dbi_curve_interpolate_signed(&count_param->temp_gain_curve[ch],temp);
+		dbv_gain = mtk_dbi_curve_interpolate(&count_param->dbv_gain_curve[ch],dbv);
+		fps_gain = mtk_dbi_curve_interpolate(&count_param->fps_gain_curve[ch],fps);
+		temp_gain = mtk_dbi_curve_interpolate(&count_param->temp_gain_curve[ch],temp);
 		irdrop_gain = irdrop_gains[ch];
 		gain_norm = count_param->gain_norm[ch];
-		total_gain = (((uint64_t)dbv_gain) * gain_norm * temp_gain)>>18;
-		total_gain = (total_gain * irdrop_gain * fps_gain) >> 20;
-
-		gains[ch] = MIN(total_gain, 0xffffffff);
-		max_gain = MAX(max_gain, total_gain>>16);
-
+		total_gain = (((uint64_t)dbv_gain) * fps_gain * temp_gain)>>18;
+		total_gain = ((uint64_t)total_gain * irdrop_gain * gain_norm) >> 20;
+		gains[ch] = total_gain;
+		max_gain = MAX(max_gain, total_gain>>12);
 		dbv_gains[ch] = dbv_gain;
 		fps_gains[ch] = fps_gain;
 		temp_gains[ch] = temp_gain;
@@ -1543,7 +1498,6 @@ static void mtk_dbi_update_count_gain(struct mtk_ddp_comp *comp,
 	if(dbi_count->show_gain)
 		mtk_dbi_show_gain_status(dbv, fps, real_temp,
 			dbv_gains, fps_gains, temp_gains, irdrop_gains);
-
 	if(max_gain >= (1<<7))
 		sh = 0;
 	else if(max_gain >= (1<<6))
@@ -1552,32 +1506,26 @@ static void mtk_dbi_update_count_gain(struct mtk_ddp_comp *comp,
 		sh = 2;
 	else if(max_gain >= (1<<4))
 		sh = 3;
-	else if(max_gain >= (1<<3))
-		sh = 4;
-	else if(max_gain >= (1<<2))
-		sh = 5;
-	else if(max_gain >= (1<<1))
-		sh = 6;
 	else
-		sh = 7;
+		sh = 4;
 
 	for (int ch = 0; ch < DBI_CHANNEL_NUM; ch++) {
 		if (ch == DBI_CH_R) {
 			value = 0;
 			mask = 0;
-			SET_VAL_MASK(value, mask, MIN(gains[ch]>>(8-sh), 0xffff), COUNTING_GAIN_R);
+			SET_VAL_MASK(value, mask, MIN(gains[ch]>>(4-sh), 0xffff), COUNTING_GAIN_R);
 			mtk_dbi_count_write_mask(comp, value, REG_DBI_COUNTING_GAIN_R, mask, handle);
 		}
 		if (ch == DBI_CH_G) {
 			value = 0;
 			mask = 0;
-			SET_VAL_MASK(value, mask, MIN(gains[ch]>>(8-sh), 0xffff), COUNTING_GAIN_G);
+			SET_VAL_MASK(value, mask, MIN(gains[ch]>>(4-sh), 0xffff), COUNTING_GAIN_G);
 			mtk_dbi_count_write_mask(comp, value, REG_DBI_COUNTING_GAIN_G, mask, handle);
 		}
 		if (ch == DBI_CH_B) {
 			value = 0;
 			mask = 0;
-			SET_VAL_MASK(value, mask, MIN(gains[ch]>>(8-sh), 0xffff), COUNTING_GAIN_B);
+			SET_VAL_MASK(value, mask, MIN(gains[ch]>>(4-sh), 0xffff), COUNTING_GAIN_B);
 			mtk_dbi_count_write_mask(comp, value, REG_DBI_COUNTING_GAIN_B, mask, handle);
 		}
 	}
@@ -1844,8 +1792,6 @@ static void mtk_dbi_count_config(struct mtk_ddp_comp *comp,
 		if(dbi_count->irq_num && dbi_count->data->irq_handler) {
 			value = 0;
 			value |= DBI_COUNT_EOF;
-			if(dbi_count->frame_done_irq_en)
-				value |= DBI_COUNT_FRAME_DONE;
 			mtk_dbi_count_write_mask(comp, value,
 				DISP_DBI_COUNT_IRQ_MASK, value, handle);
 		}
@@ -1914,36 +1860,16 @@ void mtk_dbi_count_dump(struct mtk_ddp_comp *comp)
 	}
 }
 
-static inline void _mtk_dbi_count_clean_irq_mask(struct mtk_ddp_comp *comp, bool add)
-{
-	static int ref;
-
-	/* clean inten before unprepare, use ref cnt for multi crtc */
-	if (add)
-		++ref;
-	else
-		--ref;
-
-	if (!ref)
-		mtk_dbi_count_write_cpu(comp, 0, DISP_DBI_COUNT_IRQ_MASK);
-	else if (ref < 0) {
-		DDPMSG("%s ref cnt error, reset to 0\n", __func__);
-		ref = 0;
-	}
-}
-
 static void mtk_dbi_count_prepare(struct mtk_ddp_comp *comp)
 {
 	DBI_COUNT_INFO("%s +++\n", mtk_dump_comp_str(comp));
 	mtk_ddp_comp_clk_prepare(comp);
-	_mtk_dbi_count_clean_irq_mask(comp, 1);
 }
 
 static void mtk_dbi_count_unprepare(struct mtk_ddp_comp *comp)
 {
 
 	DBI_COUNT_INFO("%s +++\n", mtk_dump_comp_str(comp));
-	_mtk_dbi_count_clean_irq_mask(comp, 0);
 	mtk_ddp_comp_clk_unprepare(comp);
 
 }
@@ -2165,9 +2091,6 @@ int mtk_dbi_count_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 
 		mtk_dbi_count_hrt_cal_ratio(comp, CHANNEL_HRT_RW, &weight);
 		bw_val = (weight * bw_base + 399) / 400;
-		bw_val = bw_val > dbi_count->data->min_port_bw ?
-			bw_val : dbi_count->data->min_port_bw; //set low bound
-
 		bw_val *= (en > 0) ? 1 : 0;
 		if (bw_val > dbi_count->last_hrt) {
 			__mtk_disp_set_module_hrt(dbi_count->qos_req_w_hrt, comp->id, bw_val,
@@ -2263,8 +2186,6 @@ int mtk_dbi_count_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 			/* DBI outstanding */
 			mtk_dbi_count_hrt_cal_ratio(comp, CHANNEL_HRT_RW, &weight);
 			bw_val = (weight * bw_base + 399) / 400;
-			bw_val = bw_val > dbi_count->data->min_port_bw ?
-				bw_val : dbi_count->data->min_port_bw; //set low bound
 			bw_val *= (en > 0) ? 1 : 0;
 			if(bw_val == dbi_count->last_hrt)
 				break;
@@ -2993,8 +2914,6 @@ static int mtk_disp_dbi_count_probe(struct platform_device *pdev)
 	atomic_set(&priv->current_count_mode, 0);
 	atomic_set(&priv->new_count_mode, 0);
 
-	irq_check.irq_need_check = 1;
-
 	DDPMSG("%s-\n", __func__);
 	return ret;
 }
@@ -3014,27 +2933,6 @@ static irqreturn_t mtk_dbi_count_irq_handler(int irq, void *dev_id)
 	uint32_t status_raw, status = 0;
 	struct mtk_ddp_comp *comp;
 	uint32_t value,mask;
-	unsigned long irq_idx_tmp;
-	ktime_t irq_time_diff;
-	ktime_t irq_curr_time = ktime_get();
-
-	if (irq_check.irq_need_check) {
-		irq_check.irq_time[irq_check.irq_idx] = irq_curr_time;
-		irq_check.irq_idx++;
-		if(irq_check.irq_idx >= 10){
-			irq_check.irq_idx = 0;
-			irq_check.irq_full = 1;
-		}
-
-		if (irq_check.irq_full) {
-			irq_idx_tmp = irq_check.irq_idx;
-			irq_time_diff = irq_curr_time - irq_check.irq_time[irq_idx_tmp];
-			if(ktime_to_ms(irq_time_diff) < 11) {
-				irq_check.irq_err = 1;
-				irq_check.irq_need_check = 0;
-			}
-		}
-	}
 
 	if (IS_ERR_OR_NULL(dbi_count))
 		return IRQ_NONE;
@@ -3049,15 +2947,8 @@ static irqreturn_t mtk_dbi_count_irq_handler(int irq, void *dev_id)
 	status = mtk_dbi_count_read(comp, DISP_DBI_COUNT_IRQ_STATUS);
 	mtk_dbi_count_write(comp, status, DISP_DBI_COUNT_IRQ_CLR, NULL);
 	mtk_dbi_count_write(comp, 0, DISP_DBI_COUNT_IRQ_CLR, NULL);
-	if(irq_check.irq_err) {
-		PC_ERR("%s %s irq, val:0x%x,0x%x\n", __func__, mtk_dump_comp_str(comp),
-			status_raw, status);
-		irq_check.irq_err++;
-		if(irq_check.irq_err > 25)
-			irq_check.irq_err = 0;
-	} else
-		DDPIRQ("%s %s irq, val:0x%x,0x%x\n", __func__, mtk_dump_comp_str(comp),
-			status_raw, status);
+	DDPIRQ("%s %s irq, val:0x%x,0x%x\n", __func__, mtk_dump_comp_str(comp),
+		status_raw, status);
 	if(status & DBI_COUNT_INT_DONE) {
 		atomic_set(&dbi_count->buffer_full, 1);
 		CRTC_MMP_MARK(0, dbi_merge, 0, 0);
@@ -3072,7 +2963,7 @@ static irqreturn_t mtk_dbi_count_irq_handler(int irq, void *dev_id)
 	}
 
 	if(status & DBI_COUNT_FRAME_DONE) {
-		dbi_count->frame_done_irq_en = 0;
+
 		value = 0;
 		mask = 0;
 		mask |= DBI_COUNT_FRAME_DONE;
@@ -3081,9 +2972,6 @@ static irqreturn_t mtk_dbi_count_irq_handler(int irq, void *dev_id)
 
 		queue_work(comp->mtk_crtc->dbi_data.dbi_event.work_queue, &comp->mtk_crtc->dbi_data.dbi_event.task);
 	}
-
-	if((!(status & DBI_COUNT_FRAME_DONE)) && (!(status & DBI_COUNT_INT_DONE)) && (!(status & DBI_COUNT_EOF)))
-		PC_ERR("receive abnormal status %x", status);
 
 	mtk_drm_top_clk_isr_put(comp);
 	return IRQ_HANDLED;
@@ -3098,7 +2986,6 @@ static const struct mtk_disp_dbi_count_data mt6993_dbi_count_driver_data = {
 	.stash_lead_time = 20,
 	.min_stash_port_bw = 49,
 	.use_slot_trigger = true,
-	.min_port_bw = 1025,
 };
 
 static const struct of_device_id mtk_disp_dbi_count_driver_dt_match[] = {

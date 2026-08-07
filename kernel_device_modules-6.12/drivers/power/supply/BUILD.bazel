@@ -146,11 +146,6 @@ define_mgk_ddk_ko(
         ":charger_class",
         ":mtk_battery_manager",
         ":mtk_charger_algorithm_class",
-        "//kernel_device_modules-{}/drivers/misc/mediatek/typec/tcpc:tcpc_class".format(kernel_version),
-    ],
-    local_defines = [
-        "CONFIG_OPLUS_CHARGER_MTK",
-        "CONFIG_OPLUS_CHARGER_MTK_CHGIC"
     ],
     copts = [
         "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
@@ -189,7 +184,7 @@ define_mgk_ddk_ko(
     ],
     includes = ["."],
     ko_deps = [
-        #"//kernel_device_modules-{}/drivers/power/supply/ufcs:ufcs_class".format(kernel_version),
+        "//kernel_device_modules-{}/drivers/power/supply/ufcs:ufcs_class".format(kernel_version),
         ":adapter_class",
         ":charger_class",
         ":mtk_charger_framework",
@@ -461,9 +456,6 @@ define_mgk_ddk_ko(
         "//kernel_device_modules-{}/drivers/misc/mediatek/power_throttling:pmic_lbat_service".format(kernel_version),
         ":mtk_battery_manager",
     ],
-    local_defines = [
-        "OPLUS_FEATURE_CHG_BASIC"
-    ],
     copts = [
         "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
         "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling",
@@ -556,12 +548,7 @@ define_mgk_ddk_ko(
         ":mtk_charger_algorithm_class",
         ":mtk_charger_framework",
         ":mtk_chg_type_det",
-        #"//kernel_device_modules-{}/drivers/power/supply/ufcs:ufcs_class".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/typec/tcpc:tcpc_class".format(kernel_version),
-    ],
-    local_defines = [
-        "CONFIG_OPLUS_HVDCP_SUPPORT",
-        "OPLUS_FEATURE_CHG_BASIC"
+        "//kernel_device_modules-{}/drivers/power/supply/ufcs:ufcs_class".format(kernel_version),
     ],
     copts = [
         "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
@@ -585,18 +572,9 @@ define_mgk_ddk_ko(
         ":charger_class",
         ":mtk_charger_framework",
         ":mtk_chg_type_det",
-        #"//kernel_device_modules-{}/drivers/power/supply/ufcs:ufcs_class".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/typec/tcpc:tcpc_class".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/soc/oplus/boot:oplus_bsp_boot_projectinfo".format(kernel_version),
-    ],
-
-    local_defines = [
-    	"CONFIG_OPLUS_HVDCP_SUPPORT",
-        "OPLUS_FEATURE_CHG_BASIC"
+        "//kernel_device_modules-{}/drivers/power/supply/ufcs:ufcs_class".format(kernel_version),
     ],
     copts = [
-    	"-Wno-error",
-    	"-Wno-unused-function",
         "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
         "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling",
         "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/tcpc/inc",
@@ -648,153 +626,3 @@ define_mgk_ddk_ko(
         "-I$(DEVICE_MODULES_PATH)/drivers/power/supply/ufcs",
     ],
 )
-
-define_mgk_ddk_ko(
-    name = "bq28z610",
-    srcs = [
-        "bq28z610.c",
-        "bq28z610.h",
-    ],
-    includes = ["."],
-    ko_deps = [
-        ":adapter_class",
-        ":charger_class",
-        ":mtk_charger_framework",
-        "//kernel_device_modules-{}/drivers/misc/mediatek/typec/tcpc:tcpc_class".format(kernel_version),
-    ],
-    local_defines = [
-        "CONFIG_TARGET_PRODUCT_XAGA"
-    ],
-    copts = [
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/tcpc/inc",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/usb/usb20/",
-        "-I$(DEVICE_MODULES_PATH)/drivers/power/supply/ufcs",
-    ],
-)
-
-define_mgk_ddk_ko(
-    name = "sc8561",
-    srcs = [
-        "sc8561.c",
-        "sc8561_reg.h",
-        "ln8410_reg.h",
-    ],
-    includes = ["."],
-    ko_deps = [
-        ":adapter_class",
-        ":charger_class",
-        ":mtk_charger_framework",
-        "//kernel_device_modules-{}/drivers/misc/mediatek/typec/tcpc:tcpc_class".format(kernel_version),
-    ],
-    local_defines = [
-        "CONFIG_TARGET_PRODUCT_XAGA"
-    ],
-    copts = [
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/tcpc/inc",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/usb/usb20/",
-        "-I$(DEVICE_MODULES_PATH)/drivers/power/supply/ufcs",
-    ],
-)
-
-define_mgk_ddk_ko(
-    name = "sc8551",
-    srcs = [
-        "sc8551.c",
-        "sc8551.h",
-        "sc8561_reg.h",
-    ],
-    includes = ["."],
-    ko_deps = [
-        ":adapter_class",
-        ":charger_class",
-        ":mtk_charger_framework",
-        "//kernel_device_modules-{}/drivers/misc/mediatek/typec/tcpc:tcpc_class".format(kernel_version),
-    ],
-    local_defines = [
-        "CONFIG_TARGET_PRODUCT_XAGA"
-    ],
-    copts = [
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/tcpc/inc",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/usb/usb20/",
-        "-I$(DEVICE_MODULES_PATH)/drivers/power/supply/ufcs",
-    ],
-)
-
-define_mgk_ddk_ko(
-    name = "ln8000_charger",
-    srcs = [
-        "ln8000_charger.c",
-        "ln8000_charger.h",
-        "ln8000.h",
-        "ln8410_reg.h",
-    ],
-    includes = ["."],
-    ko_deps = [
-        ":adapter_class",
-        ":charger_class",
-        ":mtk_charger_framework",
-        "//kernel_device_modules-{}/drivers/misc/mediatek/typec/tcpc:tcpc_class".format(kernel_version),
-    ],
-    local_defines = [
-        "CONFIG_TARGET_PRODUCT_XAGA"
-    ],
-    copts = [
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/tcpc/inc",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/usb/usb20/",
-        "-I$(DEVICE_MODULES_PATH)/drivers/power/supply/ufcs",
-    ],
-)
-
-define_mgk_ddk_ko(
-    name = "pmic_voter",
-    srcs = [
-        "pmic_voter.c",
-    ],
-    hdrs = ["pmic_voter.h",],
-    includes = ["."],
-    ko_deps = [
-        ":mtk_charger_framework",
-    ],
-    copts = [
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/tcpc/inc",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/usb/usb20/",
-        "-I$(DEVICE_MODULES_PATH)/drivers/power/supply/ufcs",
-    ],
-)
-
-define_mgk_ddk_ko(
-    name = "pd_cp_manager",
-    srcs = [
-        "pd_cp_manager.c",
-        "pd_cp_manager.h",
-    ],
-    includes = ["."],
-    ko_deps = [
-        ":adapter_class",
-        ":charger_class",
-        ":mtk_charger_framework",
-        ":pmic_voter",
-        "//kernel_device_modules-{}/drivers/misc/mediatek/typec/tcpc:tcpc_class".format(kernel_version),
-    ],
-    local_defines = [
-        "CONFIG_TARGET_PRODUCT_XAGA"
-    ],
-    copts = [
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/tcpc/inc",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/usb/usb20/",
-        "-I$(DEVICE_MODULES_PATH)/drivers/power/supply/ufcs",
-    ],
-)
-

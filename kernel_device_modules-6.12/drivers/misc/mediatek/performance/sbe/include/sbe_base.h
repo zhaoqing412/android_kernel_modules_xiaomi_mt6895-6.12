@@ -7,7 +7,6 @@
 #define __SBE_BASE_H__
 
 #include <linux/rbtree.h>
-#include <linux/vmalloc.h>
 
 #define TARGET_UNLIMITED_FPS 240
 #define MAX_TASK_NUM 100
@@ -22,8 +21,6 @@
 #define SBE_DEFAULT_DEUQUE_MARGIN_MAX_TIME_NS 8333333
 #define SBE_DEFAULT_AFFINITY_TASK_MIN_CAP 7
 #define SBE_DEFAULT_AFFINITY_TASK_LOW_THRESHOLD_CAP 30
-
-#define SBE_TASK_RUNNING (1 << 1)
 
 #define IS_BIT_SET(mask, bit) (test_bit((bit), &(mask)))
 
@@ -73,7 +70,6 @@ struct sbe_render_info {
 	int frame_count;
 	int frame_cap_count;
 	int dy_compute_rescue;
-	int user_request_affinity_mask;
 	int affinity_task_mask;
 	int affinity_task_mask_cnt;
 	int calculate_dy_enhance_idx;
@@ -85,7 +81,6 @@ struct sbe_render_info {
 	int is_webfunctor;
 	int core_ctl_ignore_vip_task;
 	int fpsgo_critical_flag;
-	int dptv2_bypass_task_flag;
 	unsigned long long frame_ctime_count;
 	unsigned int sbe_rescue;
 	unsigned long long buffer_id;
@@ -147,7 +142,5 @@ int sbe_forece_reset_fpsgo_critical_tasks(void);
 int sbe_get_render_tid_by_render_pid(int tgid, int pid,
 	int *out_tid_arr, unsigned long long *out_bufID_arr,
 	int *out_tid_num, int out_tid_max_num);
-int sbe_do_dptv2_task_util_policy(int tgid, int start);
-int sbe_force_reset_dptv2_task_util_policy(void);
 
 #endif

@@ -106,8 +106,6 @@ struct dmaheap_buf_copy {
 
 	/* private part for system heap */
 	struct mtk_deferred_freelist_item deferred_free;
-	unsigned int orders_count[NUM_ORDERS];
-	unsigned int frag_ratio;
 };
 
 enum stats_type {

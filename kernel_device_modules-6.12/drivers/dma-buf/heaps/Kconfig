@@ -34,26 +34,6 @@ config DMABUF_HEAPS_DEBUG
 	  If you want use it, say Y if you are not using GKI
 	  say m and add ko into your system for GKI.
 
-config OPLUS_FEATURE_MM_OSVELTE
-	tristate "osvelte driver"
-	default n
-	help
-	  This driver used for memory debugging.
-
-config OPLUS_FEATURE_AIZEROCOPY
-	tristate "AI zero copy"
-	select DMA_SHARED_BUFFER
-	default n
-	help
-	  Enable AI zero copy
-
-config AIZEROFS_DEBUG_SYS_ABI
-	bool "aizerofs sysfs debug abi"
-	depends on OPLUS_FEATURE_AIZEROCOPY
-	default y
-	help
-	  support aizerofs sysfs debug
-
 config DMABUF_LEGACY_TEST
 	tristate "DMA-BUF test legacy"
 	help
@@ -61,9 +41,3 @@ config DMABUF_LEGACY_TEST
 	  This config is for legacy chip to skip new chip only case.
 	  If you are sure the chip not support the dmabuf secure test, say Y to
 	  skip the case. If in doubt, say N.
-
-config OPLUS_FEATURE_MM_BOOSTPOOL
-	tristate "Oplus DMA-BUF heaps boost-pool library "
-	depends on DEVICE_MODULES_DMABUF_HEAPS_SYSTEM
-	help
-	  Choose this option to enable the DMA-BUF heaps boost-pool library.

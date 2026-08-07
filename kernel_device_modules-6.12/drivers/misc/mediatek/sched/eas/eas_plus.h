@@ -414,11 +414,7 @@ extern struct cpumask __cpu_pause_mask;
 #define cpu_pause_mask ((struct cpumask *)&__cpu_pause_mask)
 
 #if IS_ENABLED(CONFIG_MTK_CORE_PAUSE)
-#ifndef CONFIG_HMBIRD_SCHED_BPF
 #define cpu_paused(cpu) cpumask_test_cpu((cpu), cpu_pause_mask)
-#else
-extern bool cpu_paused(int cpu);
-#endif
 
 extern void sched_pause_init(void);
 #else
@@ -449,8 +445,5 @@ extern unsigned long mtk_em_cpu_energy_v2(struct em_perf_domain *pd,
 extern inline unsigned long eenv_pd_max_util_dpt_v2(struct energy_env *eenv, struct cpumask *pd_cpus,
 		 struct task_struct *p, int dst_cpu, unsigned long *min, unsigned long *max);
 extern void __iomem *(*get_dpt_v2_cs_counter_addr_hook)(int cpu);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-extern void dsu_power_optimization_init(void);
-#endif
 
 #endif //_EAS_PLUS_H

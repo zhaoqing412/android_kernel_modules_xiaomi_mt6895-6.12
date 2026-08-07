@@ -181,22 +181,12 @@ static struct logger_buffer dprec_logger_buffer[DPREC_LOGGER_PR_NUM] = {
 };
 static atomic_t is_buffer_init = ATOMIC_INIT(0);
 static char *debug_buffer;
-#ifdef OPLUS_FEATURE_DISPLAY
 #if IS_ENABLED(CONFIG_MTK_DISP_LOGGER)
-	bool logger_enable = 1;
-	unsigned int g_trace_log = 1;
-	#else
-	bool logger_enable = 1;
-	unsigned int g_trace_log = 1;
-	#endif
-#else
-	#if IS_ENABLED(CONFIG_MTK_DISP_LOGGER)
 static bool logger_enable = 1;
 unsigned int g_trace_log = 1;
 #else
 static bool logger_enable;
 unsigned int g_trace_log;
-	#endif
 #endif
 
 struct DISP_PANEL_BASE_VOLTAGE base_volageg;
@@ -408,11 +398,7 @@ static char *_logger_pr_type_spy(enum DPREC_LOGGER_PR_TYPE type)
 	}
 }
 
-#ifdef OPLUS_FEATURE_DISPLAY
-void init_log_buffer(void)
-#else
 static void init_log_buffer(void)
-#endif
 {
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	unsigned long va;
@@ -1365,90 +1351,6 @@ void fake_engine(struct drm_crtc *crtc, unsigned int idx, unsigned int en,
 		DDPMSG("fake_engine_%d disable\n", idx);
 	}
 }
-
-int mtk_ddic_vdo_aod_ctrl(unsigned char aod_en, bool need_lock)
-{
-	struct drm_crtc *crtc;
-	struct mtk_drm_crtc *mtk_crtc;
-	struct mtk_drm_private *private;
-	struct mtk_ddp_comp *output_comp;
-	struct mtk_vdo_aod_cfg vdo_aod_cfg;
-	int ret = 0;
-
-	vdo_aod_cfg.wfe_cmd_eof = 1;
-	vdo_aod_cfg.need_dsi_trigger = 1;
-	vdo_aod_cfg.in_dsi_init = 0;
-	if(aod_en)
-		vdo_aod_cfg.aod_en = 1;
-	else
-		vdo_aod_cfg.aod_en = 0;
-
-	if (IS_ERR_OR_NULL(drm_dev)) {
-		DDPPR_ERR("%s, invalid drm dev\n", __func__);
-		return -EINVAL;
-	}
-
-	DDPMSG("%s +\n", __func__);
-
-	/* This cmd only for crtc0 */
-	crtc = list_first_entry(&(drm_dev)->mode_config.crtc_list,
-			typeof(*crtc), head);
-	if (IS_ERR_OR_NULL(crtc)) {
-		DDPPR_ERR("find crtc fail\n");
-		return -EINVAL;
-	}
-
-	private = crtc->dev->dev_private;
-	mtk_crtc = to_mtk_crtc(crtc);
-	if(need_lock) {
-		mutex_lock(&private->commit.lock);
-		DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
-	}
-
-	if (!mtk_crtc->enabled) {
-		DDPMSG("crtc%d disable skip %s\n",
-			drm_crtc_index(&mtk_crtc->base), __func__);
-		if(need_lock) {
-			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
-			mutex_unlock(&private->commit.lock);
-		}
-		return -EINVAL;
-	} else if (mtk_crtc->ddp_mode == DDP_NO_USE) {
-		DDPMSG("skip %s, ddp_mode: NO_USE\n",
-			__func__);
-		if(need_lock) {
-			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
-			mutex_unlock(&private->commit.lock);
-		}
-		return -EINVAL;
-	}
-
-	output_comp = mtk_ddp_comp_request_output(mtk_crtc);
-	if (unlikely(!output_comp)) {
-		DDPPR_ERR("%s:invalid output comp\n", __func__);
-		if(need_lock) {
-			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
-			mutex_unlock(&private->commit.lock);
-		}
-		return -EINVAL;
-	}
-
-	/* Kick idle */
-	mtk_drm_idlemgr_kick(__func__, crtc, 0);
-
-	/* DSI_SEND_DDIC_CMD */
-	if (output_comp)
-		mtk_ddp_comp_io_cmd(output_comp, NULL,
-		DSI_VDO_AOD_CTRL, &vdo_aod_cfg);
-
-	DDPMSG("%s -\n", __func__);
-	if(need_lock) {
-		DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
-		mutex_unlock(&private->commit.lock);
-	}
-	return ret;
-}
-EXPORT_SYMBOL(mtk_ddic_vdo_aod_ctrl);
 
 void dump_fake_engine(void __iomem *config_regs)
 {
@@ -6012,54 +5914,6 @@ static int hrt_lp_proc_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-#ifdef OPLUS_FEATURE_DISPLAY
-void pq_dump_all(unsigned int dump_flag)
-{
-	struct drm_crtc *crtc;
-	struct mtk_drm_crtc *mtk_crtc;
-
-	DDPMSG("pq dump idle off flag:0x%x\n", dump_flag);
-	/* this debug cmd only for crtc0 */
-
-	DDPMSG("pq set diagnose dump flag:0x%x\n", dump_flag);
-	drm_for_each_crtc(crtc, drm_dev) {
-		if (IS_ERR_OR_NULL(crtc)) {
-			DDPPR_ERR("find crtc fail\n");
-			continue;
-		}
-
-		if (drm_crtc_index(crtc) != 0) {
-			DDPPR_ERR("find crtc fail\n");
-			continue;
-		}
-
-		mtk_crtc = to_mtk_crtc(crtc);
-		if (!mtk_crtc->enabled
-			|| mtk_crtc->ddp_mode == DDP_NO_USE)
-			continue;
-
-		mtk_drm_set_idlemgr(crtc, 0, 1);
-		if (mtk_crtc) {
-			DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
-		}
-
-		if (mtk_crtc->enabled && mtk_crtc->ddp_mode != DDP_NO_USE ) {
-			mtk_drm_crtc_analysis(crtc);
-			mtk_drm_crtc_dump(crtc);
-			process_dbg_opt("pq_dump:0,0xff");
-		} else {
-			DDPMSG("drm_crtc_index(crtc):%d,crtc->enabled:%d,mtk_crtc->ddp_mode:%d",drm_crtc_index(crtc),crtc->enabled,mtk_crtc->ddp_mode);
-		}
-		if (mtk_crtc) {
-			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
-		}
-
-		DDPMSG("CRTC%d: pq set diagnose dump flag:0x%x\n", drm_crtc_index(crtc),  dump_flag);
-		mtk_drm_set_idlemgr(crtc, 1, 1);
-	}
-}
-EXPORT_SYMBOL(pq_dump_all);
-#endif
 static ssize_t hrt_lp_proc_set(struct file *file, const char __user *ubuf,
 			   size_t count, loff_t *ppos)
 {
@@ -6310,12 +6164,6 @@ void get_disp_dbg_buffer(unsigned long *addr, unsigned long *size,
 	}
 }
 
-#ifdef OPLUS_FEATURE_DISPLAY
-struct drm_device *get_drm_device(void){
-		return drm_dev;
-}
-EXPORT_SYMBOL(get_drm_device);
-#endif
 void mtk_ovl_set_aod_scp_hrt(void)
 {
 	struct drm_crtc *crtc;

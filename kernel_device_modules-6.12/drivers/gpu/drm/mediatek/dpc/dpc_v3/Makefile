@@ -24,10 +24,7 @@ subdir-ccflags-y += -Werror
 #ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mme
 #endif
 
-
-ifeq ($(strip $(MGK_INTERNAL)),true)
-ccflags-y += -DDISP_VIDLE_ENABLE
-endif
+#ccflags-y += -DDISP_VIDLE_ENABLE
 
 #obj-$(CONFIG_MTK_DPC) := mtk_dpc_v3.o
 #

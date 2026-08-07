@@ -6,7 +6,7 @@
 #ifndef __FPSGO_FRAME_INFO_H__
 #define __FPSGO_FRAME_INFO_H__
 
-#define FPSGO_MAX_CALLBACK_NUM 20
+#define FPSGO_MAX_CALLBACK_NUM 10
 #define FPSGO_MAX_RENDER_INFO_SIZE 30
 #define FPSGO_MAX_TASK_NUM 100
 
@@ -40,8 +40,6 @@ enum GET_FPSGO_FRAME_INFO {
 	GET_FPSGO_DEQUEUE_START = 18,
 	GET_FPSGO_DEQUEUE_END = 19,
 	GET_FPSGO_BUFFER_TIME = 20,
-	GET_FPSGO_Q2Q_JERK_START = 21,
-	GET_FPSGO_Q2Q_JERK_END = 22,
 	FPSGO_FRAME_INFO_MAX_NUM
 };
 
@@ -51,10 +49,9 @@ enum XGF_ACTION {
 	XGF_ADD_DEP_NO_LLF = 1,
 	XGF_ADD_DEP_FORCE_LLF = 2,
 	XGF_ADD_DEP_FORCE_CPU_TIME = 3,
-	XGF_ADD_DEP_FORCE_GROUPING_SECOND = 4,
+	XGF_ADD_DEP_FORCE_GROUPING = 4,
 	XGF_FORCE_BOOST = 5,
 	XGF_FORCE_L3_CT = 6,
-	XGF_ADD_DEP_FORCE_GROUPING_HEAVY = 7,
 };
 
 struct task_info {
@@ -306,7 +303,6 @@ extern int fpsgo_other2fstb_set_target(int mode, int pid, int use, int priority,
 	int target_fps, unsigned long long target_time, unsigned long long bufID);
 extern int fpsgo_other2fstb_calculate_target_fps(int policy, int pid,
 	unsigned long long bufID, unsigned long long cur_ts);
-extern int fpsgo_other2fstb_get_magt_target_hint(int tgid, int pid, unsigned long long bufID);
 
 /* FPSGO General API of XGF */
 extern void fpsgo_other2xgf_calculate_dep(int pid, unsigned long long bufID,

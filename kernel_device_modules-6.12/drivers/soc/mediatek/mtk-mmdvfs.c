@@ -894,11 +894,9 @@ static int mmdvfs_probe(struct platform_device *pdev)
 	mmdvfs_clk_node = of_parse_phandle(dev->of_node, "mediatek,mmdvfs-clk", 0);
 	if (!mmdvfs_clk_node)
 		pr_notice("%s: find mmdvfs_clk node failed\n", __func__);
-	else {
+	else
 		if (of_property_read_bool(mmdvfs_clk_node, "mmdvfs-ap-ccf-support"))
 			drv_data->ccf_ena_support = true;
-		of_node_put(mmdvfs_clk_node);
-	}
 	pr_notice("%s: ccf_ena_support:%d\n", __func__, drv_data->ccf_ena_support);
 
 	mmdvfs_dbg->nb.notifier_call = mmdvfs_dbg_log_cb;

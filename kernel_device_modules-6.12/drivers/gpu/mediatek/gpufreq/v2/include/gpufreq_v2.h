@@ -25,7 +25,6 @@
 #define GPUFREQ_MAX_GPM3_NUM            (20)
 #define GPUFREQ_MAX_BUSTRK_NUM          (10)
 #define GPUFREQ_MAX_PMIC_REG_NUM        (20)
-#define GPUFREQ_MAX_PTP3_ATMC_NUM       (10)
 #define GPUFREQ_DUMP_INFRA_SIZE         (8192)
 #define GPUFREQ_UNREFERENCED(param)     ((void)(param))
 #define GPUFREQ_PROFILE_TYPE_STRING(type) \
@@ -196,16 +195,14 @@ enum gpufreq_config_value {
 	DATA_LEVEL_0            = 14,
 	DATA_LEVEL_1            = 15,
 	DATA_LEVEL_2            = 16,
-	DATA_LEVEL_RECOVERY     = 17,
-	DATA_LEVEL_TRIMMING     = 18,
-	DREQ_NON_AUTO_PWR_SEL_0 = 19,
-	DREQ_NON_AUTO_PWR_SEL_1 = 20,
-	DREQ_AUTO_PWR_SEL_0     = 21,
-	DREQ_AUTO_PWR_SEL_1     = 22,
-	PMIC_AUTO_MODE          = 23,
-	PMIC_PWM_MODE           = 24,
-	PMIC_CURRENT_CLAMPING   = 25,
-	PMIC_OC_SHUTDOWN        = 26,
+	DREQ_NON_AUTO_PWR_SEL_0 = 17,
+	DREQ_NON_AUTO_PWR_SEL_1 = 18,
+	DREQ_AUTO_PWR_SEL_0     = 19,
+	DREQ_AUTO_PWR_SEL_1     = 20,
+	PMIC_AUTO_MODE          = 21,
+	PMIC_PWM_MODE           = 22,
+	PMIC_CURRENT_CLAMPING   = 23,
+	PMIC_OC_SHUTDOWN        = 24,
 };
 
 enum gpufreq_chip_type {
@@ -437,8 +434,6 @@ struct gpufreq_ptp3_shared_status {
 	enum gpufreq_thermal_prot_mode thermal_prot_mode;
 	unsigned int ptp3_mode;
 	unsigned int ptp3_debug_mode;
-	int ptp3_debug_trim;
-	int ptp3_adjust_trim;
 	unsigned int hbvc_support;
 	unsigned int hbvc_preoc_support;
 	unsigned int hbvc_preoc_mode;
@@ -464,10 +459,6 @@ struct gpufreq_ptp3_shared_status {
 	unsigned int prbc_mode;
 	unsigned int freq_tracker_mode;
 	unsigned int volt_tracker_mode;
-	unsigned int atmc_top_bv[GPUFREQ_MAX_PTP3_ATMC_NUM];
-	unsigned int atmc_top_fc[GPUFREQ_MAX_PTP3_ATMC_NUM];
-	unsigned int atmc_stack_bv[GPUFREQ_MAX_PTP3_ATMC_NUM];
-	unsigned int atmc_stack_fc[GPUFREQ_MAX_PTP3_ATMC_NUM];
 };
 
 struct gpu_ptp3_info {
@@ -757,7 +748,6 @@ extern void (*ged_notify_gpu_fix_freq_volt_fp)(unsigned int fgpu, unsigned int v
 /* Common */
 unsigned int gpufreq_bringup(void);
 unsigned int gpufreq_wrapper_ready(void);
-unsigned int gpufreq_driver_ready(void);
 unsigned int gpufreq_power_ctrl_enable(void);
 unsigned int gpufreq_active_sleep_ctrl_enable(void);
 unsigned int gpufreq_get_power_state(void);

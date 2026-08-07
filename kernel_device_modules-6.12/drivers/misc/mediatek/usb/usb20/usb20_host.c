@@ -365,9 +365,6 @@ static void do_host_work(struct work_struct *data)
 	int usb_clk_state = NO_CHANGE;
 	struct mt_usb_work *work =
 		container_of(data, struct mt_usb_work, dwork.work);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	struct mt_usb_glue *glue = mtk_musb->glue;
-#endif
 	/* struct mt_usb_glue *glue = mtk_musb->glue; */
 
 	/*

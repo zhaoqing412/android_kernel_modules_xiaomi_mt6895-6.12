@@ -143,9 +143,6 @@ struct drm_crtc_state;
 	#define DVFS_HALT_MASK_SEL_WDMA0              REG_FLD_MSB_LSB(22, 22)
 	#define DVFS_HALT_MASK_SEL_WDMA1              REG_FLD_MSB_LSB(23, 23)
 
-#define DISPSYS1_SODI_REQ_SEL 0x0F0
-	#define DISPSYS1_SODI_REQ_SEL_WDMA1           BIT(25)
-
 enum mtk_ddp_comp_type {
 	MTK_DISP_OVL,
 	MTK_DISP_RDMA,
@@ -1284,10 +1281,6 @@ enum mtk_ddp_comp_trigger_flag {
 	MTK_TRIG_FLAG_PRE_TRIGGER,
 	MTK_TRIG_FLAG_TRIGGER,
 	MTK_TRIG_FLAG_EOF,
-	MTK_TRIG_FLAG_CKSM_START,
-	MTK_TRIG_FLAG_CKSM_STOP,
-	MTK_TRIG_FLAG_PATGEN_EN,
-	MTK_TRIG_FLAG_PATGEN_DIS,
 	MTK_TRIG_FLAG_LAYER_REC,
 };
 
@@ -1398,7 +1391,6 @@ enum mtk_ddp_io_cmd {
 	ODDMR_BINSET_CHG,
 	ODDMR_TRIG_CTL,
 	COMP_ODDMR_CFG,
-	COMP_ODDMR_VALID_HRT,
 	OVL_GET_SELFLOOP_SUPPORT,
 	RSZ_GET_TILE_LENGTH,
 	RSZ_GET_IN_MAX_HEIGHT,
@@ -1417,42 +1409,6 @@ enum mtk_ddp_io_cmd {
 	DSI_AOD_SCP_GET_DSI_PARAM,
 	/*AOD-SCP cmd end*/
 	DSI_SET_CSC_BL,
-#ifdef OPLUS_FEATURE_DISPLAY_ADFR
-	PANEL_FAKE_FRAME,
-	GET_EXT_PARAMS_BY_MODE,
-	SET_AUTO_MODE,
-	SET_MINFPS,
-	SET_MULTITE,
-	/* add for mux switch control */
-	LCM_VSYNC_SWITCH,
-#endif /* OPLUS_FEATURE_DISPLAY_ADFR */
-#ifdef OPLUS_FEATURE_DISPLAY_TEMP_COMPENSATION
-	OPLUS_TEMP_COMPENSATION_SET,
-#endif /* OPLUS_FEATURE_DISPLAY_TEMP_COMPENSATION */
-#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
-	DSI_SET_BL_RECOVERY,
-	DSI_SET_DOZE,
-	LCM_HBM,
-	OPLUS_OFP_SET_LHBM_PRESSED_ICON,
-	DSI_CMD_ULTRA_LOW_POWER_AOD,
-#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
-#ifdef OPLUS_FEATURE_DISPLAY
-	DSI_READ,
-	LCM_CABC,
-	LCM_SEED,
-	PANEL_SN_SET,
-	DC_POST_ENTER,
-	DSI_GET_AOD_STATE,
-	DSI_SET_HBM_MAX,
-	DSI_WHITE_POINT_COMPENSATION,
-#endif  /* OPLUS_FEATURE_DISPLAY */
-#ifdef OPLUS_FEATURE_DISPLAY_HPWM
-	DSI_SET_HPWM,
-	DSI_SET_HPWM_ELVSS,
-	DSI_SET_HPWM_FPS,
-	DSI_SET_HPWM_PULSE_BL,
-	DSI_SET_HPWM_PULSE,
-#endif  /* OPLUS_FEATURE_DISPLAY_HPWM */
 	DSI_GET_PANEL_STATE,
 	NOTIFY_MODE_SWITCH,
 	GET_SPR_VALID_PARTIAL_ROI,
@@ -1571,11 +1527,6 @@ struct mtk_ddp_fb_info {
 	struct mtk_drm_gem_obj *fb_gem;
 };
 
-struct mtk_exdma_srt_bw {
-	unsigned int alloc_id;
-	unsigned int srt_bw;
-};
-
 struct mtk_ddp_comp_funcs {
 	void (*config)(struct mtk_ddp_comp *comp, struct mtk_ddp_config *cfg,
 		       struct cmdq_pkt *handle);
@@ -1682,7 +1633,6 @@ struct mtk_ddp_comp {
 	u32 last_hdr_bw;
 	u32 last_stash_bw;
 	u32 last_hdr_stash_bw;
-	struct mtk_exdma_srt_bw layer_srt[4];
 	u32 layer_idx_bit;
 	bool in_scaling_path;
 	struct mtk_ddp_comp *bind_comp;

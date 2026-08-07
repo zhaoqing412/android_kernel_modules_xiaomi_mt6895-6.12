@@ -17,9 +17,6 @@
 #include "common.h"
 #include <mt-plat/mtk_irq_mon.h>
 #include <eas/vip.h>
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-#include <linux/sa_common.h>
-#endif
 
 #define TAG "sched_avg"
 
@@ -54,10 +51,6 @@ static DEFINE_PER_CPU(u64, rt_nr);
 static DEFINE_PER_CPU(u64, rt_nr_max);
 static DEFINE_PER_CPU(u64, vip_nr);
 static DEFINE_PER_CPU(u64, vip_nr_max);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-static DEFINE_PER_CPU(u64, ux_nr);
-static DEFINE_PER_CPU(u64, ux_nr_max);
-#endif
 static DEFINE_PER_CPU(u64, last_time);
 static DEFINE_PER_CPU(spinlock_t, nr_lock) = __SPIN_LOCK_UNLOCKED(nr_lock);
 static DEFINE_PER_CPU(spinlock_t, nr_over_thres_lock) = __SPIN_LOCK_UNLOCKED(nr_over_thres_lock);
@@ -178,9 +171,6 @@ void sched_update_nr_prod(int cpu, unsigned long nr_running, unsigned long rt_nr
 	per_cpu(nr, cpu) = nr_running;
 	per_cpu(rt_nr, cpu) = rt_nr_running;
 	per_cpu(vip_nr, cpu) = sum_num_vip_in_cpu(cpu);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-	per_cpu(ux_nr, cpu) = sum_num_ux_in_cpu(cpu);
-#endif
 
 	if (per_cpu(nr, cpu) > per_cpu(nr_max, cpu))
 		per_cpu(nr_max, cpu) = per_cpu(nr, cpu);
@@ -188,10 +178,6 @@ void sched_update_nr_prod(int cpu, unsigned long nr_running, unsigned long rt_nr
 		per_cpu(rt_nr_max, cpu) = per_cpu(rt_nr, cpu);
 	if (per_cpu(vip_nr, cpu) > per_cpu(vip_nr_max, cpu))
 		per_cpu(vip_nr_max, cpu) = per_cpu(vip_nr, cpu);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-	if (per_cpu(ux_nr, cpu) > per_cpu(ux_nr_max, cpu))
-                per_cpu(ux_nr_max, cpu) = per_cpu(ux_nr, cpu);
-#endif
 	spin_unlock_irqrestore(&per_cpu(nr_lock, cpu), flags);
 }
 
@@ -359,22 +345,6 @@ int get_max_vip_nr_running(int cpu)
 	return max_vip_nr;
 }
 EXPORT_SYMBOL(get_max_vip_nr_running);
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-int get_max_ux_nr_running(int cpu)
-{
-        int max_ux_nr = 0;
-        unsigned long flags;
-
-        spin_lock_irqsave(&per_cpu(nr_lock, cpu), flags);
-        max_ux_nr = per_cpu(ux_nr_max, cpu);
-        /* reset max_nr value */
-        per_cpu(ux_nr_max, cpu) = per_cpu(ux_nr, cpu);
-        spin_unlock_irqrestore(&per_cpu(nr_lock, cpu), flags);
-        return max_ux_nr;
-}
-EXPORT_SYMBOL(get_max_ux_nr_running);
-#endif
 
 int sched_get_nr_over_thres_avg(int cluster_id,
 				int *dn_avg,

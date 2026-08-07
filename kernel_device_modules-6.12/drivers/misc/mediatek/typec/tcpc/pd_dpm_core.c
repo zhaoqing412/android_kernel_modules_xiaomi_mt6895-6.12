@@ -45,14 +45,6 @@ static const struct svdm_svid_ops svdm_svid_ops[] = {
 		.reset_state = dp_reset_state,
 		.parse_svid_data = dp_parse_svid_data,
 	},
-
-#ifdef OPLUS_FEATURE_CHG_BASIC
-/* add for pd svooc flow */
-	{
-		.name = "Oplus",
-		.svid = USB_VID_OPLUS,
-	},
-#endif
 };
 
 /*
@@ -356,13 +348,6 @@ static bool dpm_build_request_info(
 			return true;
 	}
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-#if IS_ENABLED(CONFIG_OPLUS_PD_SOURCECAP_UPDATE_SUPPORT)
-	if (src_cap->pdos[0])
-		tcpci_notify_sourcecap_done(tcpc, (struct power_caps *)src_cap);
-#endif
-#endif
-
 #if CONFIG_USB_PD_REV30_PPS_SINK
 	if ((policy & DPM_CHARGING_POLICY_MASK) >= DPM_CHARGING_POLICY_PPS) {
 		if (dpm_build_request_info_apdo(
@@ -430,21 +415,9 @@ static inline void dpm_update_request_not_bat(struct pd_port *pd_port,
 
 #if CONFIG_USB_PD_REV30_PPS_SINK
 	if (req_info->type == DPM_PDO_TYPE_APDO) {
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		if (tcpm_inquire_extra_pps_curr(pd_port->tcpc))
-			pd_port->last_rdo = RDO_EXTRA_APDO(req_info->pos,
-							   req_info->vmin,
-							   req_info->oper_ma,
-							   flags);
-		else
-			pd_port->last_rdo = RDO_APDO(req_info->pos,
-						     req_info->vmin,
-						     req_info->oper_ma, flags);
-#else
 		pd_port->last_rdo = RDO_APDO(
 				req_info->pos, req_info->vmin,
 				req_info->oper_ma, flags);
-#endif
 		return;
 	}
 #endif	/* CONFIG_USB_PD_REV30_PPS_SINK */
@@ -624,22 +597,16 @@ void pd_dpm_snk_evaluate_caps(struct pd_port *pd_port)
 	if (pos)
 		pd_put_dpm_notify_event(pd_port, pos);
 }
-#ifndef CONFIG_USB_PD_SNK_STANDBY_POWER
-#define CONFIG_USB_PD_SNK_STANDBY_POWER 1
-#endif
-#ifndef CONFIG_USB_PD_SNK_GOTOMIN
-#define CONFIG_USB_PD_SNK_GOTOMIN 1
-#endif
+
 void pd_dpm_snk_standby_power(struct pd_port *pd_port)
 {
-#if CONFIG_USB_PD_SNK_STANDBY_POWER
 	/*
 	 * pSnkStdby :
 	 *   Maximum power consumption while in Sink Standby. (2.5W)
 	 */
 	uint8_t type;
 	int ma = -1;
-	int standby_curr = 2500000 / max(pd_port->request_v,
+	const int standby_curr = 2500000 / max(pd_port->request_v,
 					       pd_port->request_v_new);
 
 #if CONFIG_USB_PD_VCONN_SAFE5V_ONLY
@@ -672,39 +639,19 @@ void pd_dpm_snk_standby_power(struct pd_port *pd_port)
 	if (pd_port->request_v_new == pd_port->request_v &&
 	    pd_port->request_i_new == pd_port->request_i)
 		return;
-
-	if (standby_curr > pd_port->request_i_new)
-		standby_curr = pd_port->request_i_new;
-
-	if (pd_port->request_v_new > pd_port->request_v) {
-		/* Case2 Increasing the Voltage */
-		/* Case3 Increasing the Voltage and Current */
-		/* Case4 Increasing the Voltage and Decreasing the Curren */
-		ma = standby_curr;
-		type = TCP_VBUS_CTRL_STANDBY_UP;
-	} else if (pd_port->request_v_new < pd_port->request_v) {
-		/* Case5 Decreasing the Voltage and Increasing the Current */
-		/* Case7 Decreasing the Voltage */
-		/* Case8 Decreasing the Voltage and the Current*/
-		ma = standby_curr;
-		type = TCP_VBUS_CTRL_STANDBY_DOWN;
-	} else if (pd_port->request_i == -1 ||
-		pd_port->request_i_new < pd_port->request_i) {
-		/* Case6 Decreasing the Current, t1 i = new */
-		ma = standby_curr;
-		type = TCP_VBUS_CTRL_STANDBY;
-	}
-
-	if (ma >= 0) {
+	else if (pd_port->request_i > standby_curr ||
+		 pd_port->request_i > pd_port->request_i_new) {
+		ma = (standby_curr > pd_port->request_i_new) ?
+		      pd_port->request_i_new : standby_curr;
+		if (pd_port->request_v_new > pd_port->request_v)
+			type = TCP_VBUS_CTRL_STANDBY_UP;
+		else if (pd_port->request_v_new < pd_port->request_v)
+			type = TCP_VBUS_CTRL_STANDBY_DOWN;
+		else
+			type = TCP_VBUS_CTRL_STANDBY;
 		tcpci_sink_vbus(
-			pd_port->tcpc, type, pd_port->request_v_new, 0);
+			pd_port->tcpc, type, pd_port->request_v_new, ma);
 	}
-#else
-#if CONFIG_USB_PD_SNK_GOTOMIN
-	tcpci_sink_vbus(pd_port->tcpc, TCP_VBUS_CTRL_REQUEST,
-		pd_port->request_v, pd_port->request_i_new);
-#endif	/* CONFIG_USB_PD_SNK_GOTOMIN */
-#endif	/* CONFIG_USB_PD_SNK_STANDBY_POWER */
 }
 
 void pd_dpm_snk_transition_power(struct pd_port *pd_port)

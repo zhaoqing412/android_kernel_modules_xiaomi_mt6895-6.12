@@ -21,10 +21,6 @@
 #include "../../codecs/mt6681-accdet.h"
 #endif
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-#include "../feedback/oplus_audio_kernel_fb.h"
-#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
-
 /*
  * if need additional control for the ext spk amp that is connected
  * after Lineout Buffer / HP Buffer on the codec, put the control in
@@ -81,15 +77,6 @@ static const struct soc_enum mt6993_spk_type_enum[] = {
 			    mt6993_spk_i2s_type_str),
 };
 
-//#if IS_ENABLED(CONFIG_OPLUS_MTK_AUDIO_EXT)
-/* Add for oplus extend audio*/
-extern void extend_codec_i2s_be_dailinks(struct snd_soc_dai_link *dailink, size_t size);
-extern bool extend_codec_i2s_compare(struct snd_soc_dai_link *dailink, int dailink_num);
-extern bool audio_spk_index_support(void);
-extern int audio_spk_get_i2s_in_type(void);
-extern int audio_spk_get_i2s_out_type(void);
-//#endif /* CONFIG_OPLUS_MTK_AUDIO_EXT */
-
 static int mt6993_spk_type_get(struct snd_kcontrol *kcontrol,
 			       struct snd_ctl_elem_value *ucontrol)
 {
@@ -105,13 +92,6 @@ static int mt6993_spk_i2s_out_type_get(struct snd_kcontrol *kcontrol,
 {
 	int idx = mtk_spk_get_i2s_out_type();
 
-//#if IS_ENABLED(CONFIG_OPLUS_MTK_AUDIO_EXT)
-	/*2020/09/01, Add for oplus extend audio*/
-		if (audio_spk_index_support()) {
-			idx = audio_spk_get_i2s_out_type();
-		}
-//#endif /* CONFIG_OPLUS_MTK_AUDIO_EXT */
-
 	pr_debug("%s() = %d\n", __func__, idx);
 	ucontrol->value.integer.value[0] = idx;
 	return 0;
@@ -121,13 +101,6 @@ static int mt6993_spk_i2s_in_type_get(struct snd_kcontrol *kcontrol,
 				      struct snd_ctl_elem_value *ucontrol)
 {
 	int idx = mtk_spk_get_i2s_in_type();
-
-//#if IS_ENABLED(CONFIG_OPLUS_MTK_AUDIO_EXT)
-	/*2020/09/01, Add for oplus extend audio*/
-			if (audio_spk_index_support()) {
-			idx = audio_spk_get_i2s_in_type();
-		}
-//#endif /* CONFIG_OPLUS_MTK_AUDIO_EXT */
 
 	pr_debug("%s() = %d\n", __func__, idx);
 	ucontrol->value.integer.value[0] = idx;
@@ -270,45 +243,6 @@ static const struct snd_soc_dapm_route mt6993_mt6681_routes[] = {
 };
 static const struct snd_soc_dapm_route mt6993_mt6681_routes_dummy[] = {};
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-#define HAL_FEEDBACK_MAX_BYTES         (512)
-extern int hal_feedback_config_get(struct snd_kcontrol *kcontrol,
-			unsigned int __user *bytes,
-			unsigned int size);
-extern int hal_feedback_config_set(struct snd_kcontrol *kcontrol,
-			const unsigned int __user *bytes,
-			unsigned int size);
-
-/* add for test audio-kernel err feedback and headphone detect err feedback*/
-#define TEST_KERNEL_FEEDBACK_10047          0x01
-#define TEST_HEADPHONE_FEEDBACK_10009       0x02
-#define BYPASS_HEADPHONE_FEEDBACK_10009     0x04
-static unsigned int g_fb_ctrl = 0;
-
-static int oplus_set_feedback_control(struct snd_kcontrol *kcontrol,
-				   struct snd_ctl_elem_value *ucontrol)
-{
-	g_fb_ctrl = ucontrol->value.integer.value[0];
-	pr_info("%s: set %u", __func__, g_fb_ctrl);
-#if IS_ENABLED(CONFIG_SND_SOC_MT6681_ACCDET) && !defined(SKIP_ACCDET)
-	oplus_set_feedback_ctrl_val(g_fb_ctrl);
-#endif
-
-	if (g_fb_ctrl & TEST_KERNEL_FEEDBACK_10047) {
-		pr_err_fb_delay("%s: just for test 10047, igonre", __func__);
-	}
-	return 0;
-}
-
-static int oplus_get_feedback_control(struct snd_kcontrol *kcontrol,
-						struct snd_ctl_elem_value *ucontrol)
-{
-	ucontrol->value.integer.value[0] = g_fb_ctrl;
-	pr_info("%s: get %u", __func__, g_fb_ctrl);
-	return 0;
-}
-#endif  /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
-
 static const struct snd_kcontrol_new mt6993_mt6681_controls[] = {
 	SOC_DAPM_PIN_SWITCH(EXT_SPK_AMP_W_NAME),
 	SOC_ENUM_EXT("MTK_SPK_TYPE_GET", mt6993_spk_type_enum[0],
@@ -323,12 +257,6 @@ static const struct snd_kcontrol_new mt6993_mt6681_controls[] = {
 	SND_SOC_BYTES_TLV("MTK_COMPRESS_INFO",
 			  sizeof(struct mt6993_compress_info),
 			  mt6993_compress_info_get, mt6993_compress_info_set),
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-	SND_SOC_BYTES_TLV("HAL FEEDBACK", HAL_FEEDBACK_MAX_BYTES,
-		     hal_feedback_config_get, hal_feedback_config_set),
-	SOC_SINGLE_EXT("FEEDBACK_CONTROL", SND_SOC_NOPM, 0, 0xff, 0,
-			oplus_get_feedback_control, oplus_set_feedback_control),
-#endif //CONFIG_OPLUS_FEATURE_MM_FEEDBACK
 };
 
 /*
@@ -1138,24 +1066,8 @@ SND_SOC_DAILINK_DEFS(dspbtul,
 	DAILINK_COMP_ARRAY(COMP_CPU("audio_task_btul_dai")),
 	DAILINK_COMP_ARRAY(COMP_DUMMY()),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-audio-dsp")));
-SND_SOC_DAILINK_DEFS(dsphfcalldl,
-	DAILINK_COMP_ARRAY(COMP_CPU("audio_task_hfcall_dl_dai")),
-	DAILINK_COMP_ARRAY(COMP_DUMMY()),
-	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-audio-dsp")));
-SND_SOC_DAILINK_DEFS(dsphfcallul,
-	DAILINK_COMP_ARRAY(COMP_CPU("audio_task_hfcall_ul_dai")),
-	DAILINK_COMP_ARRAY(COMP_DUMMY()),
-	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-audio-dsp")));
-SND_SOC_DAILINK_DEFS(dsphfcallmusic,
-	DAILINK_COMP_ARRAY(COMP_CPU("audio_task_hfcall_music_dai")),
-	DAILINK_COMP_ARRAY(COMP_DUMMY()),
-	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-audio-dsp")));
 SND_SOC_DAILINK_DEFS(dspulproc,
 	DAILINK_COMP_ARRAY(COMP_CPU("audio_task_ulproc_dai")),
-	DAILINK_COMP_ARRAY(COMP_DUMMY()),
-	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-audio-dsp")));
-SND_SOC_DAILINK_DEFS(dspulproc2,
-	DAILINK_COMP_ARRAY(COMP_CPU("audio_task_ulproc2_dai")),
 	DAILINK_COMP_ARRAY(COMP_DUMMY()),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-audio-dsp")));
 SND_SOC_DAILINK_DEFS(dspechodl,
@@ -2346,26 +2258,6 @@ static struct snd_soc_dai_link mt6993_mt6681_dai_links[] = {
 		SND_SOC_DAILINK_REG(dspulproc),
 	},
 	{
-		.name = "DSP_Capture_Process2",
-		.stream_name = "DSP_Capture_Process2",
-		SND_SOC_DAILINK_REG(dspulproc2),
-	},
-	{
-		.name = "DSP_HFCall_UL",
-		.stream_name = "DSP_HFCall_UL",
-		SND_SOC_DAILINK_REG(dsphfcallul),
-	},
-	{
-		.name = "DSP_HFCall_DL",
-		.stream_name = "DSP_HFCall_DL",
-		SND_SOC_DAILINK_REG(dsphfcalldl),
-	},
-	{
-		.name = "DSP_HFCall_Music",
-		.stream_name = "DSP_HFCall_Music",
-		SND_SOC_DAILINK_REG(dsphfcallmusic),
-	},
-	{
 		.name = "DSP_Playback_Echoref",
 		.stream_name = "DSP_Playback_Echoref",
 		SND_SOC_DAILINK_REG(dspechodl),
@@ -2601,13 +2493,8 @@ static int mt6993_mt6681_dev_probe(struct platform_device *pdev)
 	/* update speaker type */
 	ret = mtk_spk_update_info(card, pdev);
 	if (ret) {
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-		dev_err_fb_fatal_delay(&pdev->dev, "%s(), mtk_spk_update_info error\n",
-			__func__);
-#else
 		dev_info(&pdev->dev, "%s(), mtk_spk_update_info error\n",
 			__func__);
-#endif
 		return -EINVAL;
 	}
 
@@ -2615,11 +2502,7 @@ static int mt6993_mt6681_dev_probe(struct platform_device *pdev)
 	platform_node = of_parse_phandle(pdev->dev.of_node,
 					 "mediatek,platform", 0);
 	if (!platform_node) {
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-		dev_err_fb_fatal_delay(&pdev->dev, "Property 'platform' missing or invalid\n");
-#else
 		dev_info(&pdev->dev, "Property 'platform' missing or invalid\n");
-#endif
 		return -EINVAL;
 	}
 
@@ -2640,26 +2523,16 @@ static int mt6993_mt6681_dev_probe(struct platform_device *pdev)
 			ret = snd_soc_of_get_dai_link_codecs(
 						&pdev->dev, spk_node, dai_link);
 			if (ret < 0) {
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-				dev_err_fb_fatal_delay(&pdev->dev,
-					"Speaker Codec get_dai_link fail: %d\n", ret);
-#else
 				dev_info(&pdev->dev,
 					"Speaker Codec get_dai_link fail: %d\n", ret);
-#endif
 				return -EINVAL;
 			}
 		} else if (!strcmp(dai_link->name, "Speaker Codec Ref")) {
 			ret = snd_soc_of_get_dai_link_codecs(
 						&pdev->dev, spk_node, dai_link);
 			if (ret < 0) {
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-				dev_err_fb_fatal_delay(&pdev->dev,
-					"Speaker Codec Ref get_dai_link fail: %d\n", ret);
-#else
 				dev_info(&pdev->dev,
 					"Speaker Codec Ref get_dai_link fail: %d\n", ret);
-#endif
 				return -EINVAL;
 			}
 		}
@@ -2671,31 +2544,15 @@ static int mt6993_mt6681_dev_probe(struct platform_device *pdev)
 		mt6993_mt6681_bypass_primary_codec(pdev);
 	}
 
-//#if IS_ENABLED(CONFIG_OPLUS_MTK_AUDIO_EXT)
-		/*Add for oplus extend audio*/
-		extend_codec_i2s_be_dailinks(mt6993_mt6681_dai_links, ARRAY_SIZE(mt6993_mt6681_dai_links));
-//#endif /* CONFIG_OPLUS_MTK_AUDIO_EXT */
-
 	card->dev = &pdev->dev;
 
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret)
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-		dev_err_fb_fatal_delay(&pdev->dev, "%s snd_soc_register_card fail %d\n",
-			__func__, ret);
-#else
 		dev_info(&pdev->dev, "%s snd_soc_register_card fail %d\n",
 			__func__, ret);
-#endif
 	else
 		dev_info(&pdev->dev, "%s snd_soc_register_card pss %d\n",
 				__func__, ret);
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-	dev_info(&pdev->dev, "%s: event_id=%u, version:%s\n", __func__, \
-			OPLUS_AUDIO_EVENTID_AUDIO_KERNEL_ERR, AUDIO_KERNEL_FB_VERSION);
-#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
-
 	return ret;
 }
 

@@ -186,6 +186,33 @@ void unload_ko_addr_list(struct module *module)
 	memset(&ko_info_list[i], 0, sizeof(struct ko_info));
 	spin_unlock_irqrestore(&kolist_lock, flags);
 }
+
+void init_ko_addr_list_late(void)
+{
+	struct module *mod;
+	struct list_head *p_modules = aee_get_modules();
+	int start = 0;
+
+	if (!ko_info_list)
+		return;
+
+	if (!p_modules) {
+		pr_info("%s failed", __func__);
+		return;
+	}
+
+	list_for_each_entry_rcu(mod, p_modules, list) {
+		if (mod->state == MODULE_STATE_UNFORMED)
+			continue;
+		if (!start) {
+			/* only update the early KOs */
+			if (!strcmp(mod->name, "mrdump"))
+				start = 1;
+			continue;
+		}
+		load_ko_addr_list(mod);
+	}
+}
 #endif
 
 /* copy from fs/binfmt_elf.c */
@@ -304,19 +331,6 @@ void mrdump_mini_add_misc_pa(unsigned long va, unsigned long pa,
 		break;
 	}
 }
-
-#ifdef CONFIG_SCHED_CLASS_EXT
-void oplus_mrdump_mini_add_misc(unsigned long addr, unsigned long size,
-		unsigned long start, char *name)
-{
-	size += (addr % PAGE_SIZE);
-	addr = round_down(addr, PAGE_SIZE);
-	size = round_up(size, PAGE_SIZE);
-
-	mrdump_mini_add_misc_pa(addr, __pa_nodebug(addr), size, start, name);
-}
-EXPORT_SYMBOL(oplus_mrdump_mini_add_misc);
-#endif
 
 static void mrdump_mini_add_misc(unsigned long addr, unsigned long size,
 		unsigned long start, char *name)

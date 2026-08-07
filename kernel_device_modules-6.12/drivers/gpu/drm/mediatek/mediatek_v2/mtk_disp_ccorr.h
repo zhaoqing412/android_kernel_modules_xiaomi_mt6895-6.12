@@ -72,9 +72,6 @@ struct mtk_disp_ccorr {
 	struct mtk_ddp_comp *color_comp;
 	unsigned int set_partial_update;
 	unsigned int roi_height;
-#ifdef OPLUS_FEATURE_DISPLAY
-	bool g_prim_ccorr_force_linear;
-#endif
 };
 
 inline struct mtk_disp_ccorr *comp_to_ccorr(struct mtk_ddp_comp *comp);

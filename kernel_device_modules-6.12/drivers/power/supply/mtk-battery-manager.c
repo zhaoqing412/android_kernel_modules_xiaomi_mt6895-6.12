@@ -49,11 +49,7 @@ struct mtk_battery_manager *get_mtk_battery_manager(void)
 	struct power_supply *psy;
 
 	if (bm == NULL) {
-#ifndef OPLUS_FEATURE_CHG_BASIC
 		psy = power_supply_get_by_name("battery");
-#else
-		psy = power_supply_get_by_name("mtk-battery");
-#endif
 		if (psy == NULL) {
 			pr_err("[%s]psy is not rdy\n", __func__);
 			return NULL;
@@ -703,11 +699,7 @@ void mtk_power_misc_init(struct mtk_battery_manager *bm, struct shutdown_control
 		sdc->bat[0].type = BATTERY_MAIN;
 		sdc->bat[0].gm = bm->gm1;
 	}
-#ifdef OPLUS_FEATURE_CHG_BASIC
-/* oplus add for wakelock */
-	if (!bm->gm1->disableGM30)
-#endif
-		kthread_run(power_misc_routine_thread, bm, "power_misc_thread");
+	kthread_run(power_misc_routine_thread, bm, "power_misc_thread");
 }
 
 
@@ -1081,10 +1073,7 @@ static int bm_update_psy_property(struct mtk_battery *gm, enum bm_psy_prop prop)
 		ret_val = gm->tbat_precise;
 		break;
 	case QMAX_DESIGN:
-		if (gm->battery_id < 0 || gm->battery_id >= TOTAL_BATTERY_NUMBER)
-			ret_val = gm->fg_table_cust_data.fg_profile[0].q_max * 10;
-		else
-			ret_val = gm->fg_table_cust_data.fg_profile[gm->battery_id].q_max * 10;
+		ret_val = gm->fg_table_cust_data.fg_profile[0].q_max * 10;
 		break;
 	case QMAX:
 		ret_val = gm->daemon_data.qmxa_t_0ma;
@@ -1473,11 +1462,7 @@ void bm_battery_service_init(struct mtk_battery_manager *bm)
 	struct battery_data *bs_data;
 
 	bs_data = &bm->bs_data;
-#ifndef OPLUS_FEATURE_CHG_BASIC
 	bs_data->psd.name = "battery";
-#else
-	bs_data->psd.name = "mtk-battery";
-#endif
 	bs_data->psd.type = POWER_SUPPLY_TYPE_BATTERY;
 	bs_data->psd.properties = battery_props;
 	bs_data->psd.num_properties = ARRAY_SIZE(battery_props);

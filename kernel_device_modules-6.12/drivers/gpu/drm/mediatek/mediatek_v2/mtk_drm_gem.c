@@ -569,13 +569,8 @@ struct sg_table *mtk_gem_prime_get_sg_table(struct drm_gem_object *obj)
 struct drm_gem_object *mtk_gem_prime_import(struct drm_device *dev,
 					    struct dma_buf *dma_buf)
 {
-	struct mtk_drm_private *private = dev_get_drvdata(dev->dev);
-
-	if (!private->attach_share_dev)
-		private->attach_share_dev = mtk_smmu_get_shared_device(dev->dev);
-
 	return drm_gem_prime_import_dev(dev, dma_buf,
-		private->attach_share_dev);
+		mtk_smmu_get_shared_device(dev->dev));
 }
 
 struct drm_gem_object *

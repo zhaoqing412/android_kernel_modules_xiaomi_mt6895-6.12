@@ -18,12 +18,10 @@
 #include <linux/wait.h>
 #include <linux/ktime.h>
 #include <linux/ctype.h>
-#include <linux/version.h>
 #include "mtk_gauge.h"
 #include "mtk_battery_daemon.h"
-#ifdef OPLUS_FEATURE_CHG_BASIC
-//#include <soc/oplus/system/oplus_project.h>
-#endif
+
+
 
 #define NETLINK_FGD 26
 #define UNIT_TRANS_10	10
@@ -969,11 +967,7 @@ struct irq_controller {
 #define AVGVBAT_ARRAY_SIZE 30
 #define INIT_VOLTAGE 3450
 #define BATTERY_SHUTDOWN_TEMPERATURE 60
-#ifdef OPLUS_FEATURE_CHG_BASIC
-#define ENABLE_OVERHEAT_SHUTDOWN 0
-#else
 #define ENABLE_OVERHEAT_SHUTDOWN 1
-#endif
 #define DISABLE_POWER_PATH_VOLTAGE 2800
 
 struct shutdown_condition {
@@ -1084,54 +1078,6 @@ struct zcv_filter {
 	struct zcv_log log[ZCV_LOG_LEN];
 };
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-#define OPLUS_FEATURE_GAUGE_CALI_TRACK
-struct gauge_track_cali_info_s {
-	int vbat;
-	int tbat;
-	int soc;
-	int ui_soc;
-	int c_soc;
-	int v_soc;
-	int car_c;
-	int total_car;
-	int aging_factor;
-	int qmax;
-	int quse;
-	int zcv;
-	int batt_cc;
-	int show_ag;
-};
-enum oplus_gauge_track_type {
-	GAUGE_TRACK_CALI_FLAG_ZCV = 1,
-	GAUGE_TRACK_CALI_FLAG_AGING = 2,
-	GAUGE_TRACK_CALI_FLAG_PLUGOUT = 4,
-	GAUGE_TRACK_CALI_FLAG_CHG_FULL = 5
-};
-
-#define GAUGE_TRACK_SOC_FLAG_BIT_OFFSET 0
-#define GAUGE_TRACK_C_SOC_FLAG_BIT_OFFSET 1
-#define GAUGE_TRACK_V_SOC_FLAG_BIT_OFFSET 2
-#define GAUGE_TRACK_ZCV_FLAG_BIT_OFFSET 3
-#define GAUGE_TRACK_CAR_C_FLAG_BIT_OFFSET 4
-#define GAUGE_TRACK_STATE_UPDATE_TIMEOUT_MS 1000
-#define GAUGE_TRACK_STATE_END_MASK (0b11111)
-
-struct gauge_cali_track_state {
-	bool begin_flag;
-	u8 end_flag;
-	ktime_t begin_time;
-	struct mutex lock;
-	int track_reason;
-	struct gauge_track_cali_info_s *pre_info;
-};
-
-struct gauge_track_ops {
-	int (*mtk_gauge_cali_track)(struct gauge_track_cali_info_s *pre_info,
-		struct gauge_track_cali_info_s *cur_info, int reason);
-};
-#endif /*OPLUS_FEATURE_CHG_BASIC*/
-
 struct fgd_cmd_daemon_data {
 	int uisoc;
 	int fg_c_soc;
@@ -1180,30 +1126,6 @@ struct shutdown_data {
 	int dynamic_zcv_cycle;
 };
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-#define DATA_TRUE 1
-#define DATA_FALSE 0
-enum fakeoff_data {
-	DATA_UI_SOC,
-	DATA_NOTIFY_FLAG,
-	DATA_CHR_DET,
-	DATA_FAST_CHG,
-	DATA_CHIP_IS_READY,
-	DATA_UI_SOC_IS_READY,
-};
-
-struct gauge_kpoc_ops {
-	int (*mtk_gauge_get_ui_soc)(void);
-	int (*mtk_gauge_get_notify_flag)(void);
-	bool (*mtk_gauge_get_vbus_status)(void);
-	int (*mtk_gauge_get_prop_status)(void);
-	int (*mtk_gauge_get_vooc_status)(void);
-	int (*mtk_gauge_get_vooc_project)(void);
-	int (*mtk_gauge_check_ui_soc_is_ready)(void);
-	bool (*mtk_gauge_check_chip_is_null)(void);
-};
-#endif
-
 struct mtk_battery {
 	/*linux driver related*/
 	wait_queue_head_t  wait_que;
@@ -1250,19 +1172,6 @@ struct mtk_battery {
 	bool disableGM30;
 	bool ntc_disable_nafg;
 	bool cmd_disable_nafg;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	struct battery_data bs_data;
-	/*fcc*/
-	int removed_bat_decidegc;
-	int prev_batt_fcc;
-	int prev_batt_remaining_capacity;
-	int soh;	/*State of Health*/
-	int car_c;	/*acumulation of c_soc */
-	long long total_car;
-	int zcv;
-	int batt_volt;
-	struct delayed_work	 oplus_startup_rm_check_work;
-#endif /* OPLUS_FEATURE_CHG_BASIC */
 
 	/*battery plug in out*/
 	bool disable_plug_int;
@@ -1419,13 +1328,7 @@ struct mtk_battery {
 	int enable_tmp_intr_suspend;
 	struct battery_temperature_table rbat;
 	struct fg_temp *tmp_table;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	struct gauge_cali_track_state gauge_cali_track_update_state;
-	struct gauge_track_cali_info_s pre_info;
-	struct gauge_track_ops *oplus_track_ops;
-	struct delayed_work aging_trigger_work;
-	struct gauge_kpoc_ops *oplus_kpoc_ops;
-#endif
+
 	int pre_bat_temperature_volt_temp;
 	int pre_bat_temperature_volt;
 	int pre_fg_current_temp;
@@ -1605,14 +1508,6 @@ extern void fg_bat_temp_int_internal(struct mtk_battery *gm);
 extern void disable_all_irq(struct mtk_battery *gm);
 
 /*mtk_battery_daemon.c*/
-#ifdef OPLUS_FEATURE_CHG_BASIC
-void oplus_chg_update_gauge_cali_track_info(struct mtk_battery *gm, struct gauge_track_cali_info_s *info);
-void gauge_cali_track_init_state(struct mtk_battery *gm,
-	struct gauge_cali_track_state *state, int track_reason);
-bool gauge_cali_track_check_state(struct gauge_cali_track_state *state, int offset);
-void gauge_cali_track_trig_upload(struct mtk_battery *gm,
-	struct gauge_cali_track_state *state, int track_reason);
-#endif
 extern void wake_up_bat_irq_controller(struct irq_controller *irq_ctrl, int flags);
 /*mtk_battery_daemon.c end*/
 
@@ -1625,10 +1520,6 @@ extern void wake_up_power_misc(struct shutdown_controller *sdc);
 extern int mtk_battery_daemon_init(struct platform_device *pdev);
 extern void mtk_irq_thread_init(struct mtk_battery *gm);
 //extern int wakeup_fg_daemon(struct mtk_battery *gm, unsigned int flow_state, int cmd, int para1);
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
-struct oplus_gauge_chip* oplus_mtk_gauge_init(void);
-#endif
 
 /* customize */
 #define DIFFERENCE_FULLOCV_ITH	200	/* mA */

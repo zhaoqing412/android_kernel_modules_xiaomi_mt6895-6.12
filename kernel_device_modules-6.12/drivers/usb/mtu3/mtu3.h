@@ -438,8 +438,6 @@ struct ssusb_mtk {
 	struct device_link *genpd_dl_u3;
 	bool use_multi_genpd;
 	u32 eusb2_cm_l1;
-	u32 eusb2_id;
-	u32 eusb2_rev;
 	u32 ux_exit_lfps;
 	u32 ux_exit_lfps_gen2;
 	u32 polling_scdlfps_time;
@@ -455,8 +453,6 @@ struct ssusb_mtk {
 	/* power notifier */
 	struct blocking_notifier_head power_nh;
 	bool power_nh_init;
-	/* speed */
-	enum usb_device_speed current_speed;
 };
 
 /**
@@ -582,7 +578,6 @@ struct mtu3 {
 	const char *typec_name;
 	const char *typec_port_name;
 	struct typec_port *typec_port;
-	bool gadget_suspend;
 };
 
 /* struct ssusb_offload */

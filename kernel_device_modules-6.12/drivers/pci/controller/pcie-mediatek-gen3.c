@@ -485,15 +485,6 @@ static void mtk_pcie_config_tlp_header(struct pci_bus *bus, unsigned int devfn,
 	writel_relaxed(val, port->base + PCIE_CFGNUM_REG);
 }
 
-static void mtk_pcie_block_config_access(struct mtk_pcie_port *port)
-{
-	u32 val;
-
-	val = readl_relaxed(port->base + PCIE_CFGNUM_REG);
-	val |= PCIE_CFG_BUS(0xf);
-	writel_relaxed(val, port->base + PCIE_CFGNUM_REG);
-}
-
 static void __iomem *mtk_pcie_map_bus(struct pci_bus *bus, unsigned int devfn,
 				      int where)
 {
@@ -553,8 +544,6 @@ static int mtk_pcie_config_read(struct pci_bus *bus, unsigned int devfn,
 		}
 	}
 
-	mtk_pcie_block_config_access(port);
-
 	return 0;
 }
 
@@ -562,7 +551,6 @@ static int mtk_pcie_config_write(struct pci_bus *bus, unsigned int devfn,
 				 int where, int size, u32 val)
 {
 	struct mtk_pcie_port *port = bus->sysdata;
-	int ret;
 
 	if (port->soft_off)
 		return 0;
@@ -578,10 +566,14 @@ static int mtk_pcie_config_write(struct pci_bus *bus, unsigned int devfn,
 	if (size <= 2)
 		val <<= (where & 0x3) * 8;
 
-	ret = pci_generic_config_write32(bus, devfn, where, 4, val);
-	mtk_pcie_block_config_access(port);
+	if ((port->port_num == 0) && (bus->number == 0) && (where == 0x88)) {
+		dev_info(port->dev, "PCIe config write devctl, bus:%#x, devfn:%#x, where:%#x, size:%#x, val:%#x\n",
+			 bus->number, devfn, where, size, val);
+		if ((val & PCI_EXP_DEVCTL_PAYLOAD) != 0x40)
+			dump_stack();
+	}
 
-	return ret;
+	return pci_generic_config_write32(bus, devfn, where, 4, val);
 }
 
 static struct pci_ops mtk_pcie_ops = {
@@ -685,7 +677,7 @@ static void mtk_pcie_dump_pextp_info(struct mtk_pcie_port *port)
 	if (port->pmrc)
 		val = readl_relaxed(port->pmrc + PMRC_BBCK2_STA);
 
-	dev_info(port->dev, "V2:Modem HW MODE:%#x, RC HW MODE:%#x, EP HW MODE:%#x, Clock gate:%#x, REQ_STA:%#x, REQ_CTRL:%#x, Sleep protect:%#x, Clock Con:%#x, pmrc regs:%#x\n",
+	dev_info(port->dev, "V2:Modem HW MODE:%#x, RC HW MODE:%#x, EP HW MODE:%#x, Clock gate:%#x, REQ_STA:%#x, REQ_CTRL:%#x, Sleep protect:%#x, pmrc regs:%#x\n",
 		readl_relaxed(port->pextpcfg + PEXTP_PWRCTL_4),
 		readl_relaxed(port->pextpcfg + PEXTP_PWRCTL_6),
 		readl_relaxed(port->pextpcfg + PEXTP_PWRCTL_8),
@@ -693,7 +685,6 @@ static void mtk_pcie_dump_pextp_info(struct mtk_pcie_port *port)
 		readl_relaxed(port->pextpcfg + PEXTP_RES_REQ_STA),
 		readl_relaxed(port->pextpcfg + PEXTP_REQ_CTRL),
 		readl_relaxed(port->pextpcfg + PEXTP_SLPPROT_RDY),
-		readl_relaxed(port->pextpcfg + PEXTP_CLOCK_CON),
 		val);
 }
 
@@ -1677,9 +1668,6 @@ static void mtk_pcie_mtcmos_disable_hwccf_ctrl(struct mtk_pcie_port *port, bool 
 {
 	u32 val = 0;
 
-	if (!port || !port->vlpcfg)
-		return;
-
 	val = readl_relaxed(port->vlpcfg + VLPCFG_HWCCF_MTCMOS_CTRL_SEL_REG);
 	if (port->port_num == 0) {
 		if (enable)
@@ -2159,17 +2147,12 @@ static void mtk_pcie_monitor_mac(struct mtk_pcie_port *port)
 
 	/* Add config space dump */
 	if (port->ext_pos && port->pcidev && !port->skip_cfg_dump) {
-		pci_read_config_dword(port->pcidev, port->ext_pos + PCI_EXP_DEVCTL, &devctl);
-		if (port->port_num == 0 && ((devctl & 0xffff) != 0x291f)) {
-			pci_write_config_dword(port->pcidev, port->ext_pos + PCI_EXP_DEVCTL, 0x291f);
-			pr_info("Port%d devctl abnormal, set devctl to 0x291f\n", port->port_num);
-		}
-
 		pci_read_config_dword(port->pcidev, PCI_COMMAND, &command);
+		pci_read_config_dword(port->pcidev, port->ext_pos + PCI_EXP_DEVCTL, &devctl);
 		pci_read_config_dword(port->pcidev, port->ext_pos + PCI_EXP_DEVCTL2, &devctl2);
 	}
 
-	pr_info("Port%d, ltssm reg:%#x, link sta:%#x, power sta:%#x, LP ctrl:%#x, DIS LP STS0:%#x, DIS LP STS1:%#x, IP basic sta:%#x, int sta:%#x, msi set0 sta: %#x, msi set1 sta: %#x, axi err add:%#x, axi err info:%#x, spm res ack=%#x, adt pending sta:=%#x, err addr_l=%#x, err addr_h=%#x, err info=%#x, IF_CTRL=%#x, tx_credit0=%#x, tx_credit1=%#x, phy err=%#x, tag_id=%#x, cfgnum=%#x, command=%#x, devctl=%#x, devctl2=%#x\n",
+	pr_info("Port%d, ltssm reg:%#x, link sta:%#x, power sta:%#x, LP ctrl:%#x, DIS LP STS0:%#x, DIS LP STS1:%#x, IP basic sta:%#x, int sta:%#x, msi set0 sta: %#x, msi set1 sta: %#x, axi err add:%#x, axi err info:%#x, spm res ack=%#x, adt pending sta:=%#x, err addr_l=%#x, err addr_h=%#x, err info=%#x, IF_CTRL=%#x, tx_credit0=%#x, tx_credit1=%#x, phy err=%#x, tag_id=%#x, command=%#x, devctl=%#x, devctl2=%#x\n",
 		port->port_num,
 		readl_relaxed(port->base + PCIE_LTSSM_STATUS_REG),
 		readl_relaxed(port->base + PCIE_LINK_STATUS_REG),
@@ -2196,7 +2179,6 @@ static void mtk_pcie_monitor_mac(struct mtk_pcie_port *port)
 		readl_relaxed(port->base + PCIE_TX_CREDIT_1_REG),
 		readl_relaxed(port->base + PHY_ERR_DEBUG_LANE0),
 		readl_relaxed(port->base + PCIE_ULTRA_SETTING_REG),
-		readl_relaxed(port->base + PCIE_CFGNUM_REG),
 		command, devctl, devctl2);
 
 	/* Clear LTSSM record info after dump */
@@ -2364,8 +2346,6 @@ u32 mtk_pcie_dump_link_info(int port)
 	if (val & PCI_ERR_UNC_COMP_TIME)
 		ret_val |= BIT(6);
 
-	mtk_pcie_block_config_access(pcie_port);
-
 	val = readl_relaxed(pcie_port->base + PCIE_MSI_SET_BASE_REG +
 			    PCIE_MSI_SET_OFFSET + PCIE_MSI_SET_STATUS_OFFSET);
 	if (val & DRIVER_OWN_IRQ_STATUS)
@@ -2440,8 +2420,6 @@ int mtk_pcie_disable_data_trans(int port)
 	val &= ~PCIE_DCR2_CPL_TO;
 	val |= PCIE_CPL_TIMEOUT_64US;
 	writel_relaxed(val, pcie_port->base + PCIE_CONF_DEV2_CTL_STS);
-
-	mtk_pcie_block_config_access(pcie_port);
 
 	pr_info("reset control signal(0x148)=%#x, IP config control(0x84)=%#x\n",
 		readl_relaxed(pcie_port->base + PCIE_RST_CTRL_REG),
@@ -2714,8 +2692,6 @@ static int mtk_pcie_control_vote_v2(struct mtk_pcie_port *port, bool hw_mode_en,
 	writel_relaxed(val, addr);
 
 	if (!hw_mode_en && !who) {
-		/* delay 500us(RTFF off + RTFF on) to avoid race condition */
-		udelay(500);
 		/* Check the sleep protect ready */
 		err = readl_poll_timeout_atomic(port->pextpcfg +
 			      PEXTP_SLPPROT_RDY, val,
@@ -3518,8 +3494,6 @@ static int mtk_pcie_switch_to_lpclk(struct mtk_pcie_port *port, bool enable)
 static int mtk_pcie_suspend_l12_6993(struct mtk_pcie_port *port)
 {
 	mtk_pcie_switch_to_lpclk(port, true);
-	if (port->pcidev->state_saved)
-		port->pcidev->state_saved = false;
 
 	return 0;
 }
@@ -3616,8 +3590,19 @@ static int mtk_pcie_pre_init_6993(struct mtk_pcie_port *port)
 
 static int mtk_pcie_post_init_6993(struct mtk_pcie_port *port)
 {
-	u32 val;
+	u32 val, max_payload_sup;
 	void __iomem *phy;
+
+	/* Adjust max payload size to maximum */
+	max_payload_sup = readl_relaxed(port->base + PCIE_CONF_DEV_CAP_REG);
+	max_payload_sup &= PCI_EXP_DEVCAP_PAYLOAD;
+	val = readl_relaxed(port->base + PCIE_CONF_DEV_CTL_STS_REG);
+	val &= ~PCI_EXP_DEVCTL_PAYLOAD;
+	val |= FIELD_PREP(PCI_EXP_DEVCTL_PAYLOAD, max_payload_sup);
+	writel_relaxed(val, port->base + PCIE_CONF_DEV_CTL_STS_REG);
+
+	dev_info(port->dev, "max payload size register, DEV_CTL= %#x",
+		 readl_relaxed(port->base + PCIE_CONF_DEV_CTL_STS_REG));
 
 	if (port->port_num == 0) {
 		phy = ioremap(0x16900000, 0x10000);

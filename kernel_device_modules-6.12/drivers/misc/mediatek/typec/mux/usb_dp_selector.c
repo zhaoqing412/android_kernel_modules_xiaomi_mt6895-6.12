@@ -18,10 +18,6 @@
 #include "mux_switch.h"
 #endif
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-#include <linux/of_gpio.h>
-#endif
-
 #define CHECK_HPD_DELAY 2000
 
 /* MT6983 uds_V1 offset = [11]
@@ -46,11 +42,7 @@ struct usb_dp_selector {
 	int hdp_state;
 	bool dp_sw_connect;
 	struct delayed_work check_wk;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	bool use_gpio_ctrl_dp_sbu;
-	int gpio_num;
-	enum typec_orientation orientation;
-#endif
+
 };
 
 static inline void uds_setbits(void __iomem *base, u32 bits)
@@ -103,10 +95,6 @@ static int usb_dp_selector_switch_set(struct typec_switch_dev *sw,
 	struct usb_dp_selector *uds = typec_switch_get_drvdata(sw);
 
 	dev_info(uds->dev, "%s %d\n", __func__, orientation);
-
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	uds->orientation = orientation;
-#endif
 
 	notify_tcpc_orientation(uds, orientation);
 
@@ -192,22 +180,6 @@ static int usb_dp_selector_mux_set(struct typec_mux_dev *mux,
 	dev_info(uds->dev, "dp_data->status = %d\n", dp_data->status);
 	dev_info(uds->dev, "state->mode = %lu\n", state->mode);
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	dev_info(uds->dev, "direction:%d\n", uds->orientation);
-	if ((uds->use_gpio_ctrl_dp_sbu == true) && gpio_is_valid(uds->gpio_num)) {
-		if (uds->orientation == TYPEC_ORIENTATION_NORMAL) {
-			dev_info(uds->dev,
-				"%s , polarity is normal and set ctl_pd_sbu gpio to pulldown switch DP SBU.\n",
-				__func__);
-			gpio_direction_output(uds->gpio_num, 0);
-		} else if (uds->orientation == TYPEC_ORIENTATION_REVERSE) {
-			dev_info(uds->dev,
-				"%s , polarity is reverse and set ctl_pd_sbu gpio to pulldown switch DP SBU.\n",
-				__func__);
-			gpio_direction_output(uds->gpio_num, 1);
-		}
-	}
-#endif
 
 	if (dp_data->conf) {
 		uds->is_dp = true;
@@ -335,27 +307,6 @@ static int usb_dp_selector_probe(struct platform_device *pdev)
 		dev_info(dev, "uds-ver = %d\n", uds->uds_ver);
 	}
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	uds->use_gpio_ctrl_dp_sbu = false;  /* init use_gpio_ctrl_dp_sbu is false */
-	uds->gpio_num = -1;  /* init gpio_num is invalid */
-	uds->use_gpio_ctrl_dp_sbu = device_property_read_bool(dev, "use-gpio-ctrl-dp-sbu-switch");
-	if (uds->use_gpio_ctrl_dp_sbu == true) {
-		uds->gpio_num = of_get_named_gpio(dev->of_node, "oplus,usb-dp-sbu-switch-gpio", 0);
-		if (!gpio_is_valid(uds->gpio_num)) {
-			dev_info(dev, "%s read usb-dp-sbu-switch-gpio property fail and set invalid gpio num, ret = %d\n",
-				__func__, ret);
-			uds->gpio_num = -1;
-		} else {
-			dev_info(dev, "%s get usb-dp-sbu-switch-gpio success is %d\n", __func__, uds->gpio_num);
-			ret = gpio_request(uds->gpio_num, NULL);  /* request usb-dp-sbu-switch-gpio GPIO in probe */
-			if (ret) {
-				dev_err(dev, "Failed to request usb-dp-sbu-switch-gpio GPIO and set invalid gpio num. ret = %d\n", ret);
-				uds->gpio_num = -1;
-			}
-		}
-	}
-#endif
-
 	uds->is_dp = false;
 	uds->dp_sw_connect = false;
 
@@ -403,11 +354,6 @@ static void usb_dp_selector_remove(struct platform_device *pdev)
 	struct usb_dp_selector *uds = platform_get_drvdata(pdev);
 
 	mtk_typec_switch_unregister(uds->sw);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	if (gpio_is_valid(uds->gpio_num)) {
-		gpio_free(uds->gpio_num);
-	}
-#endif
 }
 
 static const struct of_device_id usb_dp_selector_ids[] = {

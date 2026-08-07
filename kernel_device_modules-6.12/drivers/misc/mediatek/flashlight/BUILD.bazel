@@ -1,8 +1,6 @@
 load("//build/bazel_mgk_rules:mgk_ddk_ko.bzl", "define_mgk_ddk_ko")
 load("//build/kernel/kleaf:kernel.bzl", "ddk_headers")
 load("@mgk_info//:kernel_version.bzl","kernel_version",)
-load("@mgk_info//:dict.bzl","OPLUS_PLATFORM_INFO", "KERNEL_BUILD_VARIANT")
-load("@mgk_info//:dict.bzl","DEFCONFIG_OVERLAYS")
 
 package(
     default_visibility = [
@@ -56,67 +54,10 @@ define_mgk_ddk_ko(
         "//kernel_device_modules-{}/drivers/misc/mediatek/power_throttling:mtk_low_battery_throttling".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/pbm:mtk_pbm".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/pbm:mtk_peak_power_budget".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/soc/oplus/boot:oplus_bsp_boot_projectinfo".format(kernel_version),
     ],
     hdrs =[
         "flashlight-core.h",
         "flashlight.h",
-    ],
-    copts = [
-        "-I$(srctree)/drivers/misc/mediatek/flashlight",
-    ],
-)
-
-define_mgk_ddk_ko(
-    name = "flashlights-24267",
-    srcs = [
-        "flashlights-24267.c",
-    ],
-    header_deps =[
-        "//kernel_device_modules-{}/drivers/misc/mediatek/flashlight:flashlight_headers".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/power_throttling:power_throttling_headers".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/pbm:pbm_headers".format(kernel_version),
-    ],
-    ko_deps = [
-        "//kernel_device_modules-{}/drivers/misc/mediatek/flashlight:flashlight".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/power_throttling:mtk_battery_oc_throttling".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/power_throttling:mtk_bp_thl".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/power_throttling:mtk_low_battery_throttling".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/pbm:mtk_pbm".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/pbm:mtk_peak_power_budget".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/soc/oplus/boot:oplus_bsp_boot_projectinfo".format(kernel_version),
-    ]+(["//vendor/oplus/kernel/charger/bazel:{}_{}_oplus_chg_symbol".format(OPLUS_PLATFORM_INFO,KERNEL_BUILD_VARIANT)] if "oplus6789.config" in DEFCONFIG_OVERLAYS else []),
-    hdrs =[
-        "flashlight-core.h",
-        "flashlight-dt.h",
-    ],
-    copts = [
-        "-I$(srctree)/drivers/misc/mediatek/flashlight",
-    ],
-)
-
-define_mgk_ddk_ko(
-    name = "flashlights-cruiserl4",
-    srcs = [
-        "flashlights-cruiserl4.c",
-    ],
-    header_deps =[
-        "//kernel_device_modules-{}/drivers/misc/mediatek/flashlight:flashlight_headers".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/power_throttling:power_throttling_headers".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/pbm:pbm_headers".format(kernel_version),
-    ],
-    ko_deps = [
-        "//kernel_device_modules-{}/drivers/misc/mediatek/flashlight:flashlight".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/power_throttling:mtk_battery_oc_throttling".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/power_throttling:mtk_bp_thl".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/power_throttling:mtk_low_battery_throttling".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/pbm:mtk_pbm".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/pbm:mtk_peak_power_budget".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/soc/oplus/boot:oplus_bsp_boot_projectinfo".format(kernel_version),
-    ]+(["//vendor/oplus/kernel/charger/bazel:{}_{}_oplus_chg_symbol".format(OPLUS_PLATFORM_INFO,KERNEL_BUILD_VARIANT)] if "oplus6789.config" in DEFCONFIG_OVERLAYS else []),
-    hdrs =[
-        "flashlight-core.h",
-        "flashlight-dt.h",
     ],
     copts = [
         "-I$(srctree)/drivers/misc/mediatek/flashlight",

@@ -34,18 +34,7 @@ struct mt_led_data {
 	int (*mtk_conn_id_get)(struct mt_led_data *m_data,
 		int flag);
 	struct mutex	led_access;
-	int last_percent;
 };
-#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
-unsigned int mBrightnessValue = 1;
-bool mApolloDisable = false;
-bool oplus_apollo_unsupported(void);
-void apollo_set_brightness_for_show(unsigned int level);
-#endif /* OPLUS_FEATURE_DISPLAY_APOLLO */
-unsigned int mBrightness2Value = 1;
-bool mBrightness2Enable = false;
-bool oplus_brightness2_supported(void);
-void set_brightness2_for_show(unsigned int level);
 
 int mt_leds_parse_dt(struct mt_led_data *mdev, struct fwnode_handle *fwnode);
 int mt_leds_classdev_register(struct device *parent,

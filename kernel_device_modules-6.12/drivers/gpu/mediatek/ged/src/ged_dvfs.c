@@ -34,11 +34,6 @@
 #include "ged_dcs.h"
 #include "ged_async.h"
 
-#include "ged_perfetto_tracepoint.h"
-#ifndef OPLUS_ARCH_EXTENDS
-#define OPLUS_ARCH_EXTENDS
-#endif
-
 #if defined(MTK_GPU_BM_2)
 #include <gpu_bm.h>
 #endif /* MTK_GPU_BM_2 */
@@ -73,8 +68,6 @@ static ktime_t  gpu_mewtwo_timer_expire;
 static struct mutex gsDVFSLock;
 static struct mutex gsVSyncOffsetLock;
 struct mutex gsPolicyLock;
-
-spinlock_t gsPmdLock;
 
 static unsigned int g_iSkipCount;
 static int g_dvfs_skip_round;
@@ -234,7 +227,6 @@ static unsigned int fallback_duration;   // unit: ms
 
 unsigned int early_force_fallback_enable;
 static unsigned int early_force_fallback;
-
 
 #define SHADER_CORE 6
 #define ULTRA_HIGH_STEP_SIZE 5
@@ -958,22 +950,7 @@ bool ged_dvfs_cal_gpu_utilization_ex(unsigned int *pui32Loading,
 			trace_GPU_DVFS__Loading(Util_Ex->util_active, Util_Ex->util_ta,
 				Util_Ex->util_3d, Util_Ex->util_compute, Util_Ex->util_iter,
 				Util_Ex->util_mcu,Util_Ex->util_iter_u_mcu);
-			#ifdef OPLUS_ARCH_EXTENDS
-			trace_oplus_tracing_mark_write(5566, "util_active",
-				(long long)(Util_Ex->util_active));
-			trace_oplus_tracing_mark_write(5566, "util_ta",
-				(long long)(Util_Ex->util_ta));
-			trace_oplus_tracing_mark_write(5566, "util_3d",
-				(long long)(Util_Ex->util_3d));
-			trace_oplus_tracing_mark_write(5566, "util_compute",
-				(long long)(Util_Ex->util_compute));
-			trace_oplus_tracing_mark_write(5566, "util_iter",
-				(long long)(Util_Ex->util_iter));
-			trace_oplus_tracing_mark_write(5566, "util_mcu",
-				(long long)(Util_Ex->util_mcu));
-			trace_oplus_tracing_mark_write(5566, "util_iter_u_mcu",
-				(long long)(Util_Ex->util_iter_u_mcu));
-			#endif /* OPLUS_ARCH_EXTENDS */
+
 			//use loading to decide whether early force fallback in LOADING_MAX_ITERMCU & loading base
 			if (g_max_core_num == SHADER_CORE &&
 				gx_dvfs_loading_mode == LOADING_MAX_ITERMCU &&
@@ -1391,10 +1368,6 @@ bool ged_dvfs_gpu_freq_commit(unsigned long ui32NewFreqID,
 		else {
 			trace_tracing_mark_write(5566, "gpu_freq",
 				(long long) div_u64(ged_get_cur_stack_freq(), 1000));
-			#ifdef OPLUS_ARCH_EXTENDS
-			trace_oplus_tracing_mark_write(5566, "gpu_freq",
-				(long long) div_u64(ged_get_cur_stack_freq(), 1000));
-			#endif /*OPLUS_ARCH_EXTENDS*/
 
 			sc_freq_diff = ged_get_cur_stack_out_freq() > 0 ?
 				ged_get_cur_stack_out_freq() - ged_get_cur_real_stack_freq() : 0;
@@ -1418,16 +1391,6 @@ bool ged_dvfs_gpu_freq_commit(unsigned long ui32NewFreqID,
 				ged_get_cur_limiter_ceil());
 			trace_tracing_mark_write(5566, "limitter_floor",
 				ged_get_cur_limiter_floor());
-			#ifdef OPLUS_ARCH_EXTENDS
-			trace_oplus_tracing_mark_write(5566, "gpu_freq_ceil",
-				(long long) div_u64(ged_get_freq_by_idx(ui32CeilingID), 1000));
-			trace_oplus_tracing_mark_write(5566, "gpu_freq_floor",
-				(long long) div_u64(ged_get_freq_by_idx(ui32FloorID), 1000));
-			trace_oplus_tracing_mark_write(5566, "limitter_ceil",
-				ged_get_cur_limiter_ceil());
-			trace_oplus_tracing_mark_write(5566, "limitter_floor",
-				ged_get_cur_limiter_floor());
-			#endif /*OPLUS_ARCH_EXTENDS*/
 			if (ged_get_cur_limiter_ceil() == LIMIT_POWERHAL) {
 				trace_tracing_mark_write(5566, "limitter_ceil_pid",
 					g_cust_upbound_freq_id_info.pid);
@@ -1435,14 +1398,6 @@ bool ged_dvfs_gpu_freq_commit(unsigned long ui32NewFreqID,
 					g_cust_upbound_freq_id_info.user_id);
 				trace_tracing_mark_write(5566, "limitter_ceil_cus_val",
 					g_cust_upbound_freq_id_info.value);
-				#ifdef OPLUS_ARCH_EXTENDS
-				trace_oplus_tracing_mark_write(5566, "limitter_ceil_pid",
-					g_cust_upbound_freq_id_info.pid);
-				trace_oplus_tracing_mark_write(5566, "limitter_ceil_id",
-					g_cust_upbound_freq_id_info.user_id);
-				trace_oplus_tracing_mark_write(5566, "limitter_ceil_cus_val",
-					g_cust_upbound_freq_id_info.value);
-				#endif /*OPLUS_ARCH_EXTENDS*/
 			}
 
 			if (ged_get_cur_limiter_floor() == LIMIT_POWERHAL) {
@@ -1455,9 +1410,6 @@ bool ged_dvfs_gpu_freq_commit(unsigned long ui32NewFreqID,
 			}
 		}
 		trace_tracing_mark_write(5566, "commit_type", eCommitType);
-		#ifdef OPLUS_ARCH_EXTENDS
-		trace_oplus_tracing_mark_write(5566, "commit_type", eCommitType);
-		#endif /*OPLUS_ARCH_EXTENDS*/
 		if (dcs_get_adjust_support() % 2 != 0) {
 			if (is_fdvfs_enable() & POLICY_MODE_V2) {
 				trace_tracing_mark_write(5566, "preserve",
@@ -1612,10 +1564,6 @@ bool ged_dvfs_gpu_freq_dual_commit(unsigned long stackNewFreqID,
 	else {
 		trace_tracing_mark_write(5566, "gpu_freq",
 			(long long) div_u64(ged_get_cur_stack_freq(), 1000));
-		#ifdef OPLUS_ARCH_EXTENDS
-		trace_oplus_tracing_mark_write(5566, "gpu_freq",
-			(long long) div_u64(ged_get_cur_stack_freq(), 1000));
-		#endif /*OPLUS_ARCH_EXTENDS*/
 
 		sc_freq_diff = ged_get_cur_stack_out_freq() > 0 ?
 			ged_get_cur_stack_out_freq() - ged_get_cur_real_stack_freq() : 0;
@@ -1636,16 +1584,6 @@ bool ged_dvfs_gpu_freq_dual_commit(unsigned long stackNewFreqID,
 			ged_get_cur_limiter_ceil());
 		trace_tracing_mark_write(5566, "limitter_floor",
 			ged_get_cur_limiter_floor());
-		#ifdef OPLUS_ARCH_EXTENDS
-		trace_oplus_tracing_mark_write(5566, "gpu_freq_ceil",
-			(long long) div_u64(ged_get_freq_by_idx(ui32CeilingID), 1000));
-		trace_oplus_tracing_mark_write(5566, "gpu_freq_floor",
-			(long long) div_u64(ged_get_freq_by_idx(ui32FloorID), 1000));
-		trace_oplus_tracing_mark_write(5566, "limitter_ceil",
-			ged_get_cur_limiter_ceil());
-		trace_oplus_tracing_mark_write(5566, "limitter_floor",
-			ged_get_cur_limiter_floor());
-		#endif /*OPLUS_ARCH_EXTENDS*/
 		if (ged_get_cur_limiter_ceil() == LIMIT_POWERHAL) {
 			trace_tracing_mark_write(5566, "limitter_ceil_pid",
 				g_cust_upbound_freq_id_info.pid);
@@ -1653,14 +1591,6 @@ bool ged_dvfs_gpu_freq_dual_commit(unsigned long stackNewFreqID,
 				g_cust_upbound_freq_id_info.user_id);
 			trace_tracing_mark_write(5566, "limitter_ceil_cus_val",
 				g_cust_upbound_freq_id_info.value);
-			#ifdef OPLUS_ARCH_EXTENDS
-			trace_oplus_tracing_mark_write(5566, "limitter_ceil_pid",
-				g_cust_upbound_freq_id_info.pid);
-			trace_oplus_tracing_mark_write(5566, "limitter_ceil_id",
-				g_cust_upbound_freq_id_info.user_id);
-			trace_oplus_tracing_mark_write(5566, "limitter_ceil_cus_val",
-				g_cust_upbound_freq_id_info.value);
-			#endif /*OPLUS_ARCH_EXTENDS*/
 		}
 
 		if (ged_get_cur_limiter_floor() == LIMIT_POWERHAL) {
@@ -1672,12 +1602,8 @@ bool ged_dvfs_gpu_freq_dual_commit(unsigned long stackNewFreqID,
 				g_cust_boost_freq_id_info.value);
 		}
 	}
-	if (eCommitType != GED_DVFS_EB_DESIRE_COMMIT){
+	if (eCommitType != GED_DVFS_EB_DESIRE_COMMIT)
 		trace_tracing_mark_write(5566, "commit_type", eCommitType);
-		#ifdef OPLUS_ARCH_EXTENDS
-		trace_oplus_tracing_mark_write(5566, "commit_type", eCommitType);
-		#endif /*OPLUS_ARCH_EXTENDS*/
-	}
 	else
 		trace_tracing_mark_write(5566, "eb_update_vir", stackNewFreqID);
 	if (dcs_get_adjust_support() % 2 != 0) {
@@ -2026,7 +1952,6 @@ int gx_fb_dvfs_margin = DEFAULT_DVFS_MARGIN;/* 10-bias */
 
 // default frame-based margin mode + value is 130
 static int dvfs_margin_value = DEFAULT_DVFS_MARGIN;
-static int dvfs_margin_value_cmd;
 unsigned int dvfs_margin_mode = DYNAMIC_MARGIN_MODE_PERF;
 static int g_uncomplete_type;
 
@@ -2672,10 +2597,6 @@ static int ged_dvfs_fb_gpu_dvfs(int t_gpu, int t_gpu_target,
 								  (t_gpu_pipe * 100));
 	trace_tracing_mark_write(5566, "t_gpu", (long long) t_gpu * 100);
 	trace_tracing_mark_write(5566, "t_gpu_target", (long long) t_gpu_target * 100);
-	#ifdef OPLUS_ARCH_EXTENDS
-	trace_oplus_tracing_mark_write(5566, "t_gpu", (long long) t_gpu * 100);
-	trace_oplus_tracing_mark_write(5566, "t_gpu_target", (long long) t_gpu_target * 100);
-	#endif /* OPLUS_ARCH_EXTENDS */
 
 	if (npu_hint_flag) {
 		trace_tracing_mark_write(5566, "npu_t_gpu", (long long) npu_t_gpu * 100);
@@ -2838,20 +2759,17 @@ static int ged_dvfs_fb_gpu_dvfs(int t_gpu, int t_gpu_target,
 
 void start_mewtwo_timer(void)
 {
-	if (gpu_mewtwo_timer.function != NULL) {
-		if (hrtimer_try_to_cancel(&gpu_mewtwo_timer)) {
-			hrtimer_cancel(&gpu_mewtwo_timer);
-			hrtimer_start(&gpu_mewtwo_timer, gpu_mewtwo_timer_expire, HRTIMER_MODE_REL);
-		} else
-			hrtimer_start(&gpu_mewtwo_timer, gpu_mewtwo_timer_expire, HRTIMER_MODE_REL);
-	}
+	if (hrtimer_try_to_cancel(&gpu_mewtwo_timer)) {
+		hrtimer_cancel(&gpu_mewtwo_timer);
+		hrtimer_start(&gpu_mewtwo_timer, gpu_mewtwo_timer_expire, HRTIMER_MODE_REL);
+	} else
+		hrtimer_start(&gpu_mewtwo_timer, gpu_mewtwo_timer_expire, HRTIMER_MODE_REL);
+
 }
 void cancel_mewtwo_timer(void)
 {
-	if (gpu_mewtwo_timer.function != NULL) {
-		if (hrtimer_try_to_cancel(&gpu_mewtwo_timer))
-			hrtimer_cancel(&gpu_mewtwo_timer);
-	}
+	if (hrtimer_try_to_cancel(&gpu_mewtwo_timer))
+		hrtimer_cancel(&gpu_mewtwo_timer);
 }
 
 int get_api_sync_flag(void)
@@ -3323,10 +3241,7 @@ static bool ged_dvfs_policy(
 			t_gpu_target_hd, t_gpu_complete, t_gpu_uncomplete , pid , q, t_fps_use, t_fps);
 		trace_tracing_mark_write(5566, "t_gpu", t_gpu);
 		trace_tracing_mark_write(5566, "t_gpu_target", t_gpu_target);
-		#ifdef OPLUS_ARCH_EXTENDS
-		trace_oplus_tracing_mark_write(5566, "t_gpu", (long long) t_gpu * 100);
-		trace_oplus_tracing_mark_write(5566, "t_gpu_target", (long long) t_gpu_target * 100);
-		#endif /* OPLUS_ARCH_EXTENDS */
+
 		policy_api_sync_counter = api_sync_counter;
 		// set cur freq back to before api boost (for GPU not in overdue state)
 		if (uncomplete_flag)
@@ -3743,12 +3658,10 @@ static void ged_dvfs_margin_value(int i32MarginValue)
 	if (i32MarginValue == -1) {
 		dvfs_margin_mode = CONFIGURE_MARGIN_MODE;
 		dvfs_margin_value = DEFAULT_DVFS_MARGIN;
-		dvfs_margin_value_cmd = 777;
 		mutex_unlock(&gsDVFSLock);
 		return;
 	} else if (i32MarginValue == -2) {
 		dvfs_margin_mode = VARIABLE_MARGIN_MODE_OPP_INDEX;
-		dvfs_margin_value_cmd = 888;
 		mutex_unlock(&gsDVFSLock);
 		return;
 	} else if (i32MarginValue == 999) {
@@ -3759,7 +3672,6 @@ static void ged_dvfs_margin_value(int i32MarginValue)
 
 	i32MarginValue_ori = i32MarginValue;
 	i32MarginValue = i32MarginValue & 0x3ff;
-	dvfs_margin_value_cmd = i32MarginValue_ori;
 
 	if ((i32MarginValue >= 0) && (i32MarginValue <= 100))
 		dvfs_margin_mode = CONFIGURE_MARGIN_MODE;
@@ -3803,12 +3715,6 @@ static int ged_get_dvfs_margin_value(void)
 {
 	int ret = 0;
 
-	if (is_fdvfs_enable() & POLICY_MODE_V2)
-		ret = mtk_gpueb_sysram_read(SYSRAM_GPU_EB_CMD_DVFS_MARGIN_VALUE) & 0x3ff;
-
-	if (ret)
-		return ret;
-
 	if (dvfs_margin_mode == CONFIGURE_MARGIN_MODE)
 		ret = dvfs_margin_value/10;
 	else if (dvfs_margin_mode == DYNAMIC_MARGIN_MODE_CONFIG_FPS_MARGIN)
@@ -3828,11 +3734,6 @@ static int ged_get_dvfs_margin_value(void)
 		ret = 999;
 
 	return ret;
-}
-
-int ged_get_dvfs_margin_value_cmd(void)
-{
-	return dvfs_margin_value_cmd;
 }
 
 int ged_get_dvfs_margin(void)
@@ -3963,8 +3864,6 @@ static void ged_dvfs_loading_mode(int i32MarginValue)
 
 static int ged_get_dvfs_loading_mode(void)
 {
-	if (is_fdvfs_enable() & POLICY_MODE_V2)
-		return mtk_gpueb_sysram_read(SYSRAM_GPU_EB_LOADING_MODE);
 	return gx_dvfs_loading_mode;
 }
 
@@ -3986,7 +3885,6 @@ static void ged_dvfs_workload_mode(int i32WorkloadMode)
 
 static int ged_get_dvfs_workload_mode(void)
 {
-
 	return gx_dvfs_workload_mode;
 }
 
@@ -4222,14 +4120,6 @@ void ged_dvfs_get_gpu_pre_freq(struct GED_DVFS_FREQ_DATA *psData)
 	psData->ui32Idx = g_ui32PreFreqID;
 	psData->ulFreq = ged_get_freq_by_idx(g_ui32PreFreqID);
 }
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SLC)
-unsigned long osml_ged_dvfs_get_gpu_cur_freq(void)
-{
-	return ged_get_freq_by_idx(ged_get_cur_oppidx());
-}
-EXPORT_SYMBOL(osml_ged_dvfs_get_gpu_cur_freq);
-#endif /* CONFIG_OPLUS_FEATURE_SLC */
 
 void ged_get_gpu_dvfs_cal_freq(unsigned long *p_policy_tar_freq, int *pmode)
 {
@@ -4656,56 +4546,6 @@ int ged_is_fix_dvfs(void)
 
 	return 0;
 }
-
-
-int ged_dvfs_get_util_active(void)
-{
-	union combineData tmp_multi = {0};
-
-	if (is_fdvfs_enable() & POLICY_MODE_V2) {
-		tmp_multi = mtk_gpueb_sysram_multi_read(SYSRAM_GPU_LOADING);
-		return tmp_multi.twoVar.var1;
-	}
-	return -1;
-}
-EXPORT_SYMBOL(ged_dvfs_get_util_active);
-
-int ged_dvfs_get_util_3d(void)
-{
-	union combineData tmp_multi = {0};
-
-	if (is_fdvfs_enable() & POLICY_MODE_V2) {
-		tmp_multi = mtk_gpueb_sysram_multi_read(SYSRAM_MCU_ITER_UNION_FRAG_LOADING);
-		return tmp_multi.twoVar.var2;
-	}
-	return -1;
-}
-EXPORT_SYMBOL(ged_dvfs_get_util_3d);
-
-int ged_dvfs_get_util_ta(void)
-{
-	union combineData tmp_multi = {0};
-
-	if (is_fdvfs_enable() & POLICY_MODE_V2) {
-		tmp_multi = mtk_gpueb_sysram_multi_read(SYSRAM_COMP_TILE_LOADING);
-		return tmp_multi.twoVar.var1;
-	}
-	return -1;
-}
-EXPORT_SYMBOL(ged_dvfs_get_util_ta);
-
-int ged_dvfs_get_util_comp(void)
-{
-	union combineData tmp_multi = {0};
-
-	if (is_fdvfs_enable() & POLICY_MODE_V2) {
-		tmp_multi = mtk_gpueb_sysram_multi_read(SYSRAM_COMP_TILE_LOADING);
-		return tmp_multi.twoVar.var2;
-	}
-	return -1;
-}
-EXPORT_SYMBOL(ged_dvfs_get_util_comp);
-
 
 GED_ERROR ged_dvfs_system_init(void)
 {

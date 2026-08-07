@@ -10,7 +10,6 @@
 #include "mtk_low_battery_throttling.h"
 #include "mtk_bp_thl.h"
 #include "gpufreq_v2.h"
-#include <linux/nvmem-consumer.h>
 
 #define CREATE_TRACE_POINTS
 #include "mtk_low_battery_throttling_trace.h"
@@ -24,7 +23,6 @@ static unsigned int system_boot_completed;
 static bool bootup_pt_support;
 static bool switch_pt;
 static int lbat_tb_num;
-static const char *efuse_field = "fab_info";
 
 enum gpu_pt_table_num {
 	GPU_PT_TABLE0,
@@ -260,7 +258,6 @@ static bool parse_switchpt_table(struct device_node *np)
 	return true;
 }
 
-static unsigned int delay_time_s;
 static bool parse_bootup_pt_table(struct device_node *np, struct tag_bootmode *tag)
 {
 	int ret;
@@ -279,14 +276,6 @@ static bool parse_bootup_pt_table(struct device_node *np, struct tag_bootmode *t
 		pr_notice("can't merge %s %d\n", gpu_bootup_pt_data->freq_limit_booting_name, tag->bootmode);
 		gpu_bootup_pt_data->freq_limit_booting[0] = GPU_LIMIT_FREQ;
 		return false;
-	}
-
-	ret = of_property_read_u32(np,
-		"bootup-delay-release-time", &delay_time_s);
-	if (ret < 0) {
-		delay_time_s = 0;
-		pr_info("[%s] read bootup-delay-release-time fail, ret = %d\n",
-			__func__, ret);
 	}
 
 	ret |= of_property_read_u32(np, buf, &gpu_bootup_pt_data->freq_limit_booting[0]);
@@ -452,24 +441,12 @@ static ssize_t boot_notify_show(struct device *dev,
 	return len;
 }
 
-static void release_gpu_performance_work_func(struct work_struct *work)
-{
-	s32 freq_limit;
-
-	freq_limit = GPUPPM_RESET_IDX;
-	gpufreq_set_limit(TARGET_DEFAULT, LIMIT_LOW_BATT, freq_limit, GPUPPM_KEEP_IDX);
-}
-
 static ssize_t boot_notify_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf, size_t size)
 {
 	unsigned int boot_completed = 0;
-	static struct delayed_work work_struct;
-	static int only_do_one_time;
-
-	if (only_do_one_time == 0)
-		INIT_DELAYED_WORK(&work_struct, release_gpu_performance_work_func);
+	s32 freq_limit;
 
 	if (bootup_pt_support == false){
 		dev_info(dev, "not support gpu bootup\n");
@@ -484,10 +461,9 @@ static ssize_t boot_notify_store(struct device *dev,
 		return -EINVAL;
 	}
 	system_boot_completed = boot_completed;
-	if (only_do_one_time == 0) {
-		schedule_delayed_work(&work_struct, delay_time_s * HZ);
-		only_do_one_time = 1;
-	}
+
+	freq_limit = GPUPPM_RESET_IDX;
+	gpufreq_set_limit(TARGET_DEFAULT, LIMIT_LOW_BATT, freq_limit, GPUPPM_KEEP_IDX);
 
 	return size;
 }
@@ -497,36 +473,13 @@ static DEVICE_ATTR_RW(boot_notify);
 static int mtk_gpu_power_throttling_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
-	struct device_node *es_np, *np_bootmode;
+	struct device_node *np_bootmode;
 	struct gpu_pt_priv *gpu_pt_data;
-	struct nvmem_cell *cell;
 	struct tag_bootmode *tag;
 	int i, j, ret = 0, num = 0;
 	char buf[32];
 	switch_pt = false;
 	bootup_pt_support = false;
-	u32 *nvmem_buf, value;
-	size_t len;
-
-	cell = nvmem_cell_get(&pdev->dev, efuse_field);
-	if (!IS_ERR(cell)) {
-		nvmem_buf = (u32 *)nvmem_cell_read(cell, &len);
-		nvmem_cell_put(cell);
-		if (!IS_ERR(nvmem_buf)) {
-			value = *nvmem_buf;
-			pr_info("[%s]:fab_value = %u", __func__, value);
-			if (value == 0) {
-				es_np = of_find_compatible_node(NULL, NULL, "mediatek,es-gpu-power-throttling");
-				if (es_np != NULL){
-					pdev->dev.of_node = es_np;
-					np = es_np;
-				} else
-					pr_info("[%s]:es_np is NULL", __func__);
-			}
-			kfree(nvmem_buf);
-		} else
-			pr_info ("[%s]:get fab_info failed", __func__);
-	}
 
 	for (i = 0; i < POWER_THROTTLING_TYPE_MAX; i++) {
 		gpu_pt_data = &gpu_pt_info[i];

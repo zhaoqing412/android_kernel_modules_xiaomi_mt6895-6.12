@@ -272,7 +272,6 @@ static irqreturn_t mtk_disp_rdma_irq_handler(int irq, void *dev_id)
 	bool find_work = false;
 	static int work_id;
 	static DEFINE_RATELIMIT_STATE(isr_ratelimit, 1 * HZ, 4);
-	ktime_t cur_time;
 
 	If_FIND_WORK(priv->ddp_comp.irq_debug,
 		priv->ddp_comp.ts_works, work_id, find_work, j)
@@ -377,10 +376,8 @@ static irqreturn_t mtk_disp_rdma_irq_handler(int irq, void *dev_id)
 	}
 
 	if (val & (1 << 1)) {
-		if (rdma->id == DDP_COMPONENT_RDMA0) {
-			cur_time = ktime_get();
+		if (rdma->id == DDP_COMPONENT_RDMA0)
 			DRM_MMP_EVENT_START(rdma0, val, 0);
-		}
 		DDPIRQ("[IRQ] %s: frame start!\n", mtk_dump_comp_str(rdma));
 		mtk_drm_refresh_tag_start(&priv->ddp_comp);
 		IF_DEBUG_IRQ_TS(find_work, priv->ddp_comp.ts_works[work_id].irq_time, i)
@@ -395,15 +392,6 @@ static irqreturn_t mtk_disp_rdma_irq_handler(int irq, void *dev_id)
 				struct drm_crtc *crtc = &mtk_crtc->base;
 				unsigned int crtc_idx = drm_crtc_index(crtc);
 				unsigned int pf_idx;
-				int vrefresh = 0;
-
-				vrefresh = drm_mode_vrefresh(
-						&mtk_crtc->base.state->adjusted_mode);
-				if (vrefresh > 0 &&
-				    ktime_to_us(cur_time - mtk_crtc->pf_time) >=
-				     (500000 / vrefresh)) {
-					mtk_crtc->pf_time = cur_time;
-				}
 
 				pf_idx = readl(mtk_get_gce_backup_slot_va(mtk_crtc,
 					DISP_SLOT_PRESENT_FENCE(crtc_idx)));

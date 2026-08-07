@@ -128,9 +128,3 @@ config MTK_SYS_RES_DBG_SUPPORT
 	  MediaTek system resource debug information dump.
 	  Select "m" if you want to enable.
 	  Select "n" if unsure.
-
-config OPLUS_RPMH_MTK
-	tristate "config to enable mtk platform rpmh statistics"
-	default m
-	help
-	  This selects to enable mtk platform rpmh statistics

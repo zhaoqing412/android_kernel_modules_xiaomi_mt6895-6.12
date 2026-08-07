@@ -467,22 +467,6 @@ static void therm_intf_write_apu_mbox(unsigned int val, int offset)
 		writel(val, (void __iomem *)(thermal_apu_mbox_base + offset));
 }
 
-
-int get_cpu_cooler_dbg(int id)
-{
-	int val = 0;
-
-	if (tm_data.is_cputcm) {
-		if (id >= 0 && id < 8)
-			val = therm_intf_read_cputcm_s32(CPU_COOLER_DBG_TCM_OFFSET + 4 * id);
-		else if (id >= 8 && id < 16)
-			val = therm_intf_read_cputcm_s32(CPU_COOLER_DBG2_TCM_OFFSET + 4 * (id - 8));
-	}
-
-	return val;
-}
-EXPORT_SYMBOL(get_cpu_cooler_dbg);
-
 int get_thermal_headroom(enum headroom_id id)
 {
 	int headroom = 0;
@@ -1340,9 +1324,6 @@ static ssize_t cpu_reboot_show(struct kobject *kobj,
 {
 	int len = 0;
 
-	if (!tm_data.is_cputcm)
-		return -ENODEV;
-
 	len += snprintf(buf + len, PAGE_SIZE - len,
 		"%d, %d, %d, %d, %d ,%d, %d, %d, %d, %d, %d, %d\n",
 		therm_intf_read_cputcm(CPU_COOLER_REBOOT_BASE),
@@ -1366,9 +1347,6 @@ static ssize_t cpu_reboot_store(struct kobject *kobj,
 {
 	int len, i;
 	int values[CPU_COOLER_DEBUG_THERMAL_SRAM_LEN] = { 0 };
-
-	if (!tm_data.is_cputcm)
-		return -ENODEV;
 
 	len = sscanf(buf, "%10d %10d %10d %10d %10d %10d %10d %10d %10d %10d %10d %10d",
 		&values[0], &values[1], &values[2], &values[3],
@@ -2109,23 +2087,19 @@ static ssize_t lvts_info1_show(struct kobject *kobj,
 {
 	int len = 0;
 
-	if (tm_data.is_cputcm) {
-		len += snprintf(buf + len, PAGE_SIZE - len, "%x,%x,%x,%x,%x,%x,%x,%x,%x,%x\n",
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 4),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 8),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 12),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 16),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 20),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 24),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 28),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 32),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 36));
-	} else {
-		len = -ENODEV;
-	}
+	len += snprintf(buf + len, PAGE_SIZE - len, "%x,%x,%x,%x,%x,%x,%x,%x,%x,%x\n",
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 4),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 8),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 12),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 16),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 20),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 24),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 28),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 32),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 36));
 
-	return len;
+		return len;
 }
 
 static ssize_t lvts_info2_show(struct kobject *kobj,
@@ -2133,23 +2107,19 @@ static ssize_t lvts_info2_show(struct kobject *kobj,
 {
 	int len = 0;
 
-	if (tm_data.is_cputcm) {
-		len += snprintf(buf + len, PAGE_SIZE - len, "%x,%x,%x,%x,%x,%x,%x,%x,%x,%x\n",
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 40),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 44),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 48),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 52),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 56),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 60),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 64),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 68),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 72),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 76));
-	} else {
-		len = -ENODEV;
-	}
+	len += snprintf(buf + len, PAGE_SIZE - len, "%x,%x,%x,%x,%x,%x,%x,%x,%x,%x\n",
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 40),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 44),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 48),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 52),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 56),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 60),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 64),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 68),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 72),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 76));
 
-	return len;
+		return len;
 }
 
 static ssize_t lvts_info3_show(struct kobject *kobj,
@@ -2157,25 +2127,21 @@ static ssize_t lvts_info3_show(struct kobject *kobj,
 {
 	int len = 0;
 
-	if (tm_data.is_cputcm) {
-		len += snprintf(buf + len, PAGE_SIZE - len, "%x,%x,%x,%x,%x,%x,%x,%x,%x,%x,%x,%x\n",
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 80),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 84),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 88),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 92),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 96),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 100),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 104),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 108),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 112),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 116),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 120),
-			therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 124));
-	} else {
-		len = -ENODEV;
-	}
+	len += snprintf(buf + len, PAGE_SIZE - len, "%x,%x,%x,%x,%x,%x,%x,%x,%x,%x,%x,%x\n",
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 80),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 84),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 88),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 92),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 96),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 100),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 104),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 108),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 112),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 116),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 120),
+		therm_intf_read_cputcm_s32(MBRAIN_LOG_OFFSET + 124));
 
-	return len;
+		return len;
 }
 
 static void thermal_hint_notify(unsigned int source, unsigned int enable)
@@ -2268,22 +2234,6 @@ static ssize_t boot_status_show(struct kobject *kobj,
 	return len;
 }
 
-static ssize_t cpu_cooler_dbg_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	int i;
-	int len = 0;
-
-	for (i = 0; i < 16; i++) {
-		if (i == 15)
-			len += snprintf(buf + len, PAGE_SIZE - len, "%d\n", get_cpu_cooler_dbg(i));
-		else
-			len += snprintf(buf + len, PAGE_SIZE - len, "%d,", get_cpu_cooler_dbg(i));
-	}
-
-	return len;
-}
-
 static ssize_t gpt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -2340,38 +2290,6 @@ static ssize_t gpt_store(struct kobject *kobj,
 	return -EINVAL;
 }
 
-static ssize_t efficiency_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	int len = 0;
-
-	len += snprintf(buf + len, PAGE_SIZE - len, "%d\n",
-		therm_intf_read_cputcm_s32(EFFICIENCY_TCM_OFFSET));
-
-	return len;
-}
-
-static ssize_t efficiency_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	char cmd[10];
-	u32 val;
-
-	if (sscanf(buf, "%4s %10u", cmd, &val) == 2) {
-		if (strncmp(cmd, "eff", 3) == 0) {
-			if (tm_data.is_cputcm) {
-				therm_intf_write_cputcm(val, EFFICIENCY_TCM_OFFSET);
-				return count;
-			}
-			pr_info("[efficiency] is_cputcm is false\n");
-		}
-	}
-
-	pr_info("[efficiency] invalid input\n");
-
-	return -EINVAL;
-}
-
 static struct kobj_attribute ttj_attr = __ATTR_RW(ttj);
 static struct kobj_attribute power_budget_attr = __ATTR_RW(power_budget);
 static struct kobj_attribute cpu_info_attr = __ATTR_RO(cpu_info);
@@ -2416,8 +2334,7 @@ static struct kobj_attribute lvts_info3_attr = __ATTR_RO(lvts_info3);
 static struct kobj_attribute thermal_hint_attr = __ATTR_RW(thermal_hint);
 static struct kobj_attribute boot_status_attr = __ATTR_RO(boot_status);
 static struct kobj_attribute gpt_attr = __ATTR_RW(gpt);
-static struct kobj_attribute efficiency_attr = __ATTR_RW(efficiency);
-static struct kobj_attribute cpu_cooler_dbg_attr = __ATTR_RO(cpu_cooler_dbg);
+
 
 
 static struct attribute *thermal_attrs[] = {
@@ -2464,8 +2381,6 @@ static struct attribute *thermal_attrs[] = {
 	&thermal_hint_attr.attr,
 	&boot_status_attr.attr,
 	&gpt_attr.attr,
-	&efficiency_attr.attr,
-	&cpu_cooler_dbg_attr.attr,
 	NULL
 };
 static struct attribute_group thermal_attr_group = {
@@ -2957,11 +2872,6 @@ static void __used dump_thermal_log(void)
 	pr_info("[thermal][C(l)(c)][G(l)(c)][A(l)(c)][TH][D]=[(%d/%d/%d)(%d/%d/%d)][(%d)(%d)][(%d)(%d)][%d][%d]\n",
 		cl0/1000, cl1/1000, cl2/1000, cc0/1000, cc1/1000, cc2/1000, gl/1000, gc/1000,
 		al, ac, thermal_hint, dram_data_rate);
-	pr_info("[thermal][cl_dbg]=[%d,%d,%d,%d/%d,%d,%d,%d/%d,%d,%d,%d/%d,%d,%d,%d]\n",
-		get_cpu_cooler_dbg(0), get_cpu_cooler_dbg(1), get_cpu_cooler_dbg(2), get_cpu_cooler_dbg(3),
-		get_cpu_cooler_dbg(4), get_cpu_cooler_dbg(5), get_cpu_cooler_dbg(6), get_cpu_cooler_dbg(7),
-		get_cpu_cooler_dbg(8), get_cpu_cooler_dbg(9), get_cpu_cooler_dbg(10), get_cpu_cooler_dbg(11),
-		get_cpu_cooler_dbg(12), get_cpu_cooler_dbg(13), get_cpu_cooler_dbg(14), get_cpu_cooler_dbg(15));
 }
 
 static void __used kernel_thermal_hint(unsigned int *next_polling_duration)

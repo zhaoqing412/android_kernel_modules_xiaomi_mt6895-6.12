@@ -138,17 +138,6 @@ static void init_pq_chan(struct mml_pq_chan *chan)
 	chan->job_idx = 1;
 }
 
-static bool is_in_list(struct list_head *entry, struct list_head *head)
-{
-	struct list_head *pos;
-
-	list_for_each(pos, head) {
-		if (pos == entry)
-			return true;
-	}
-	return false;
-}
-
 static void queue_msg(struct mml_pq_chan *chan,
 			struct mml_pq_sub_task *sub_task)
 {
@@ -157,11 +146,9 @@ static void queue_msg(struct mml_pq_chan *chan,
 		__func__, sub_task, (unsigned long)&sub_task->mbox_list, chan, &chan->msg_list);
 
 	mutex_lock(&chan->msg_lock);
-	if(!is_in_list(&sub_task->mbox_list, &chan->msg_list)) {
-		list_add_tail(&sub_task->mbox_list, &chan->msg_list);
-		atomic_inc(&chan->msg_cnt);
-		sub_task->job_id = chan->job_idx++;
-	}
+	list_add_tail(&sub_task->mbox_list, &chan->msg_list);
+	atomic_inc(&chan->msg_cnt);
+	sub_task->job_id = chan->job_idx++;
 	mutex_unlock(&chan->msg_lock);
 
 	mml_pq_msg("%s wake up channel message queue", __func__);
@@ -380,31 +367,20 @@ static void release_comp_config_result(void *data)
 
 	if (!result)
 		return;
-	if(result->hdr_reg_cnt > 0) {
-		vfree(result->hdr_regs);
-		vfree(result->hdr_curve);
-		vfree(result->hdr_ootf);
-		vfree(result->hdr_oetf);
-	}
-	if(result->aal_reg_cnt > 0 && result->param_cnt > 0) {
-		vfree(result->aal_param);
-		vfree(result->aal_regs);
-		vfree(result->aal_curve);
-	}
-	if(result->ds_reg_cnt > 0)
-		vfree(result->ds_regs);
-	if(result->color_reg_cnt > 0)
-		vfree(result->color_regs);
-	if(result->c3d_reg_cnt > 0)
-		vfree(result->c3d_regs);
-	if(result->c3d_lut_num > 0)
-		vfree(result->c3d_lut);
-	if(result->c3d_prog_idx_reg_num > 0)
-		vfree(result->c3d_prog_idx);
-	if (result->is_fg_tuning && result->fg_reg_cnt > 0)
-		vfree(result->fg_regs);
-	if(result)
-		vfree(result);
+	kfree(result->hdr_regs);
+	kfree(result->hdr_curve);
+	kfree(result->aal_param);
+	kfree(result->aal_regs);
+	kfree(result->aal_curve);
+	kfree(result->ds_regs);
+	kfree(result->color_regs);
+	kfree(result->c3d_regs);
+	kfree(result->c3d_lut);
+	kfree(result->c3d_prog_idx);
+	kfree(result->hdr_ootf);
+	kfree(result->hdr_oetf);
+	kfree(result->fg_regs);
+	kfree(result);
 }
 
 static void release_pq_task(struct kref *ref)
@@ -416,23 +392,13 @@ static void release_pq_task(struct kref *ref)
 	release_tile_init_result(pq_task->tile_init.result);
 	release_comp_config_result(pq_task->comp_config.result);
 
-	mml_pq_msg("%s aal_hist[%p] aal_hist[%p] hdr_hist[%p] hdr_hist[%p]",
-		__func__, pq_task->aal_hist[0], pq_task->aal_hist[1],
-		pq_task->hdr_hist[0], pq_task->hdr_hist[1]);
+	mml_pq_msg("%s aal_hist[%p] hdr_hist[%p]",
+		__func__, pq_task->aal_hist[0], pq_task->hdr_hist[0]);
 
 	kfree(pq_task->aal_readback.readback_data.pipe0_hist);
-	kfree(pq_task->aal_hist[0]);
-	pq_task->aal_hist[0] = NULL;
 	kfree(pq_task->aal_readback.readback_data.pipe1_hist);
-	kfree(pq_task->aal_hist[1]);
-	pq_task->aal_hist[1] = NULL;
-
 	kfree(pq_task->hdr_readback.readback_data.pipe0_hist);
-	kfree(pq_task->hdr_hist[0]);
-	pq_task->hdr_hist[0] = NULL;
 	kfree(pq_task->hdr_readback.readback_data.pipe1_hist);
-	kfree(pq_task->hdr_hist[1]);
-	pq_task->hdr_hist[1] = NULL;
 
 	kfree(pq_task->tile_init.frame_data);
 	kfree(pq_task->comp_config.frame_data);
@@ -488,6 +454,7 @@ void mml_pq_comp_config_clear(struct mml_task *task)
 	struct mml_pq_sub_task *sub_task = NULL, *tmp = NULL;
 	u64 job_id = task->pq_task->comp_config.job_id;
 	struct mml_pq_task *pq_task = task->pq_task;
+	bool need_put = false;
 
 	mml_pq_log("%s task_job_id[%d] job_id[%llx] dual[%d]",
 		__func__, task->job.jobid, job_id, task->config->dual);
@@ -501,7 +468,7 @@ void mml_pq_comp_config_clear(struct mml_task *task)
 				list_del(&sub_task->mbox_list);
 				atomic_dec_if_positive(&chan->msg_cnt);
 				atomic_dec_if_positive(&sub_task->queued);
-				mml_pq_put_pq_task(pq_task);
+				need_put = true;
 				break;
 			}
 		}
@@ -516,12 +483,14 @@ void mml_pq_comp_config_clear(struct mml_task *task)
 			if (sub_task->job_id == job_id) {
 				list_del(&sub_task->mbox_list);
 				atomic_dec_if_positive(&sub_task->queued);
-				mml_pq_put_pq_task(pq_task);
+				need_put = true;
 				break;
 			}
 		}
 		mutex_unlock(&chan->job_lock);
 	}
+	if (need_put)
+		mml_pq_put_pq_task(pq_task);
 }
 
 static void remove_sub_task(struct mml_pq_chan *chan, struct mml_pq_sub_task *sub_task)
@@ -2144,7 +2113,7 @@ static void handle_comp_config_result(struct mml_pq_chan *chan,
 	mml_pq_msg("%s end %d task=%p sub_task->id[%llu]", __func__, ret,
 			sub_task, sub_task->job_id);
 
-	result = vmalloc(sizeof(*result));
+	result = kmalloc(sizeof(*result), GFP_KERNEL);
 	if (unlikely(!result)) {
 		mml_pq_err("err: create result failed");
 		goto wake_up_prev_comp_config_task;
@@ -2162,196 +2131,192 @@ static void handle_comp_config_result(struct mml_pq_chan *chan,
 		goto free_comp_config_result;
 	}
 
-	if(result->aal_reg_cnt > 0 && result->param_cnt > 0) {
-		aal_param = vmalloc(result->param_cnt*sizeof(*aal_param));
-		if (unlikely(!aal_param)) {
-			mml_pq_err("err: create aal_param failed, size:%d",
-				result->param_cnt);
-			goto free_comp_config_result;
-		}
-
-		ret = copy_from_user(aal_param, result->aal_param,
-			result->param_cnt * sizeof(*aal_param));
-		if (unlikely(ret)) {
-			mml_pq_err("copy aal param failed!: %d", ret);
-			goto free_aal_param;
-		}
-
-		aal_regs = vmalloc(result->aal_reg_cnt*sizeof(*aal_regs));
-		if (unlikely(!aal_regs)) {
-			mml_pq_err("err: create aal_regs failed, size:%d",
-				result->aal_reg_cnt);
-			goto free_aal_param;
-		}
-
-		ret = copy_from_user(aal_regs, result->aal_regs,
-			result->aal_reg_cnt * sizeof(*aal_regs));
-		if (unlikely(ret)) {
-			mml_pq_err("copy aal config failed!: %d", ret);
-			goto free_aal_regs;
-		}
-
-		aal_curve = vmalloc(AAL_CURVE_NUM*sizeof(u32));
-		if (unlikely(!aal_curve)) {
-			mml_pq_err("err: create aal_curve failed, size:%d",
-				AAL_CURVE_NUM);
-			goto free_aal_regs;
-		}
-
-		ret = copy_from_user(aal_curve, result->aal_curve,
-			AAL_CURVE_NUM * sizeof(u32));
-		if (unlikely(ret)) {
-			mml_pq_err("copy aal curve failed!: %d", ret);
-			goto free_aal_curve;
-		}
+	aal_param = kmalloc_array(result->param_cnt, sizeof(*aal_param),
+				  GFP_KERNEL);
+	if (unlikely(!aal_param)) {
+		mml_pq_err("err: create aal_param failed, size:%d",
+			result->param_cnt);
+		goto free_comp_config_result;
 	}
 
-	if(result->hdr_reg_cnt > 0) {
-		hdr_regs = vmalloc(result->hdr_reg_cnt*sizeof(*hdr_regs));
-		if (unlikely(!hdr_regs)) {
-			mml_pq_err("err: create hdr_regs failed, size:%d\n",
-				result->hdr_reg_cnt);
-			goto free_aal_curve;
-		}
-
-		ret = copy_from_user(hdr_regs, result->hdr_regs,
-			result->hdr_reg_cnt * sizeof(*hdr_regs));
-		if (unlikely(ret)) {
-			mml_pq_err("copy aal config failed!: %d\n", ret);
-			goto free_hdr_regs;
-		}
-
-		hdr_curve = vmalloc(HDR_CURVE_NUM*sizeof(u32));
-		if (unlikely(!hdr_curve)) {
-			mml_pq_err("err: create hdr_curve failed, size:%d\n",
-				HDR_CURVE_NUM);
-			goto free_hdr_regs;
-		}
-
-		ret = copy_from_user(hdr_curve, result->hdr_curve,
-			HDR_CURVE_NUM * sizeof(u32));
-		if (unlikely(ret)) {
-			mml_pq_err("copy hdr curve failed!: %d\n", ret);
-			goto free_hdr_curve;
-		}
+	ret = copy_from_user(aal_param, result->aal_param,
+		result->param_cnt * sizeof(*aal_param));
+	if (unlikely(ret)) {
+		mml_pq_err("copy aal param failed!: %d", ret);
+		goto free_aal_param;
 	}
 
-	if(result->ds_reg_cnt > 0) {
-		ds_regs = vmalloc(result->ds_reg_cnt*sizeof(*ds_regs));
-		if (unlikely(!ds_regs)) {
-			mml_pq_err("err: create ds_regs failed, size:%d\n",
-				result->ds_reg_cnt);
-			goto free_hdr_curve;
-		}
-
-		ret = copy_from_user(ds_regs, result->ds_regs,
-			result->ds_reg_cnt * sizeof(*ds_regs));
-		if (unlikely(ret)) {
-			mml_pq_err("copy ds config failed!: %d\n", ret);
-			goto free_ds_regs;
-		}
+	aal_regs = kmalloc_array(result->aal_reg_cnt, sizeof(*aal_regs),
+				 GFP_KERNEL);
+	if (unlikely(!aal_regs)) {
+		mml_pq_err("err: create aal_regs failed, size:%d",
+			result->aal_reg_cnt);
+		goto free_aal_param;
 	}
 
-	if(result->color_reg_cnt > 0) {
-		color_regs = vmalloc(result->color_reg_cnt*sizeof(*color_regs));
-		if (unlikely(!color_regs)) {
-			mml_pq_err("err: create color_regs failed, size:%d\n",
-				result->ds_reg_cnt);
-			goto free_ds_regs;
-		}
-
-		ret = copy_from_user(color_regs, result->color_regs,
-			result->color_reg_cnt * sizeof(*color_regs));
-		if (unlikely(ret)) {
-			mml_pq_err("copy color config failed!: %d\n", ret);
-			goto free_color_regs;
-		}
+	ret = copy_from_user(aal_regs, result->aal_regs,
+		result->aal_reg_cnt * sizeof(*aal_regs));
+	if (unlikely(ret)) {
+		mml_pq_err("copy aal config failed!: %d", ret);
+		goto free_aal_regs;
 	}
 
-	if(result->c3d_reg_cnt > 0) {
-		c3d_regs = vmalloc(result->c3d_reg_cnt*sizeof(*c3d_regs));
-		if (unlikely(!c3d_regs)) {
-			mml_pq_err("err: create c3d_regs failed, size:%d\n",
-				result->ds_reg_cnt);
-			goto free_color_regs;
-		}
-
-		ret = copy_from_user(c3d_regs, result->c3d_regs,
-			result->c3d_reg_cnt * sizeof(*c3d_regs));
-		if (unlikely(ret)) {
-			mml_pq_err("copy color config failed!: %d\n", ret);
-			goto free_c3d_regs;
-		}
+	aal_curve = kmalloc_array(AAL_CURVE_NUM, sizeof(u32), GFP_KERNEL);
+	if (unlikely(!aal_curve)) {
+		mml_pq_err("err: create aal_curve failed, size:%d",
+			AAL_CURVE_NUM);
+		goto free_aal_regs;
 	}
 
-	if(result->c3d_lut_num > 0) {
-		c3d_lut = vmalloc(result->c3d_lut_num*sizeof(u32));
-		if (unlikely(!c3d_lut)) {
-			mml_pq_err("err: create c3d_lut failed, size:%d\n",
-				result->c3d_lut_num);
-			goto free_c3d_regs;
-		}
-
-		ret = copy_from_user(c3d_lut, result->c3d_lut,
-			result->c3d_lut_num * sizeof(u32));
-		if (unlikely(ret)) {
-			mml_pq_err("copy c3d_lut failed!: %d\n", ret);
-			goto free_c3d_lut_curve;
-		}
+	ret = copy_from_user(aal_curve, result->aal_curve,
+		AAL_CURVE_NUM * sizeof(u32));
+	if (unlikely(ret)) {
+		mml_pq_err("copy aal curve failed!: %d", ret);
+		goto free_aal_curve;
 	}
 
-	if(result->c3d_prog_idx_reg_num > 0) {
-		c3d_prog_idx = vmalloc(result->c3d_prog_idx_reg_num*sizeof(u32));
-		if (unlikely(!c3d_prog_idx)) {
-			mml_pq_err("err: create c3d_prog_idx failed, size:%d\n",
-				result->c3d_prog_idx_reg_num);
-			goto free_c3d_lut_curve;
-		}
-
-		ret = copy_from_user(c3d_prog_idx, result->c3d_prog_idx,
-			result->c3d_prog_idx_reg_num * sizeof(u32));
-		if (unlikely(ret)) {
-			mml_pq_err("copy c3d_prog_idx failed!: %d\n", ret);
-			goto free_c3d_prog_idx;
-		}
+	hdr_regs = kmalloc_array(result->hdr_reg_cnt, sizeof(*hdr_regs),
+				 GFP_KERNEL);
+	if (unlikely(!hdr_regs)) {
+		mml_pq_err("err: create hdr_regs failed, size:%d\n",
+			result->hdr_reg_cnt);
+		goto free_aal_curve;
 	}
 
-	if(result->hdr_reg_cnt > 0) {
-		hdr_ootf = vmalloc(HDR_OOTF_NUM*sizeof(u32));
-		if (unlikely(!hdr_ootf)) {
-			mml_pq_err("err: create hdr_ootf failed, size:%d\n",
-				HDR_OOTF_NUM);
-			goto free_c3d_prog_idx;
-		}
+	ret = copy_from_user(hdr_regs, result->hdr_regs,
+		result->hdr_reg_cnt * sizeof(*hdr_regs));
+	if (unlikely(ret)) {
+		mml_pq_err("copy aal config failed!: %d\n", ret);
+		goto free_hdr_regs;
+	}
 
-		ret = copy_from_user(hdr_ootf, result->hdr_ootf,
-			HDR_OOTF_NUM * sizeof(u32));
-		if (unlikely(ret)) {
-			mml_pq_err("copy hdr ootf failed!: %d\n", ret);
-			goto free_hdr_ootf;
-		}
+	hdr_curve = kmalloc_array(HDR_CURVE_NUM, sizeof(u32),
+				  GFP_KERNEL);
+	if (unlikely(!hdr_curve)) {
+		mml_pq_err("err: create hdr_curve failed, size:%d\n",
+			HDR_CURVE_NUM);
+		goto free_hdr_regs;
+	}
 
-		hdr_oetf = vmalloc(HDR_OETF_NUM*sizeof(u32));
-		if (unlikely(!hdr_oetf)) {
-			mml_pq_err("err: create hdr_oetf failed, size:%d\n",
-				HDR_OETF_NUM);
-			goto free_hdr_ootf;
-		}
+	ret = copy_from_user(hdr_curve, result->hdr_curve,
+		HDR_CURVE_NUM * sizeof(u32));
+	if (unlikely(ret)) {
+		mml_pq_err("copy hdr curve failed!: %d\n", ret);
+		goto free_hdr_curve;
+	}
 
-		ret = copy_from_user(hdr_oetf, result->hdr_oetf,
-			HDR_OETF_NUM * sizeof(u32));
-		if (unlikely(ret)) {
-			mml_pq_err("copy hdr oetf failed!: %d\n", ret);
-			goto free_hdr_oetf;
-		}
+	ds_regs = kmalloc_array(result->ds_reg_cnt, sizeof(*ds_regs),
+				GFP_KERNEL);
+	if (unlikely(!ds_regs)) {
+		mml_pq_err("err: create ds_regs failed, size:%d\n",
+			result->ds_reg_cnt);
+		goto free_hdr_curve;
+	}
+
+	ret = copy_from_user(ds_regs, result->ds_regs,
+		result->ds_reg_cnt * sizeof(*ds_regs));
+	if (unlikely(ret)) {
+		mml_pq_err("copy ds config failed!: %d\n", ret);
+		goto free_ds_regs;
+	}
+
+	color_regs = kmalloc_array(result->color_reg_cnt, sizeof(*color_regs),
+				   GFP_KERNEL);
+	if (unlikely(!color_regs)) {
+		mml_pq_err("err: create color_regs failed, size:%d\n",
+			result->ds_reg_cnt);
+		goto free_ds_regs;
+	}
+
+	ret = copy_from_user(color_regs, result->color_regs,
+		result->color_reg_cnt * sizeof(*color_regs));
+	if (unlikely(ret)) {
+		mml_pq_err("copy color config failed!: %d\n", ret);
+		goto free_color_regs;
+	}
+
+	c3d_regs = kmalloc_array(result->c3d_reg_cnt, sizeof(*c3d_regs),
+				   GFP_KERNEL);
+	if (unlikely(!c3d_regs)) {
+		mml_pq_err("err: create c3d_regs failed, size:%d\n",
+			result->ds_reg_cnt);
+		goto free_color_regs;
+	}
+
+	ret = copy_from_user(c3d_regs, result->c3d_regs,
+		result->c3d_reg_cnt * sizeof(*c3d_regs));
+	if (unlikely(ret)) {
+		mml_pq_err("copy color config failed!: %d\n", ret);
+		goto free_c3d_regs;
+	}
+
+	c3d_lut = kmalloc_array(result->c3d_lut_num, sizeof(u32),
+				  GFP_KERNEL);
+	if (unlikely(!c3d_lut)) {
+		mml_pq_err("err: create c3d_lut failed, size:%d\n",
+			result->c3d_lut_num);
+		goto free_c3d_regs;
+	}
+
+	ret = copy_from_user(c3d_lut, result->c3d_lut,
+		result->c3d_lut_num * sizeof(u32));
+	if (unlikely(ret)) {
+		mml_pq_err("copy c3d_lut failed!: %d\n", ret);
+		goto free_c3d_lut_curve;
+	}
+
+	c3d_prog_idx = kmalloc_array(result->c3d_prog_idx_reg_num, sizeof(u32),
+				  GFP_KERNEL);
+	if (unlikely(!c3d_prog_idx)) {
+		mml_pq_err("err: create c3d_prog_idx failed, size:%d\n",
+			result->c3d_prog_idx_reg_num);
+		goto free_c3d_lut_curve;
+	}
+
+	ret = copy_from_user(c3d_prog_idx, result->c3d_prog_idx,
+		result->c3d_prog_idx_reg_num * sizeof(u32));
+	if (unlikely(ret)) {
+		mml_pq_err("copy c3d_prog_idx failed!: %d\n", ret);
+		goto free_c3d_prog_idx;
+	}
+
+	hdr_ootf = kmalloc_array(HDR_OOTF_NUM, sizeof(u32),
+				  GFP_KERNEL);
+	if (unlikely(!hdr_ootf)) {
+		mml_pq_err("err: create hdr_ootf failed, size:%d\n",
+			HDR_OOTF_NUM);
+		goto free_c3d_prog_idx;
+	}
+
+	ret = copy_from_user(hdr_ootf, result->hdr_ootf,
+		HDR_OOTF_NUM * sizeof(u32));
+	if (unlikely(ret)) {
+		mml_pq_err("copy hdr ootf failed!: %d\n", ret);
+		goto free_hdr_ootf;
+	}
+
+	hdr_oetf = kmalloc_array(HDR_OETF_NUM, sizeof(u32),
+				  GFP_KERNEL);
+	if (unlikely(!hdr_oetf)) {
+		mml_pq_err("err: create hdr_oetf failed, size:%d\n",
+			HDR_OETF_NUM);
+		goto free_hdr_ootf;
+	}
+
+	ret = copy_from_user(hdr_oetf, result->hdr_oetf,
+		HDR_OETF_NUM * sizeof(u32));
+	if (unlikely(ret)) {
+		mml_pq_err("copy hdr oetf failed!: %d\n", ret);
+		goto free_hdr_oetf;
 	}
 
 	/* fg setting from userspace for tuning purpose */
-	if (result->is_fg_tuning && result->fg_reg_cnt > 0) {
+	if (result->is_fg_tuning && result->fg_reg_cnt != 0) {
 		mml_pq_fg_tuning_log("%s fg setting from userspace for tuning purpose",
 			__func__);
 
-		fg_regs = vmalloc(result->fg_reg_cnt*sizeof(*fg_regs));
+		fg_regs = kmalloc_array(result->fg_reg_cnt, sizeof(*fg_regs),
+					   GFP_KERNEL);
 		if (unlikely(!fg_regs)) {
 			mml_pq_err("err: create fg_regs failed, size:%d\n",
 				result->fg_reg_cnt);
@@ -2366,83 +2331,52 @@ static void handle_comp_config_result(struct mml_pq_chan *chan,
 		}
 	}
 
-	if(result->aal_reg_cnt > 0 && result->param_cnt > 0) {
-		result->aal_param = aal_param;
-		result->aal_regs = aal_regs;
-		result->aal_curve = aal_curve;
-	}
-
-	if(result->hdr_reg_cnt > 0) {
-		result->hdr_regs = hdr_regs;
-		result->hdr_curve = hdr_curve;
-		result->hdr_ootf = hdr_ootf;
-		result->hdr_oetf = hdr_oetf;
-	}
-
-	if(result->ds_reg_cnt > 0)
-		result->ds_regs = ds_regs;
-
-	if(result->color_reg_cnt > 0)
-		result->color_regs = color_regs;
-
-	if(result->c3d_reg_cnt > 0)
-		result->c3d_regs = c3d_regs;
-
-	if(result->c3d_lut_num > 0)
-		result->c3d_lut = c3d_lut;
-
-	if(result->c3d_prog_idx_reg_num > 0)
-		result->c3d_prog_idx = c3d_prog_idx;
-
-	if (result->is_fg_tuning && result->fg_reg_cnt > 0)
-		result->fg_regs = fg_regs;
+	result->aal_param = aal_param;
+	result->aal_regs = aal_regs;
+	result->aal_curve = aal_curve;
+	result->hdr_regs = hdr_regs;
+	result->hdr_curve = hdr_curve;
+	result->ds_regs = ds_regs;
+	result->color_regs = color_regs;
+	result->c3d_regs = c3d_regs;
+	result->c3d_lut = c3d_lut;
+	result->c3d_prog_idx = c3d_prog_idx;
+	result->hdr_ootf = hdr_ootf;
+	result->hdr_oetf = hdr_oetf;
+	result->fg_regs = fg_regs;
 
 	handle_sub_task_result(sub_task, result, release_comp_config_result);
 	mml_pq_msg("%s result end, result_id[%d] sub_task[%p]",
 		__func__, job->result_job_id, sub_task);
 	goto wake_up_prev_comp_config_task;
 free_fg_regs:
-	if(fg_regs)
-		vfree(fg_regs);
+	kfree(fg_regs);
 free_hdr_oetf:
-	if(hdr_oetf)
-		vfree(hdr_oetf);
+	kfree(hdr_oetf);
 free_hdr_ootf:
-	if(hdr_ootf)
-		vfree(hdr_ootf);
+	kfree(hdr_ootf);
 free_c3d_prog_idx:
-	if(c3d_prog_idx)
-		vfree(c3d_prog_idx);
+	kfree(c3d_prog_idx);
 free_c3d_lut_curve:
-	if(c3d_lut)
-		vfree(c3d_lut);
+	kfree(c3d_lut);
 free_c3d_regs:
-	if(c3d_regs)
-		vfree(c3d_regs);
+	kfree(c3d_regs);
 free_color_regs:
-	if(color_regs)
-		vfree(color_regs);
+	kfree(color_regs);
 free_ds_regs:
-	if(ds_regs)
-		vfree(ds_regs);
+	kfree(ds_regs);
 free_hdr_curve:
-	if(hdr_curve)
-		vfree(hdr_curve);
+	kfree(hdr_curve);
 free_hdr_regs:
-	if(hdr_regs)
-		vfree(hdr_regs);
+	kfree(hdr_regs);
 free_aal_curve:
-	if(aal_curve)
-		vfree(aal_curve);
+	kfree(aal_curve);
 free_aal_regs:
-	if(aal_regs)
-		vfree(aal_regs);
+	kfree(aal_regs);
 free_aal_param:
-	if(aal_param)
-		vfree(aal_param);
+	kfree(aal_param);
 free_comp_config_result:
-	if(result)
-		vfree(result);
+	kfree(result);
 wake_up_prev_comp_config_task:
 	wake_up_sub_task(sub_task, from_comp_config(sub_task));
 	mml_pq_msg("%s end, %d", __func__, ret);
@@ -2468,7 +2402,7 @@ static int mml_pq_comp_config_ioctl(unsigned long data)
 		return -EINVAL;
 	}
 
-	job = vmalloc(sizeof(*job));
+	job = kmalloc(sizeof(*job), GFP_KERNEL);
 	if (unlikely(!job)) {
 		mml_pq_trace_ex_end();
 		return -ENOMEM;
@@ -2477,8 +2411,7 @@ static int mml_pq_comp_config_ioctl(unsigned long data)
 	ret = copy_from_user(job, user_job, sizeof(*job));
 	if (unlikely(ret)) {
 		mml_pq_err("copy_from_user failed: %d", ret);
-		if(job)
-			vfree(job);
+		kfree(job);
 		mml_pq_trace_ex_end();
 		return -EINVAL;
 	}
@@ -2489,9 +2422,7 @@ static int mml_pq_comp_config_ioctl(unsigned long data)
 
 	if (job->result_job_id)
 		handle_comp_config_result(chan, job);
-	if(job)
-		vfree(job);
-
+	kfree(job);
 	mml_pq_trace_ex_end();
 
 	mml_pq_trace_ex_begin("%s start wait sub_task", __func__);

@@ -1,15 +1,12 @@
 load("//build/bazel_mgk_rules:mgk_ddk_ko.bzl", "define_mgk_ddk_ko")
 load("//build/kernel/kleaf:kernel.bzl", "ddk_headers")
 load("@mgk_info//:kernel_version.bzl","kernel_version",)
-load("//build/kernel/oplus:oplus_modules_define.bzl", "oplus_ddk_get_target")
 
 package(
     default_visibility = [
         "//visibility:public",
     ],
 )
-
-target = oplus_ddk_get_target()
 
 filegroup(
 	name = "srcs",
@@ -51,20 +48,10 @@ define_mgk_ddk_ko(
 		"common.c",
     ],
     hdrs = glob(["**/*.h"]),
-	header_deps = [
-		"//vendor/oplus/kernel/cpu:config_headers",
-	],
 	ko_deps = [
 		"//kernel_device_modules-{}/drivers/cpufreq:mediatek-cpufreq-hw".format(kernel_version),
         "//kernel_device_modules-{}/drivers/thermal/mediatek:thermal_interface".format(kernel_version),
 		"//kernel_device_modules-{}/drivers/misc/mediatek/irq_monitor:irq_monitor".format(kernel_version),
-		"//vendor/oplus/kernel/cpu:oplus_bsp_sched_assist",
-        "//vendor/oplus/kernel/cpu:oplus_bsp_smart_freq",
-    ] if target == "k6993v1_64" else [
-		"//kernel_device_modules-{}/drivers/cpufreq:mediatek-cpufreq-hw".format(kernel_version),
-		"//kernel_device_modules-{}/drivers/thermal/mediatek:thermal_interface".format(kernel_version),
-		"//kernel_device_modules-{}/drivers/misc/mediatek/irq_monitor:irq_monitor".format(kernel_version),
-		"//vendor/oplus/kernel/cpu:oplus_bsp_sched_assist",
     ],
     copts = [
         "-Wall",
@@ -130,26 +117,12 @@ define_mgk_ddk_ko(
 		".",
     ],
     hdrs = glob(["**/*.h","eas/*.h","eas/vip.c","eas/flt_cal.c","eas/grp_awr.c"]),
-	header_deps = [
-		"//vendor/oplus/kernel/cpu:config_headers",
-	],
 	ko_deps = [
         "//kernel_device_modules-{}/drivers/thermal/mediatek:thermal_interface".format(kernel_version),
 		"//kernel_device_modules-{}/drivers/misc/mediatek/irq_monitor:irq_monitor".format(kernel_version),
 		"//kernel_device_modules-{}/drivers/misc/mediatek/cache-auditor:cpuqos_v3".format(kernel_version),
 		"//kernel_device_modules-{}/drivers/misc/mediatek/performance/powerhal_cpu_ctrl:powerhal_cpu_ctrl".format(kernel_version),
 		":cpufreq_sugov_ext",
-		"//vendor/oplus/kernel/cpu:oplus_bsp_sched_assist",
-		"//vendor/oplus/kernel/cpu:cpufreq_bouncing",
-                "//vendor/oplus/kernel/cpu:oplus_bsp_task_overload",
-    ] if target == "k6993v1_64" else [
-         "//kernel_device_modules-{}/drivers/thermal/mediatek:thermal_interface".format(kernel_version),
-                "//kernel_device_modules-{}/drivers/misc/mediatek/irq_monitor:irq_monitor".format(kernel_version),
-                "//kernel_device_modules-{}/drivers/misc/mediatek/cache-auditor:cpuqos_v3".format(kernel_version),
-                "//kernel_device_modules-{}/drivers/misc/mediatek/performance/powerhal_cpu_ctrl:powerhal_cpu_ctrl".format(kernel_version),
-                ":cpufreq_sugov_ext",
-                "//vendor/oplus/kernel/cpu:oplus_bsp_sched_assist",
-                "//vendor/oplus/kernel/cpu:cpufreq_bouncing",
     ],
     copts = [
         "-Wall",
@@ -184,7 +157,6 @@ define_mgk_ddk_ko(
 		"//kernel_device_modules-{}/drivers/misc/mediatek/sched:cpufreq_sugov_ext".format(kernel_version),
 		"//kernel_device_modules-{}/drivers/misc/mediatek/sched:scheduler".format(kernel_version),
 		"//kernel_device_modules-{}/drivers/misc/mediatek/irq_monitor:irq_monitor".format(kernel_version),
-		"//vendor/oplus/kernel/cpu:oplus_bsp_sched_assist",
 	],
     copts = [
         "-Wall",

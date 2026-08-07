@@ -20,6 +20,7 @@
 #include <linux/mutex.h>
 #include <linux/kernel.h>
 #include <linux/uaccess.h>
+
 #include <gpufreq_v2.h>
 #include <gpufreq_mssv.h>
 #include <gpufreq_debug.h>
@@ -229,13 +230,13 @@ static int gpufreq_status_proc_show(struct seq_file *m, void *v)
 		ptp3_status.brisket_cpmeter_mode ? "On" : "Off",
 		ptp3_status.gpm3_5_mode ? "On" : "Off");
 	seq_printf(m,
-		"%-16s InFreq: %d/%d, OutFreq: %d/%d, CC: %d/%d, FC: %d/%d, Mode: %s (%d)\n",
+		"%-16s InFreq: %d/%d, OutFreq: %d/%d, CC: %d/%d, FC: %d/%d, Mode: %s\n",
 		"[PTP3 Config]",
 		g_shared_status->ptp3_info.infreq0, g_shared_status->ptp3_info.infreq1,
 		g_shared_status->ptp3_info.outfreq0, g_shared_status->ptp3_info.outfreq1,
 		g_shared_status->ptp3_info.hw_cc, g_shared_status->ptp3_info.sw_cc,
 		g_shared_status->ptp3_info.hw_fc, g_shared_status->ptp3_info.sw_fc,
-		ptp3_status.brisket_safe_margin ? "Safe" : "Normal", ptp3_status.ptp3_adjust_trim);
+		ptp3_status.brisket_safe_margin ? "Safe" : "Normal");
 	seq_printf(m,
 		"%-16s Internal_P/V/I: %d/%d/%d, External_P/I: %d/%d, Final_P: %d (0x%x), Ratio: %d/1000\n",
 		"[PRBC Status]",
@@ -335,7 +336,6 @@ done:
 
 	return ret;
 }
-
 
 static int gpu_signed_opp_table_proc_show(struct seq_file *m, void *v)
 {
@@ -774,7 +774,6 @@ static int mfgsys_config_proc_show(struct seq_file *m, void *v)
 	int adj_num = GPUFREQ_MAX_ADJ_NUM;
 	int gpm3_num = GPUFREQ_MAX_GPM3_NUM;
 	int pmic_reg_num = GPUFREQ_MAX_PMIC_REG_NUM;
-	int atmc_num = GPUFREQ_MAX_PTP3_ATMC_NUM;
 
 	mutex_lock(&gpufreq_debug_lock);
 
@@ -884,19 +883,6 @@ static int mfgsys_config_proc_show(struct seq_file *m, void *v)
 			seq_printf(m, "0x%04x = 0x%02x\n",
 				g_shared_status->pmic_reg_stack[i].addr, g_shared_status->pmic_reg_stack[i].val);
 		}
-
-		seq_puts(m, "\n[PTP3 TOP ATMC]\n");
-		for (i = 0; i < atmc_num; i++)
-			seq_printf(m, "[%4d] ", g_shared_status->ptp3_status.atmc_top_bv[i]);
-		seq_puts(m, "\n");
-		for (i = 0; i < atmc_num; i++)
-			seq_printf(m, "[%4d] ", g_shared_status->ptp3_status.atmc_top_fc[i]);
-		seq_puts(m, "\n[PTP3 STACK ATMC]\n");
-		for (i = 0; i < atmc_num; i++)
-			seq_printf(m, "[%4d] ", g_shared_status->ptp3_status.atmc_stack_bv[i]);
-		seq_puts(m, "\n");
-		for (i = 0; i < atmc_num; i++)
-			seq_printf(m, "[%4d] ", g_shared_status->ptp3_status.atmc_stack_fc[i]);
 	}
 
 	mutex_unlock(&gpufreq_debug_lock);

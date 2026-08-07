@@ -310,7 +310,6 @@ extern void (*mtk_dvfs_margin_value_fp)(int i32MarginValue);
 extern int (*mtk_get_dvfs_margin_value_fp)(void);
 extern int ged_get_dvfs_margin(void);
 extern unsigned int ged_get_dvfs_margin_mode(void);
-int ged_get_dvfs_margin_value_cmd(void);
 
 extern void (*mtk_loading_base_dvfs_step_fp)(int i32MarginValue);
 extern int (*mtk_get_loading_base_dvfs_step_fp)(void);
@@ -332,8 +331,6 @@ unsigned long long ged_get_api_boost_start_ts_ns(void);
 unsigned long long ged_get_api_boost_end_ts_ns(void);
 unsigned long long ged_get_api_boost_interval_ns(void);
 void ged_reset_api_boost_interval_ns(void);
-
-
 #define LOADING_ACTIVE 0
 #define LOADING_MAX_3DTA_COM 1
 #define LOADING_MAX_3DTA 2
@@ -425,8 +422,4 @@ void ged_trace_scheduler_state(unsigned int scheduler_state);
 void ged_trace_ast_cond(int ast_cond);
 void ged_trace_ast(int ast);
 void ged_trace_idle_timer_enabled(bool val);
-int ged_dvfs_get_util_active(void);
-int ged_dvfs_get_util_3d(void);
-int ged_dvfs_get_util_ta(void);
-int ged_dvfs_get_util_comp(void);
 #endif

@@ -113,6 +113,7 @@ struct mtk_dsi_driver_data {
 	const u32 dsi_cmdq_size;
 	const u32 dsi_cmdq_page;
 	bool dsi_irq_ts_debug;
+	bool support_frame_tb_v5;
 };
 
 struct mtk_dsi {
@@ -235,11 +236,5 @@ unsigned int mtk_dsi_get_line_time_vdo(struct mtk_drm_crtc *mtk_crtc,
 	struct mtk_dsi *dsi, unsigned int ps_wc);
 unsigned int mtk_dsi_get_dsc_compress_rate(struct mtk_dsi *dsi);
 
-
-#ifdef OPLUS_FEATURE_DISPLAY
-dcs_write_gce_pack oplus_dsi_display_get_dcs_pack_gce(void);
-dcs_write_gce oplus_dsi_display_get_dcs_write_gce(void);
-dcs_write_gce oplus_dsi_display_get_dcs_write_gce2(void);
-#endif
 
 #endif

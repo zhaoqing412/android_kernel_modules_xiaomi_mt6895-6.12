@@ -58,6 +58,5 @@ void mtk_deferred_free(struct mtk_deferred_freelist_item *item,
 		   size_t nr_pages);
 
 int mtk_deferred_freelist_init(void);
-unsigned long get_freelist_nr_pages(void);
 
 #endif

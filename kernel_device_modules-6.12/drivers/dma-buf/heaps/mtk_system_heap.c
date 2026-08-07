@@ -18,7 +18,6 @@
 #include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/scatterlist.h>
-#include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/swap.h>
 #include <linux/swiotlb.h>
@@ -29,7 +28,6 @@
 #include "mtk_page_pool.h"
 #include "mtk-deferred-free-helper.h"
 #include <uapi/linux/dma-buf.h>
-#include <uapi/linux/sched/types.h>
 
 #include <linux/iommu.h>
 #include "mtk_heap_priv.h"
@@ -37,63 +35,12 @@
 #include "mtk_page_pool.h"
 #include "mtk-smmu-v3.h"
 
-#define CREATE_TRACE_POINTS
-#include "mtk_dma_trace.h"
-
 #define MAP_FAILED_DUMP_RS_INTERVAL	(2 * HZ)
 #define MAP_FAILED_DUMP_RS_BURST	(1)
 #define RUN_TIMEOUT_TO_LOG		(100000000ULL)
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_AIZEROCOPY)
-#include "aizerofs/aizerofs_shrink.h"
-#endif /* CONFIG_OPLUS_FEATURE_AIZEROCOPY */
-
 atomic64_t dma_heap_normal_total = ATOMIC64_INIT(0);
 EXPORT_SYMBOL(dma_heap_normal_total);
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_OSVELTE)
-#include "mm_osvelte/sys-memstat.h"
-#include "mm_osvelte/mm-trace.h"
-
-extern atomic64_t boost_pool_pages;
-extern atomic64_t dmabuf_pool_pages;
-
-long read_dmabuf_usage(enum mtrack_subtype type)
-{
-	if (type == MTRACK_DMABUF_SYSTEM_HEAP)
-		return atomic64_read(&dma_heap_normal_total) >> PAGE_SHIFT;
-	else if (type == MTRACK_DMABUF_POOL)
-		return atomic64_read(&dmabuf_pool_pages);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL)
-	else if (type == MTRACK_DMABUF_BOOST_POOL)
-		return atomic64_read(&boost_pool_pages);
-#endif /* CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL */
-	return 0;
-}
-
-static struct mtrack_debugger mtk_dmabuf_debugger = {
-	.mem_usage = read_dmabuf_usage,
-};
-#endif /* CONFIG_OPLUS_FEATURE_MM_OSVELTE */
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL)
-#include "mm_boost_pool/oplus_boost_pool_mtk.h"
-
-static struct dma_heap *mtk_mm_heap;
-static struct dma_heap *mtk_mm_uncached_heap;
-static struct boost_pool *mtk_mm_boost_pool;
-static struct boost_pool *mtk_mm_uncached_boost_pool;
-
-struct boost_pool *has_boost_pool(struct dma_heap *heap)
-{
-	if (heap == mtk_mm_heap)
-		return mtk_mm_boost_pool;
-	else if (heap == mtk_mm_uncached_heap)
-		return mtk_mm_uncached_boost_pool;
-	return NULL;
-}
-#endif /* CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL */
-
 
 static dmaheap_slc_callback slc_callback;
 
@@ -129,8 +76,6 @@ struct system_heap_buffer {
 
 	/* private part for system heap */
 	struct mtk_deferred_freelist_item deferred_free;
-	unsigned int orders_count[NUM_ORDERS];
-	unsigned int frag_ratio;
 };
 
 static bool smmu_v3_enable;
@@ -405,204 +350,6 @@ static int dma_coherent_check(struct dma_buf *dmabuf, struct device *dev, bool u
 	return 0;
 }
 
-/*******************************boost_freq start*******************************/
-#define RUN_TIMEOUT_NS		(2000000ULL) /* 2ms */
-
-#define BOOST_FLAG_NONE		(0)
-#define BOOST_FLAG_FREQ		(1 << 0)
-#define BOOST_FLAG_LOCK_CORES	(1 << 1)
-
-static void run_timeout_count(u64 start, u64 end, int boost_flag)
-{
-	if (mtk_dmabuf_sync_timeout_record_enable()) {
-		if (end - start > RUN_TIMEOUT_NS) {
-			mtk_dmabuf_inc_sync_timeout_cnt();
-			if (boost_flag && mtk_dmabuf_boost_enable())
-				mtk_dmabuf_inc_sync_timeout_cnt_boost();
-		}
-	}
-}
-
-static void buffer_init_orders_count(struct system_heap_buffer *buffer)
-{
-	for (int i = 0; i < NUM_ORDERS; i++)
-		buffer->orders_count[i] = 0;
-}
-
-static void buffer_update_orders_count(struct system_heap_buffer *buffer, struct page *page)
-{
-	unsigned int order;
-
-	order = compound_order(page);
-	if (order == orders[0])
-		buffer->orders_count[0]++;
-	else if (order == orders[1])
-		buffer->orders_count[1]++;
-	else if (order == orders[2])
-		buffer->orders_count[2]++;
-	else
-		pr_info("%s order:%d not supported\n", __func__, order);
-}
-
-static void buffer_calc_frag_ratio(struct system_heap_buffer *buffer)
-{
-	struct sg_table *table = &buffer->sg_table;
-
-	buffer->frag_ratio = (table->nents * 100) / (buffer->len / PAGE_SIZE);
-}
-
-static bool need_boost_freq(struct system_heap_buffer *buffer)
-{
-	bool boost_freq = false;
-
-	boost_freq = buffer->len >= mtk_dmabuf_boost_size_min() &&
-		     buffer->len <= mtk_dmabuf_boost_size_max() &&
-		     buffer->frag_ratio > mtk_dmabuf_boost_frag_ratio();
-
-	if (boost_freq) {
-		pr_debug("%s[%u,%u,%u%%] uclamp[%u,%u] size:%lu-%u [%u-%u-%u]-%u%%",
-			 __func__,
-			 mtk_dmabuf_boost_size_min(),
-			 mtk_dmabuf_boost_size_max(),
-			 mtk_dmabuf_boost_frag_ratio(),
-			 mtk_dmabuf_boost_sched_min(),
-			 mtk_dmabuf_boost_sched_max(),
-			 buffer->len, buffer->sg_table.nents,
-			 buffer->orders_count[0], buffer->orders_count[1],
-			 buffer->orders_count[2], buffer->frag_ratio);
-	}
-
-	return boost_freq;
-}
-
-static int __boost_flag(struct dma_buf *dmabuf, bool kip_uncached)
-{
-	struct system_heap_buffer *buffer = dmabuf->priv;
-	int boost_flag = BOOST_FLAG_NONE;
-
-	if (!mtk_dmabuf_boost_enable())
-		return BOOST_FLAG_NONE;
-
-	if (!is_mtk_mm_heap_dmabuf(dmabuf))
-		return BOOST_FLAG_NONE;
-
-	if (kip_uncached && buffer->uncached)
-		return BOOST_FLAG_NONE;
-
-	if (need_boost_freq(buffer))
-		boost_flag |= BOOST_FLAG_FREQ;
-
-	if (mtk_dmabuf_boost_lock_cores_enable())
-		boost_flag |= BOOST_FLAG_LOCK_CORES;
-
-	return boost_flag;
-}
-
-static int get_boost_flag(struct dma_buf *dmabuf)
-{
-	return __boost_flag(dmabuf, true);
-}
-
-static inline int rt_policy(int policy)
-{
-	return policy == SCHED_FIFO || policy == SCHED_RR;
-}
-
-static int sched_set(struct dma_buf *dmabuf, bool boost_freq)
-{
-	struct system_heap_buffer *buffer = dmabuf->priv;
-	struct task_struct *task = current;
-	struct sched_attr attr = {};
-	int ret;
-
-	attr.sched_policy = task->policy;
-	attr.sched_flags =
-		SCHED_FLAG_KEEP_ALL |
-		SCHED_FLAG_UTIL_CLAMP |
-		SCHED_FLAG_RESET_ON_FORK;
-
-	if (boost_freq) {
-		attr.sched_util_min = mtk_dmabuf_boost_sched_min();
-		attr.sched_util_max = mtk_dmabuf_boost_sched_max();
-	} else {
-		attr.sched_util_min = -1;
-		attr.sched_util_max = -1;
-	}
-
-	if (rt_policy(task->policy))
-		attr.sched_priority = task->rt_priority;
-
-	DMABUF_TRACE_BEGIN("%s[%u,%u,%u%%] uclamp[%u,%u] size:%lu-%u [%u-%u-%u]-%u%%",
-		__func__,
-		mtk_dmabuf_boost_size_min(),
-		mtk_dmabuf_boost_size_max(),
-		mtk_dmabuf_boost_frag_ratio(),
-		attr.sched_util_min, attr.sched_util_max,
-		buffer->len, buffer->sg_table.nents,
-		buffer->orders_count[0], buffer->orders_count[1],
-		buffer->orders_count[2], buffer->frag_ratio);
-	ret = sched_setattr_nocheck(task, &attr);
-	if (ret) {
-		pr_info("%s: boost_freq:%d sched_setattr_nocheck failed: %d\n",
-			__func__, boost_freq, ret);
-	}
-	DMABUF_TRACE_END();
-
-	return ret;
-}
-
-static int set_affinity(int r_cpu_mask)
-{
-	struct cpumask new_mask;
-	int cpu, ret;
-
-	cpumask_clear(&new_mask);
-	for_each_possible_cpu(cpu) {
-		if (r_cpu_mask & (1 << cpu))
-			cpumask_set_cpu(cpu, &new_mask);
-	}
-
-	ret = set_cpus_allowed_ptr(current, &new_mask);
-	if (ret) {
-		pr_info("%s: r_cpu_mask:%d set_cpus_allowed_ptr failed: %d\n",
-			__func__, r_cpu_mask, ret);
-	}
-
-	return ret;
-}
-
-static int get_boost_freq(struct dma_buf *dmabuf, int boost_flag)
-{
-	int ret = 0;
-
-	if (boost_flag & BOOST_FLAG_FREQ) {
-		/* lock to medium cores */
-		if (boost_flag & BOOST_FLAG_LOCK_CORES)
-			ret = set_affinity(0x70);
-
-		/* boost frequency */
-		ret |= sched_set(dmabuf, true);
-		mtk_dmabuf_inc_stat_nr_boost();
-	}
-
-	return ret;
-}
-
-static int put_boost_freq(struct dma_buf *dmabuf, int boost_flag)
-{
-	int ret = 0;
-
-	if (boost_flag & BOOST_FLAG_FREQ) {
-		if (boost_flag & BOOST_FLAG_LOCK_CORES)
-			ret = set_affinity(0xff);
-
-		ret |= sched_set(dmabuf, false);
-	}
-
-	return ret;
-}
-/*******************************boost_freq end*******************************/
-
 static int system_heap_attach(struct dma_buf *dmabuf,
 			      struct dma_buf_attachment *attachment)
 {
@@ -674,7 +421,7 @@ static void system_heap_detach(struct dma_buf *dmabuf,
 	kfree(a);
 }
 
-static struct sg_table *__mtk_mm_heap_map_dma_buf(struct dma_buf_attachment *attachment,
+static struct sg_table *mtk_mm_heap_map_dma_buf(struct dma_buf_attachment *attachment,
 						enum dma_data_direction direction)
 {
 	static DEFINE_RATELIMIT_STATE(dump_rs, MAP_FAILED_DUMP_RS_INTERVAL,
@@ -775,27 +522,6 @@ static struct sg_table *__mtk_mm_heap_map_dma_buf(struct dma_buf_attachment *att
 	return table;
 }
 
-static struct sg_table *mtk_mm_heap_map_dma_buf(struct dma_buf_attachment *attachment,
-						enum dma_data_direction direction)
-{
-	struct dma_buf *dmabuf = attachment->dmabuf;
-	int boost_flag = BOOST_FLAG_NONE;
-	struct sg_table *table;
-	u64 start, end;
-
-	if (!(attachment->dma_map_attrs & DMA_ATTR_SKIP_CPU_SYNC))
-		boost_flag = get_boost_flag(dmabuf);
-
-	start = sched_clock();
-	get_boost_freq(dmabuf, boost_flag);
-	table = __mtk_mm_heap_map_dma_buf(attachment, direction);
-	put_boost_freq(dmabuf, boost_flag);
-	end = sched_clock();
-	run_timeout_count(start, end, boost_flag);
-
-	return table;
-}
-
 static struct sg_table *system_heap_map_dma_buf(struct dma_buf_attachment *attachment,
 						enum dma_data_direction direction)
 {
@@ -841,17 +567,8 @@ static void system_heap_unmap_dma_buf(struct dma_buf_attachment *attachment,
 	 * system heap: unmap it every time
 	 */
 	if (is_mtk_mm_heap_dmabuf(buf) && fwspec) {
-		if (!(attr & DMA_ATTR_SKIP_CPU_SYNC)) {
-			int boost_flag = get_boost_flag(buf);
-			u64 start, end;
-
-			start = sched_clock();
-			get_boost_freq(buf, boost_flag);
+		if (!(attr & DMA_ATTR_SKIP_CPU_SYNC))
 			dma_sync_sgtable_for_cpu(attachment->dev, table, direction);
-			put_boost_freq(buf, boost_flag);
-			end = sched_clock();
-			run_timeout_count(start, end, boost_flag);
-		}
 		return;
 	}
 
@@ -864,13 +581,8 @@ static int system_heap_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 	struct system_heap_buffer *buffer = dmabuf->priv;
 	struct dma_heap_attachment *a;
 	bool synced = false;
-	int boost_flag;
-	u64 start, end;
 
 	mutex_lock(&buffer->lock);
-	start = sched_clock();
-	boost_flag = get_boost_flag(dmabuf);
-	get_boost_freq(dmabuf, boost_flag);
 
 	if (buffer->vmap_cnt)
 		invalidate_kernel_vmap_range(buffer->vaddr, buffer->len);
@@ -888,10 +600,6 @@ static int system_heap_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 				synced = is_cache_sync_dev(a->dev);
 		}
 	}
-
-	put_boost_freq(dmabuf, boost_flag);
-	end = sched_clock();
-	run_timeout_count(start, end, boost_flag);
 	mutex_unlock(&buffer->lock);
 	dmabuf_log_begin_cpu(dmabuf);
 
@@ -904,13 +612,8 @@ static int system_heap_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 	struct system_heap_buffer *buffer = dmabuf->priv;
 	struct dma_heap_attachment *a;
 	bool synced = false;
-	int boost_flag;
-	u64 start, end;
 
 	mutex_lock(&buffer->lock);
-	start = sched_clock();
-	boost_flag = get_boost_flag(dmabuf);
-	get_boost_freq(dmabuf, boost_flag);
 
 	if (buffer->vmap_cnt)
 		flush_kernel_vmap_range(buffer->vaddr, buffer->len);
@@ -928,9 +631,6 @@ static int system_heap_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 				synced = is_cache_sync_dev(a->dev);
 		}
 	}
-	put_boost_freq(dmabuf, boost_flag);
-	end = sched_clock();
-	run_timeout_count(start, end, boost_flag);
 	mutex_unlock(&buffer->lock);
 	dmabuf_log_end_cpu(dmabuf);
 
@@ -1140,14 +840,8 @@ static void system_heap_buf_free(struct mtk_deferred_freelist_item *item,
 	struct sg_table *table;
 	struct scatterlist *sg;
 	int i, j;
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL)
-	struct boost_pool *boost_pool;
-#endif /* CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL */
 
 	buffer = container_of(item, struct system_heap_buffer, deferred_free);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL)
-	boost_pool = has_boost_pool(buffer->heap);
-#endif /* CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL */
 	heap_priv = dma_heap_get_drvdata(buffer->heap);
 	page_pools = heap_priv ? heap_priv->page_pools : NULL;
 
@@ -1174,14 +868,9 @@ static void system_heap_buf_free(struct mtk_deferred_freelist_item *item,
 					break;
 			}
 
-			if (j < NUM_ORDERS) {
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL)
-				/* do not put chp page into boot_pool */
-				if (boost_pool && !boost_pool_free(boost_pool, page, j))
-					continue;
-#endif /* CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL */
+			if (j < NUM_ORDERS)
 				mtk_dmabuf_page_pool_free(page_pools[j], page);
-			} else
+			else
 				pr_info("%s error order:%u\n",
 					__func__, compound_order(page));
 		}
@@ -1228,8 +917,7 @@ static void mtk_mm_heap_dma_buf_release(struct dma_buf *dmabuf)
 		 file_inode(dmabuf->file)->i_ino, buffer->len,
 		 dmabuf->name?:"NULL");
 	spin_unlock(&dmabuf->name_lock);
-	//add by zhenghaiqing for dma debug
-	trace_mtk_dma_free(buffer->len, dmabuf->__kabi_reserved2, dmabuf->name?:"NULL");
+
 	dmabuf_release_check(dmabuf);
 
 	/* unmap all domains' iova */
@@ -1259,22 +947,6 @@ static void mtk_mm_heap_dma_buf_release(struct dma_buf *dmabuf)
 		kfree(cache_data);
 	}
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_AIZEROCOPY)
-	if (handle_dbuf_cache_release(dmabuf)) {
-		dmabuf_caches_destroy_all();
-		table = &buffer->sg_table;
-		sg_free_table(table);
-		kfree(buffer);
-
-		if (atomic64_sub_return(buf_len, &dma_heap_normal_total) < 0) {
-			pr_info("warn: %s, total memory underflow, 0x%llx!!, reset as 0\n",
-					__func__, atomic64_read(&dma_heap_normal_total));
-			atomic64_set(&dma_heap_normal_total, 0);
-		}
-		return;
-	}
-#endif
-
 	/* free buffer memory */
 	mtk_deferred_free(&buffer->deferred_free, system_heap_buf_free, npages);
 
@@ -1295,18 +967,6 @@ static void system_heap_dma_buf_release(struct dma_buf *dmabuf)
 	struct scatterlist *sg;
 	int i, j;
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_AIZEROCOPY)
-	bool dbuf_cache = false;
-
-	dbuf_cache = handle_dbuf_cache_release(dmabuf);
-	if (dbuf_cache) {
-		table = &buffer->sg_table;
-		goto free_sg_and_buf;
-	}
-#endif
-
-	//add by zhenghaiqing for dma debug
-	trace_mtk_dma_free(buffer->len, dmabuf->__kabi_reserved2, dmabuf->name?:"NULL");
 	dmabuf_release_check(dmabuf);
 
 	heap_priv = dma_heap_get_drvdata(buffer->heap);
@@ -1338,13 +998,6 @@ static void system_heap_dma_buf_release(struct dma_buf *dmabuf)
 			pr_info("%s error: order %u\n", __func__, compound_order(page));
 		}
 	}
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_AIZEROCOPY)
-free_sg_and_buf:
-	if (dbuf_cache)
-		dmabuf_caches_destroy_all();
-#endif
-
 	sg_free_table(table);
 	kfree(buffer);
 
@@ -1534,16 +1187,9 @@ static const struct dma_buf_ops mtk_slc_heap_buf_ops = {
 	.get_flags = system_heap_dma_buf_get_flags,
 };
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL)
-static struct page *alloc_largest_available(unsigned long size,
-					    unsigned int max_order,
-					    struct mtk_dmabuf_page_pool **page_pools,
-					    struct boost_pool *boost_pool)
-#else
 static struct page *alloc_largest_available(unsigned long size,
 					    unsigned int max_order,
 					    struct mtk_dmabuf_page_pool **page_pools)
-#endif/* CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL */
 {
 	struct page *page;
 	int i;
@@ -1553,13 +1199,6 @@ static struct page *alloc_largest_available(unsigned long size,
 			continue;
 		if (max_order < orders[i])
 			continue;
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL)
-		if (boost_pool) {
-			page = boost_pool_fetch(boost_pool, i);
-			if (page)
-				return page;
-		}
-#endif /* CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL */
 
 		if (likely(page_pools)) {
 			page = mtk_dmabuf_page_pool_alloc(page_pools[i]);
@@ -1601,38 +1240,6 @@ static struct dma_buf *system_heap_do_allocate(struct dma_heap *heap,
 	struct mtk_heap_priv_info *heap_priv = dma_heap_get_drvdata(heap);
 	u64 tm1, tm2, tm_mid;
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_AIZEROCOPY)
-	/* hook1: find/create_dbuf_cache */
-	struct aizerofs_dma_buf_cache *dbuf_cache = NULL;
-	bool err_free_pages = false;
-	bool cached = false;
-
-	u64 page_idx = 0;
-#endif
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL)
-	struct boost_pool *boost_pool = has_boost_pool(heap);
-
-	/* for size < 32K, we do not need alloc from boost pool. */
-	if (len < SZ_32K)
-		boost_pool = NULL;
-#endif /*CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL */
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_AIZEROCOPY)
-	dbuf_cache = find_or_create_dbuf_cache(&len);
-	/* get real_len by decode */
-	size_remaining = len;
-	if (IS_ERR(dbuf_cache))
-		return ERR_PTR(-ENOMEM);
-#endif
-
-	if (len >= SZ_1G)
-		pr_warn("%s system_heap allocate %lu >= sz_1g size\n",
-			current->comm, len);
-
-	if (len / PAGE_SIZE > totalram_pages() / 2)
-		return ERR_PTR(-ENOMEM);
-
 	tm1 = sched_clock();
 	DMABUF_TRACE_BEGIN("%s(%s,%lu)", __func__, dma_heap_get_name(heap), len);
 	page_pools = heap_priv ? heap_priv->page_pools : NULL;
@@ -1656,20 +1263,10 @@ static struct dma_buf *system_heap_do_allocate(struct dma_heap *heap,
 
 	buffer = kzalloc(sizeof(*buffer), GFP_KERNEL);
 	if (!buffer) {
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_AIZEROCOPY)
-		dbuf_cache_terminate_io_worker(dbuf_cache);
-#endif
 		DMABUF_TRACE_END();
 		return ERR_PTR(-ENOMEM);
 	}
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_OSVELTE)
-	mm_trace_fmt_begin("ODB:%s %zu,%lu,%lu,%lu,%lu,%lu",
-			   dma_heap_get_name(heap),
-			   len, sizeof(*buffer), get_freelist_nr_pages(),
-			   atomic64_read(&dmabuf_pool_pages),
-			   atomic64_read(&boost_pool_pages),
-			   atomic64_read(&dma_heap_normal_total));
-#endif /* CONFIG_OPLUS_FEATURE_MM_OSVELTE */
+
 	INIT_LIST_HEAD(&buffer->attachments);
 	INIT_LIST_HEAD(&buffer->iova_caches);
 	mutex_init(&buffer->lock);
@@ -1677,7 +1274,6 @@ static struct dma_buf *system_heap_do_allocate(struct dma_heap *heap,
 	buffer->len = len;
 	buffer->uncached = uncached;
 	buffer->coherent = (heap_priv ? heap_priv->coherent : false);
-	buffer_init_orders_count(buffer);
 
 	INIT_LIST_HEAD(&pages);
 	i = 0;
@@ -1693,21 +1289,7 @@ static struct dma_buf *system_heap_do_allocate(struct dma_heap *heap,
 			goto free_buffer;
 		}
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_AIZEROCOPY)
-		cached = false;
-		/* hook2: find pages from dbuf_cache */
-		page = get_page_from_dbuf_cache(dbuf_cache, page_idx);
-		if (page) {
-			cached = true;
-			goto add_page;
-		}
-#endif
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL)
-		page = alloc_largest_available(size_remaining, max_order, page_pools, boost_pool);
-#else
 		page = alloc_largest_available(size_remaining, max_order, page_pools);
-#endif /* CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL */
 		if (!page) {
 			if (fatal_signal_pending(current)) {
 				ret = -EINTR;
@@ -1717,23 +1299,9 @@ static struct dma_buf *system_heap_do_allocate(struct dma_heap *heap,
 			goto free_buffer;
 		}
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_AIZEROCOPY)
-add_page:
-#endif
 		list_add_tail(&page->lru, &pages);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_AIZEROCOPY)
-		/*
-		¦* hook3: All pages from sglist of dma-buf
-		¦* are added to dbuf_cache->pages
-		¦*/
-		dbuf_cache_add_pages(dbuf_cache, page, page_idx);
-		page_idx += compound_nr(page);
-#endif
 		size_remaining -= page_size(page);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_AIZEROCOPY)
-		if (!cached)
-#endif
-			max_order = compound_order(page);
+		max_order = compound_order(page);
 		i++;
 	}
 
@@ -1745,11 +1313,9 @@ add_page:
 	sg = table->sgl;
 	list_for_each_entry_safe(page, tmp_page, &pages, lru) {
 		sg_set_page(sg, page, page_size(page), 0);
-		buffer_update_orders_count(buffer, page);
 		sg = sg_next(sg);
 		list_del(&page->lru);
 	}
-	buffer_calc_frag_ratio(buffer);
 
 	mutex_init(&buffer->map_lock);
 	/* add alloc pid & tid info */
@@ -1778,33 +1344,16 @@ add_page:
 	exp_info.size = buffer->len;
 	exp_info.flags = fd_flags;
 	exp_info.priv = buffer;
-	DMABUF_TRACE_BEGIN("dma_buf_export size:%lu-%u [%u-%u-%u]-%u%%",
-			   buffer->len, buffer->sg_table.nents,
-			   buffer->orders_count[0], buffer->orders_count[1],
-			   buffer->orders_count[2], buffer->frag_ratio);
+	DMABUF_TRACE_BEGIN("dma_buf_export");
 	dmabuf = dma_buf_export(&exp_info);
 	DMABUF_TRACE_END();
 	if (IS_ERR(dmabuf)) {
 		ret = PTR_ERR(dmabuf);
 		goto free_pages;
 	}
-	//add by zhenghaiqing for dma debug
-	/*
-	 * use __kabi_reserved2 as inode no. but it has potential risk if
-	 * google uses it.
-	 */
-	dmabuf->__kabi_reserved2 = file_inode(dmabuf->file)->i_ino;
-	trace_mtk_dma_alloc(buffer->len, dmabuf->__kabi_reserved2, exp_info.exp_name?:"NULL");
 	if (unlikely(!dma_buf_file_fops))
 		dma_buf_file_fops = dmabuf->file->f_op;
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL)
-	mm_trace_fmt_end();
-#endif /*CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL */
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL)
-	mm_trace_fmt_begin("ODB_OD (%d,%d,%d)", buffer->orders_count[0],
-			   buffer->orders_count[1], buffer->orders_count[2]);
-#endif /* CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL */
 	/*
 	 * For uncached buffers, we need to initially flush cpu cache, since
 	 * the __GFP_ZERO on the allocation means the zeroing was done by the
@@ -1812,25 +1361,12 @@ add_page:
 	 * unmap it now so we don't get corruption later on.
 	 */
 	if (buffer->uncached) {
-		int boost_flag = __boost_flag(dmabuf, false);
-		u64 start, end;
-
-		start = sched_clock();
-		get_boost_freq(dmabuf, boost_flag);
 		dma_map_sgtable(dma_heap_get_dev(heap), table, DMA_BIDIRECTIONAL, 0);
 		dma_unmap_sgtable(dma_heap_get_dev(heap), table, DMA_BIDIRECTIONAL, 0);
-		put_boost_freq(dmabuf, boost_flag);
-		end = sched_clock();
-		run_timeout_count(start, end, boost_flag);
 	}
+
 	atomic64_add(dmabuf->size, &dma_heap_normal_total);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_AIZEROCOPY)
-	/* hook4: set dbuf_cache->dbuf */
-	dbuf_cache_init_dbuf(dbuf_cache, dmabuf);
-#endif
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL)
-	mm_trace_fmt_end();
-#endif /* CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL */
+
 	tm2 = sched_clock();
 	dmabuf_log_allocate(heap, tm2 - tm1, i, len);
 	if (tm2 - tm1 > RUN_TIMEOUT_TO_LOG)
@@ -1843,10 +1379,6 @@ add_page:
 	return dmabuf;
 
 free_pages:
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_AIZEROCOPY)
-	dbuf_cache_terminate_io_worker(dbuf_cache);
-	err_free_pages = true;
-#endif
 	for_each_sgtable_sg(table, sg, i) {
 		struct page *p = sg_page(sg);
 
@@ -1854,19 +1386,12 @@ free_pages:
 	}
 	sg_free_table(table);
 free_buffer:
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_AIZEROCOPY)
-	if (!err_free_pages)
-		dbuf_cache_terminate_io_worker(dbuf_cache);
-#endif
 	list_for_each_entry_safe(page, tmp_page, &pages, lru)
 		__free_pages(page, compound_order(page));
 	kfree(buffer);
 
 	pr_info("%s, %d return error:%d\n", __func__, __LINE__, ret);
 	DMABUF_TRACE_END();
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL)
-	mm_trace_fmt_end();
-#endif /*CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL */
 	return ERR_PTR(ret);
 }
 
@@ -2061,19 +1586,6 @@ static int mtk_heap_create(const char *name, const struct dma_heap_ops *ops,
 	if (ret)
 		goto out_free_pools;
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL)
-	if (strcmp(name, "mtk_mm") == 0) {
-		mtk_mm_heap = heap;
-		mtk_mm_boost_pool = boost_pool_create(exp_info.name,
-						      smmu_v3_enable);
-
-		if (!mtk_mm_boost_pool)
-			pr_warn("mtk_mm_boost_pool create failed\n");
-		else
-			pr_info("mtk_mm_boost_pool create success\n");
-	}
-#endif /* CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL */
-
 	pr_info("%s add heap[%s] success\n", __func__, exp_info.name);
 	/* Add uncached heap if need */
 	if (uncached) {
@@ -2107,24 +1619,8 @@ static int mtk_heap_create(const char *name, const struct dma_heap_ops *ops,
 		if (ret)
 			goto out_free_heap_2;
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL)
-		if (strcmp(name_uncache, "mtk_mm-uncached") == 0) {
-			mtk_mm_uncached_heap = heap;
-			mtk_mm_uncached_boost_pool = boost_pool_create(exp_info.name,
-								       smmu_v3_enable);
-
-			if (!mtk_mm_uncached_boost_pool)
-				pr_warn("mtk_mm_uncached_boost_pool create failed\n");
-			else
-				pr_info("mtk_mm_uncached_boost_pool create success\n");
-		}
-#endif /* CONFIG_OPLUS_FEATURE_MM_BOOSTPOOL */
 		pr_info("%s add heap[%s] success\n", __func__, exp_info.name);
 	}
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_OSVELTE)
-	register_mtrack_debugger(MTRACK_DMABUF, &mtk_dmabuf_debugger);
-#endif /* CONFIG_OPLUS_FEATURE_MM_OSVELTE */
 
 	return 0;
 
@@ -2450,7 +1946,6 @@ struct dma_buf_attachment *dma_buf_attach_ssid(struct dma_buf *dmabuf,
 }
 EXPORT_SYMBOL_GPL(dma_buf_attach_ssid);
 
-MODULE_SOFTDEP("pre: oplus_bsp_aizerofs");
 module_init(mtk_system_heap_create);
 module_exit(mtk_system_heap_exit);
 MODULE_LICENSE("GPL");

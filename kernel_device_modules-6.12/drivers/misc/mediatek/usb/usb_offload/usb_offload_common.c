@@ -79,7 +79,6 @@ static void check_valid_device(struct usb_device *rhdev,
 #define DRV_STAGE_FILE_OPS   (1U << 1)
 #define DRV_STAGE_ALSA_OPS   (1U << 2)
 #define DRV_STAGE_XHCI_TRACE (1U << 3)
-#define DRV_STAGE_ADSP_STOP  (1U << 4)
 
 #define WAIT_IDLE_TIMEOUT_NS 1000000000 /* 1 sec */
 static int stage_occupy(unsigned long stage);
@@ -127,7 +126,6 @@ static int xhci_mtk_ring_expansion(struct xhci_hcd *xhci,
 	struct xhci_ring *ring, dma_addr_t phys, void *vir);
 
 /* usb offload device helper */
-static void usb_offload_self_recycle(void);
 static void usb_offload_start_offloading(struct usb_audio_dev *dev);
 static void usb_offload_end_offloading(struct usb_audio_dev *dev);
 
@@ -201,8 +199,6 @@ static void adsp_ee_recovery(void)
 static int usb_offload_event_receive(struct notifier_block *this, unsigned long event,
 			    void *ptr)
 {
-	USB_OFFLOAD_INFO("++\n");
-
 	switch (event) {
 	case ADSP_EVENT_STOP:
 		USB_OFFLOAD_INFO("<ADSP STOP(%ld)>\n", event);
@@ -217,19 +213,10 @@ static int usb_offload_event_receive(struct notifier_block *this, unsigned long 
 		goto error;
 	}
 
-	if (!uodev->adsp_ready && uodev->total_connected > 0) {
-		/* disable xHCI interrupter */
-		adsp_ee_recovery();
-
-		if (stage_occupy(DRV_STAGE_ADSP_STOP) < 0)
-			goto error;
-
-		usb_offload_self_recycle();
-		stage_vacate(DRV_STAGE_ADSP_STOP);
-	}
-error:
 	usb_offload_status();
-	USB_OFFLOAD_INFO("--\n");
+	if (!uodev->adsp_ready && uodev->total_connected > 0)
+		adsp_ee_recovery();
+error:
 	return 0;
 }
 
@@ -301,19 +288,6 @@ static struct snd_usb_substream *find_snd_usb_substream(unsigned int card_num,
 	}
 done:
 	return subs;
-}
-
-struct usb_audio_dev *usb_offload_get_uadev(unsigned int slot_id)
-{
-	struct usb_audio_dev *dev;
-	int i;
-
-	for (i = 0; i < SNDRV_CARDS; i++) {
-		dev = &uadev[i];
-		if (dev->is_valid && slot_id == dev->slot_id)
-			return dev;
-	}
-	return NULL;
 }
 
 static void sound_usb_connect(struct snd_usb_audio *chip)
@@ -403,7 +377,6 @@ static void sound_usb_disconnect(struct snd_usb_audio *chip)
 	}
 
 	uaudio_dev_shutdown(dev);
-	dev->chip = NULL;
 	atomic_set(&uadev[card_num].connected, 0);
 	uodev->total_connected--;
 err:
@@ -802,6 +775,7 @@ static void uaudio_dev_shutdown(struct usb_audio_dev *dev)
 
 skip_disable:
 	uaudio_dev_cleanup(dev);
+	dev->chip = NULL;
 }
 
 static struct usb_audio_dev *uaudio_dev_match(struct xhci_virt_device *vdev)
@@ -818,26 +792,6 @@ static struct usb_audio_dev *uaudio_dev_match(struct xhci_virt_device *vdev)
 
 done:
 	return NULL;
-}
-
-static void usb_offload_self_recycle(void)
-{
-	struct usb_audio_dev *dev;
-	int i;
-
-	/* shutdown every active audio devices */
-	for (i = 0; i < SNDRV_CARDS; i++) {
-		dev = &uadev[i];
-		if (!dev->chip)
-			continue;
-		USB_OFFLOAD_INFO("self-cleanup card%d on slot%d\n",
-			dev->card_num, dev->slot_id);
-		uaudio_dev_shutdown(dev);
-	}
-
-	/* recycle resource if we inited dsp before */
-	if (uodev->adsp_inited && send_deinit_adsp() < 0)
-		USB_OFFLOAD_ERR("self-deinit failed\n,");
 }
 
 static void usb_offload_start_offloading(struct usb_audio_dev *dev)
@@ -2698,7 +2652,7 @@ busy:
 
 static int usb_offload_release(struct inode *ip, struct file *fp)
 {
-	int ret = 0;
+	int ret = 0, idx;
 
 	USB_OFFLOAD_INFO("++\n");
 	if (stage_occupy(DRV_STAGE_FILE_OPS) < 0) {
@@ -2706,8 +2660,16 @@ static int usb_offload_release(struct inode *ip, struct file *fp)
 		goto busy;
 	}
 
-	usb_offload_self_recycle();
+	for (idx = 0; idx < SNDRV_CARDS; idx++) {
+		if (!uadev[idx].chip)
+			continue;
+
+		/* just cleanup audio device, do not shut it down */
+		uaudio_dev_cleanup(&uadev[idx]);
+	}
+
 	usb_offload_status();
+
 	stage_vacate(DRV_STAGE_FILE_OPS);
 busy:
 	USB_OFFLOAD_INFO("--\n");
@@ -2951,26 +2913,12 @@ static int usb_offload_probe(struct platform_device *pdev)
 	uodev->adv_lowpwr = uodev->policy.adv_lowpwr;
 
 	uodev->is_streaming = false;
-	uodev->tx_streaming = false;
-	uodev->rx_streaming = false;
 	uodev->adsp_inited = false;
 	uodev->adsp_ready = true; /* default ready ?? */
 	uodev->speed = USB_SPEED_UNKNOWN;
 	uodev->xhci = NULL;
 	uodev->total_connected = 0;
 	uodev->last_card_num = -EINVAL;
-
-	uob_assign_array(UO_STRUCT_DCBAA, NULL, BUF_DCBAA_SIZE);
-	uob_assign_array(UO_STRUCT_CTX, NULL, BUF_CTX_SIZE);
-	uob_assign_array(UO_STRUCT_ERST, NULL, BUF_ERST_SIZE);
-	uob_assign_array(UO_STRUCT_EVRING, NULL, BUF_EV_RING_SIZE);
-	uob_assign_array(UO_STRUCT_TRRING, NULL, BUF_TR_RING_SIZE);
-	uob_assign_array(UO_STRUCT_URB, NULL, BUF_URB_SIZE);
-
-	uob_init(UO_STRUCT_ERST);
-	uob_init(UO_STRUCT_EVRING);
-	uob_init(UO_STRUCT_TRRING);
-	uob_init(UO_STRUCT_URB);
 
 	node_xhci_host = of_parse_phandle(uodev->dev->of_node, "xhci-host", 0);
 	if (node_xhci_host) {
@@ -3060,10 +3008,21 @@ static int usb_offload_probe(struct platform_device *pdev)
 	WARN_ON(register_trace_xhci_alloc_virt_device(monitor_alloc_virt_device, NULL));
 	WARN_ON(register_trace_xhci_free_virt_device(monitor_free_virt_device, NULL));
 
+	uob_assign_array(UO_STRUCT_DCBAA, NULL, BUF_DCBAA_SIZE);
+	uob_assign_array(UO_STRUCT_CTX, NULL, BUF_CTX_SIZE);
+	uob_assign_array(UO_STRUCT_ERST, NULL, BUF_ERST_SIZE);
+	uob_assign_array(UO_STRUCT_EVRING, NULL, BUF_EV_RING_SIZE);
+	uob_assign_array(UO_STRUCT_TRRING, NULL, BUF_TR_RING_SIZE);
+	uob_assign_array(UO_STRUCT_URB, NULL, BUF_URB_SIZE);
+
+	uob_init(UO_STRUCT_ERST);
+	uob_init(UO_STRUCT_EVRING);
+	uob_init(UO_STRUCT_TRRING);
+	uob_init(UO_STRUCT_URB);
+
 	usb_offload_hid_probe();
 	usb_offload_debug_init(uodev);
 
-	usb_offload_status();
 	USB_OFFLOAD_INFO("Probe Success!!!");
 	return ret;
 GET_DSP_TYPE_FAIL:
@@ -3074,10 +3033,6 @@ INIT_OFFLOAD_NOTIFY_FAIL:
 INIT_MISC_DEV_FAIL:
 INIT_SHAREMEM_FAIL:
 	of_node_put(node_xhci_host);
-	uob_deinit(UO_STRUCT_ERST);
-	uob_deinit(UO_STRUCT_EVRING);
-	uob_deinit(UO_STRUCT_TRRING);
-	uob_deinit(UO_STRUCT_URB);
 	USB_OFFLOAD_ERR("Probe Fail!!!");
 	return ret;
 }

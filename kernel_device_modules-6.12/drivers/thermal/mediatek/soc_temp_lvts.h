@@ -252,7 +252,6 @@ struct lvts_data {
 	int  gpu_power_ctrl_id;
 	bool mcu_sensor_id_remap;
 	bool ap_domain_no_irq;
-	bool init_flow_in_kernel;
 };
 
 struct soc_temp_tz {

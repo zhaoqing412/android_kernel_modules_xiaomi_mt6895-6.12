@@ -44,9 +44,6 @@
 #include "../mml/mtk-mml.h"
 #include <soc/mediatek/smi.h>
 #include "mtk_drm_fb.h"
-#ifdef OPLUS_TRACKPOINT_REPORT
-#include "oplus_display_trackpoint_report.h"
-#endif
 
 int mtk_dprec_mmp_dump_ovl_layer(struct mtk_plane_state *plane_state);
 
@@ -6120,9 +6117,6 @@ static int mtk_disp_ovl_probe(struct platform_device *pdev)
 		DDPAEE("%s:%d, failed to request irq:%d ret:%d comp_id:%d\n",
 				__func__, __LINE__,
 				irq, ret, comp_id);
-#ifdef OPLUS_TRACKPOINT_REPORT
-		display_exception_trackpoint_report("DisplayDriverID@@501$$ ovl_probe error irq:%d ret:%d comp_id:%d", irq, ret, comp_id);
-#endif
 		return ret;
 	}
 

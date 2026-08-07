@@ -15,7 +15,6 @@
 #include "mdw_cmn.h"
 #include "mdw_mem.h"
 #include "mdw_trace.h"
-#include "rv/mdw_rv_events.h"
 
 struct mdw_mem_dma_attachment {
 	struct sg_table *sgt;
@@ -304,9 +303,6 @@ static void mdw_dmabuf_release(struct dma_buf *dbuf)
 
 	mdw_mem_dma_show(mdbuf);
 
-	//add by zhenghaiqing for dma debug
-	trace_mdw_dma_free(dbuf->size, dbuf->__kabi_reserved2, "APUSYS");
-
 	mdw_mem_dma_free_sgt(&mdbuf->sgt);
 	vunmap(mdbuf->vaddr);
 	vfree(mdbuf->buf);
@@ -437,14 +433,6 @@ int mdw_mem_dma_alloc(struct mdw_mem *mem)
 		ret = -ENOMEM;
 		goto free_sgt;
 	}
-
-	//add by zhenghaiqing for dma debug
-	/*
-	 * use __kabi_reserved2 as inode no. but it has potential risk if
-	 * google uses it.
-	 */
-	mem->dbuf->__kabi_reserved2 = file_inode(mem->dbuf->file)->i_ino;
-	trace_mdw_dma_alloc(mdbuf->dma_size, mem->dbuf->__kabi_reserved2, "APUSYS");
 
 	mdbuf->mmem = mem;
 	mdbuf->mem_dev = dev;

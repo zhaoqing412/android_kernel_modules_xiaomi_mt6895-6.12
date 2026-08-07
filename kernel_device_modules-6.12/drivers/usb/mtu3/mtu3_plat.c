@@ -371,54 +371,6 @@ void ssusb_set_ldm_resp_delay(struct ssusb_mtk *ssusb)
 	}
 }
 
-static int ssusb_repeater_verison_parse(struct ssusb_mtk *ssusb,
-				struct device_node *dn)
-{
-	struct of_phandle_args args;
-	struct platform_device *pdev;
-	struct regmap *regmap;
-	u32 reg, mask;
-	int ret;
-
-	/* eusb2 is optional */
-	if (!of_property_read_bool(dn, "mediatek,eusb2-repeater"))
-		return 0;
-
-	ret = of_parse_phandle_with_fixed_args(dn,
-		"mediatek,eusb2-repeater", 3, 0, &args);
-	if (ret) {
-		dev_info(ssusb->dev, "fail to parse mediatek,eusb2-repeater\n");
-		return ret;
-	}
-
-	pdev = of_find_device_by_node(args.np);
-	of_node_put(args.np);
-	if (!pdev) {
-		dev_info(ssusb->dev, "fail to find repeater device\n");
-		return -ENODEV;
-	}
-
-	regmap = dev_get_regmap(pdev->dev.parent, NULL);
-	if (!regmap) {
-		dev_info(ssusb->dev, "fail to get regmap\n");
-		return -ENODEV;
-	}
-
-	reg = args.args[0];
-	mask = args.args[1];
-	ssusb->eusb2_id = args.args[2];
-
-	if (ssusb->eusb2_id == 6379) {
-		regmap_read(regmap, reg, &ssusb->eusb2_rev);
-		ssusb->eusb2_rev &= mask;
-	}
-
-	dev_info(ssusb->dev, "reg:0x%x, mask:0x%x, id:%d, rev:%d\n",
-		reg, mask, ssusb->eusb2_id, ssusb->eusb2_rev);
-
-	return 0;
-}
-
 void ssusb_vsvoter_set(struct ssusb_mtk *ssusb)
 {
 	u32 reg, msk, val;
@@ -1498,10 +1450,6 @@ get_phy:
 	if (ret)
 		dev_info(dev, "failed to parse usb ao cfg\n");
 
-	ret = ssusb_repeater_verison_parse(ssusb, node);
-	if (ret)
-		dev_info(dev, "failed to parse eusb2 version\n");
-
 	ssusb->wakeup_irq = platform_get_irq_byname_optional(pdev, "wakeup");
 	if (ssusb->wakeup_irq == -EPROBE_DEFER)
 		return ssusb->wakeup_irq;
@@ -1878,8 +1826,6 @@ static int mtu3_suspend_common(struct device *dev, pm_message_t msg)
 
 	ssusb->is_suspended = true;
 
-	ssusb->current_speed = ssusb_get_host_speed(ssusb);
-
 	if (mtu3_readl(ssusb->mac_base, U3D_USB20_OPSTATE) == OPM_A_WRCON)
 		ssusb->host_dev = false;
 	else
@@ -1965,8 +1911,6 @@ sleep_err:
 	ssusb_clear_host_low_speed_bypass(ssusb);
 	resume_ip_and_ports(ssusb, msg);
 	if (ssusb->is_host) {
-		/* hold wakelock 2000 ms to avoid suspend too early */
-		pm_wakeup_event(ssusb->dev, 2000);
 		ssusb_set_mode(&ssusb->otg_switch, USB_ROLE_HOST, true);
 	}
 err:
@@ -2027,18 +1971,6 @@ static int mtu3_resume_common(struct device *dev, pm_message_t msg)
 		if (of_device_is_compatible(ssusb->dev->of_node, "mediatek,mt6991-mtu3")) {
 			ssusb_host_disable(ssusb);
 			ssusb_host_enable(ssusb);
-		}
-		if (of_device_is_compatible(ssusb->dev->of_node, "mediatek,mt6993-mtu3")) {
-			if (ssusb->current_speed == USB_SPEED_UNKNOWN) {
-				/* re-init USB Host when plug-on OTG Gender only */
-				/* hold wakelock 2000 ms to avoid suspend too early */
-				pm_wakeup_event(ssusb->dev, 2000);
-				ssusb_set_mode(&ssusb->otg_switch, USB_ROLE_HOST, true);
-			} else {
-				/* dev_info(ssusb->dev, "HOST DISABLE/ENABLE\n"); */
-				ssusb_host_disable(ssusb);
-				ssusb_host_enable(ssusb);
-			}
 		}
 	}
 

@@ -169,6 +169,7 @@ static unsigned int scp_timeout_times;
 struct scp_resource_dump_info_st scp_resource_dump_info;
 struct scp_clk_fmeter_dump_info_st scp_clk_fmeter_dump_info;
 
+static DEFINE_MUTEX(scp_A_notify_mutex);
 static DEFINE_MUTEX(scp_feature_mutex);
 static DEFINE_MUTEX(scp_register_sensor_mutex);
 
@@ -212,8 +213,8 @@ static unsigned int scp_ipi_dump_timout = 100;
 void dump_u1u2_clock(void)
 {
 	if(scp_clk_fmeter_dump_info.en) {
-		pr_notice("[scp] u1 clock %d\n", mt_get_fmeter_freq(scp_clk_fmeter_dump_info.fm_ulposc_ck, VLPCK));
-		pr_notice("[scp] u2 clock %d\n", mt_get_fmeter_freq(scp_clk_fmeter_dump_info.fm_ulposc2_ck, VLPCK));
+		pr_notice("[scp] u2 clock %d\n", mt_get_fmeter_freq(scp_clk_fmeter_dump_info.fm_ulposc_ck, VLPCK));
+		pr_notice("[scp] u1 clock %d\n", mt_get_fmeter_freq(scp_clk_fmeter_dump_info.fm_ulposc2_ck, VLPCK));
 	}
 }
 
@@ -564,9 +565,61 @@ int scp_release_semaphore_3way(int flag)
 }
 EXPORT_SYMBOL_GPL(scp_release_semaphore_3way);
 
-static DEFINE_MUTEX(scp_A_notify_mutex);
+
 static BLOCKING_NOTIFIER_HEAD(scp_A_notifier_list);
-static enum SCP_NOTIFY_EVENT scp_A_notify_done = SCP_INIT_STA;
+static struct notifier_block register_notify_pending;
+static struct notifier_block *register_curr = &register_notify_pending;
+static struct notifier_block unregister_notify_pending;
+static struct notifier_block *unregister_curr = &unregister_notify_pending;
+static DEFINE_SPINLOCK(notify_register_spinlock);
+static DEFINE_SPINLOCK(notify_unregister_spinlock);
+static atomic_t scp_A_notifier_status = ATOMIC_INIT(SCP_EVENT_STOP);
+
+/*
+ * scp_A_register_notify_pending && scp_A_unregister_notify_pending
+ * is a mechanism to avoid user register and block when notifying chain
+ * is called, and those function only call after the notifiy done,
+ * should not call when notifying, or it will cause deadlock.
+ */
+static void scp_A_register_notify_pending(void)
+{
+	struct notifier_block *node = &register_notify_pending;
+	struct notifier_block *nb = NULL;
+
+	spin_lock(&notify_register_spinlock);
+	if (unlikely(register_curr != &register_notify_pending)) {
+		while (node->next) {
+			nb = node->next;
+			node->next = node->next->next;
+			spin_unlock(&notify_register_spinlock);
+			/* should not call blocking API in atomic context */
+			scp_A_register_notify(nb);
+			spin_lock(&notify_register_spinlock);
+		}
+		register_curr = &register_notify_pending;
+	}
+	spin_unlock(&notify_register_spinlock);
+}
+
+static void scp_A_unregister_notify_pending(void)
+{
+	struct notifier_block *node = &unregister_notify_pending;
+	struct notifier_block *nb = NULL;
+
+	spin_lock(&notify_unregister_spinlock);
+	if (unlikely(unregister_curr != &unregister_notify_pending)) {
+		while (node->next) {
+			nb = node->next;
+			node->next = node->next->next;
+			spin_unlock(&notify_unregister_spinlock);
+			/* should not call blocking API in atomic context */
+			scp_A_unregister_notify(nb);
+			spin_lock(&notify_unregister_spinlock);
+		}
+		unregister_curr = &unregister_notify_pending;
+	}
+	spin_unlock(&notify_unregister_spinlock);
+}
 /*
  * register apps notification
  * NOTE: this function may be blocked
@@ -575,20 +628,39 @@ static enum SCP_NOTIFY_EVENT scp_A_notify_done = SCP_INIT_STA;
  */
 void scp_A_register_notify(struct notifier_block *nb)
 {
-	pr_notice("[SCP] scp_A_register_notify start\n");
-	mutex_lock(&scp_A_notify_mutex);
-	blocking_notifier_chain_register(&scp_A_notifier_list, nb);
-
-	pr_notice("[SCP] register scp A notify callback..\n");
-
-	if (scp_A_notify_done == SCP_EVENT_READY)
+	pr_debug("%s start\n", __func__);
+	spin_lock(&notify_register_spinlock);
+	switch (atomic_read(&scp_A_notifier_status)) {
+	/*
+	 * if user register nb after SCP ready event, should notify
+	 * user the ready event, too.
+	 */
+	case SCP_EVENT_READY:
+		spin_unlock(&notify_register_spinlock);
 		nb->notifier_call(nb, SCP_EVENT_READY, NULL);
-
-	mutex_unlock(&scp_A_notify_mutex);
-	pr_notice("[SCP] scp_A_register_notify end\n");
-
+		pr_debug("%s callback finished\n", __func__);
+		blocking_notifier_chain_register(&scp_A_notifier_list, nb);
+		pr_debug("%s register finished\n", __func__);
+		break;
+	case SCP_EVENT_STOP:
+		spin_unlock(&notify_register_spinlock);
+		blocking_notifier_chain_register(&scp_A_notifier_list, nb);
+		pr_debug("%s register finished\n", __func__);
+		break;
+	case SCP_EVENT_NOTIFYING:
+		register_curr->next = nb;
+		register_curr = register_curr->next;
+		pr_debug("%s pending finished\n", __func__);
+		spin_unlock(&notify_register_spinlock);
+		break;
+	default:
+		spin_unlock(&notify_register_spinlock);
+		break;
+	}
+	pr_debug("%s end\n", __func__);
 }
 EXPORT_SYMBOL_GPL(scp_A_register_notify);
+
 
 /*
  * unregister apps notification
@@ -598,13 +670,22 @@ EXPORT_SYMBOL_GPL(scp_A_register_notify);
  */
 void scp_A_unregister_notify(struct notifier_block *nb)
 {
-
-	pr_notice("[SCP] scp_A_unregister_notify start\n");
-	mutex_lock(&scp_A_notify_mutex);
-	blocking_notifier_chain_unregister(&scp_A_notifier_list, nb);
-	mutex_unlock(&scp_A_notify_mutex);
-	pr_notice("[SCP] scp_A_unregister_notify end\n");
-
+	spin_lock(&notify_unregister_spinlock);
+	switch (atomic_read(&scp_A_notifier_status)) {
+	case SCP_EVENT_STOP:
+	case SCP_EVENT_READY:
+		spin_unlock(&notify_unregister_spinlock);
+		blocking_notifier_chain_unregister(&scp_A_notifier_list, nb);
+		break;
+	case SCP_EVENT_NOTIFYING:
+		unregister_curr->next = nb;
+		unregister_curr = unregister_curr->next;
+		spin_unlock(&notify_unregister_spinlock);
+		break;
+	default:
+		spin_unlock(&notify_unregister_spinlock);
+		break;
+	}
 }
 EXPORT_SYMBOL_GPL(scp_A_unregister_notify);
 
@@ -1224,12 +1305,6 @@ static void scp_write_reset_register_with_retry(int cpu_id)
 	do {
 		switch (cpu_id) {
 		case 0:
-#ifdef OPLUS_FEATURE_SENSOR
-			if (IS_ERR_OR_NULL((void const *) scpreg.cfg_core0)) {
-				pr_notice("[SCP] %s: scpreg.cfg_core0 error\n", __func__);
-				return;
-			}
-#endif /* OPLUS_FEATURE_SENSOR */
 			writel(V_INSTANT_WDT, R_CORE0_WDT_CFG);
 			wdt_cur_val = readl(R_CORE0_WDT_CUR_VAL);
 			break;
@@ -1249,20 +1324,11 @@ static void scp_write_reset_register_with_retry(int cpu_id)
 
 void scp_wdt_reset(int cpu_id)
 {
-	int ret;
-	struct scpctl_cmd_s cmd;
-	char *prompt = "[SCPCTL]:";
-
-	cmd.type = SCPCTL_DEBUG_LOGIN;
-	cmd.op = SCP_DEBUG_MAGIC_PATTERN;
-	ret = mtk_ipi_send(&scp_ipidev, IPI_OUT_SCPCTL_1, 0, &cmd,
-			PIN_OUT_SIZE_SCPCTL_1, 0);
-	if (ret != IPI_ACTION_DONE)
-		pr_notice("%s failed, %d\n", prompt, ret);
-	mdelay(10);
+	int scp_awake_flag = 0;
 
 	/* Need to awawke scp avoid peri off */
 	if (scp_awake_lock((void *)SCP_A_ID) == -1) {
+		scp_awake_flag = -1;
 		pr_notice("[SCP] %s: awake scp fail\n", __func__);
 	}
 
@@ -1287,6 +1353,11 @@ void scp_wdt_reset(int cpu_id)
 	scp_write_reset_register_with_retry(cpu_id);
 
 	}
+
+	if(scp_awake_flag == 0) {
+		if (scp_awake_unlock((void *)SCP_A_ID) == -1)
+			pr_notice("[SCP] %s: awake unlock fail\n", __func__);
+	}
 }
 EXPORT_SYMBOL(scp_wdt_reset);
 
@@ -1299,10 +1370,20 @@ static ssize_t wdt_reset_store(struct device *dev
 		, struct device_attribute *attr, const char *buf, size_t count)
 {
 	unsigned int value = 0;
+	int ret;
+	struct scpctl_cmd_s cmd;
+	char *prompt = "[SCPCTL]:";
 
 	if (!buf || count == 0)
 		return count;
 	pr_notice("[SCP] %s: %8s\n", __func__, buf);
+	cmd.type = SCPCTL_DEBUG_LOGIN;
+	cmd.op = SCP_DEBUG_MAGIC_PATTERN;
+	ret = mtk_ipi_send(&scp_ipidev, IPI_OUT_SCPCTL_1, 0, &cmd,
+			PIN_OUT_SIZE_SCPCTL_1, 0);
+	if (ret != IPI_ACTION_DONE)
+		pr_notice("%s failed, %d\n", prompt, ret);
+	mdelay(10);
 
 	if (kstrtouint(buf, 10, &value) == 0) {
 		if (value == 666)
@@ -1895,13 +1976,17 @@ EXPORT_SYMBOL_GPL(get_scp_dram_region_manage);
 void scp_extern_notify(enum SCP_NOTIFY_EVENT notify_status)
 {
 	/* avoid re-entry */
-	pr_notice("[SCP] scp_extern_notify start, notify_status = %d\n", notify_status);
 	mutex_lock(&scp_A_notify_mutex);
+	atomic_set(&scp_A_notifier_status, SCP_EVENT_NOTIFYING);
 	blocking_notifier_call_chain(&scp_A_notifier_list, notify_status, NULL);
-	scp_A_notify_done = notify_status;
+	atomic_set(&scp_A_notifier_status, notify_status);
+	/*
+	 * if there is some user (un)register when notifier is notifying,
+	 * should (un)register them after the notify action is finish.
+	 */
+	scp_A_register_notify_pending();
+	scp_A_unregister_notify_pending();
 	mutex_unlock(&scp_A_notify_mutex);
-	pr_notice("[SCP] scp_extern_notify end\n");
-
 }
 
 /*
@@ -2029,15 +2114,11 @@ void scp_reset_wait_timeout(void)
 			CORE_RDY_TO_REBOOT;
 	pr_notice("[SCP] %s() SCP GPR in wfi c0:%lx c1:%lx, sap:%d\n",
 		__func__, c0, c1, is_sap_ready_to_reboot());
-	pr_notice("[SCP] %s() SCP core status c0:%x c1:%x sap:%x\n", __func__, core0_halt, core1_halt, sap_halt);
-
 	if (timeout == 0) {
 		retry_count_before_KE++;
 		pr_notice("[SCP] reset timeout... %d\n",retry_count_before_KE);
-		if ((scpreg.recovery_wfi_detect == 1) && (retry_count_before_KE >= MAX_RETRY_BEFORE_KE))
+		if (scpreg.recovery_wfi_detect && (retry_count_before_KE >= MAX_RETRY_BEFORE_KE))
 			BUG_ON(1);
-		else if (scpreg.recovery_wfi_detect == 2)
-			pr_notice("[SCP] trigger force reset.\n");
 		else
 			msleep(10000); /* reserve time to let aee finish its job */
 	}
@@ -2820,9 +2901,9 @@ static int scp_device_probe(struct platform_device *pdev)
 	const char *scp_scpsys_regmap_en = NULL;
 	const char *scp_mbrain = NULL;
 	const char *scp_thermal_wq = NULL;
+	const char *scp_recovery_wfi_detect = NULL;
 	const char *scp_ipi_timeout_bugon = NULL;
 	const char *scp_task_monitor_dbg = NULL;
-	const char *scp_dts_str = NULL;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	scpreg.sram = devm_ioremap_resource(dev, res);
@@ -3046,11 +3127,13 @@ static int scp_device_probe(struct platform_device *pdev)
 	}
 
 	/* scp recovery wfi detect */
-	ret = of_property_read_u32(pdev->dev.of_node, "scp-recovery-wfi-detect"
-								, &scpreg.recovery_wfi_detect);
-	if (ret) {
-			pr_notice("[SCP] scp_recovery_wfi_detect disabled\n");
-			scpreg.recovery_wfi_detect = 0;
+	scpreg.recovery_wfi_detect = 0;
+	if (!of_property_read_string(pdev->dev.of_node,
+				"scp-recovery-wfi-detect", &scp_recovery_wfi_detect)){
+		if (!strncmp(scp_recovery_wfi_detect, "enable", strlen("enable"))) {
+			pr_notice("[SCP] scp_recovery_wfi_detect enabled\n");
+			scpreg.recovery_wfi_detect = 1;
+		}
 	}
 
 	/* scp ipi timeout retry > N times bugon */
@@ -3070,8 +3153,6 @@ static int scp_device_probe(struct platform_device *pdev)
 		scp_awake_timeout = 100000;
 	}
 
-	pr_notice("[SCP] scp_awake_timeout = %d\n", scp_awake_timeout);
-
 	/* scp task monitor debug */
 	scpreg.task_monitor_dbg = 0;
 	if (!of_property_read_string(pdev->dev.of_node,
@@ -3082,22 +3163,7 @@ static int scp_device_probe(struct platform_device *pdev)
 		}
 	}
 
-	/* get bus tracker verion */
-	ret = of_property_read_u32(pdev->dev.of_node,
-					"scp-bus-tracker-ver",
-					&scpreg.tracker_version);
-	if(ret)
-		scpreg.tracker_version = 1;
-
-	pr_notice("scp bus tracker version:0x%x\n",scpreg.tracker_version);
-
-	if (!of_property_read_string(pdev->dev.of_node,
-				"scp-tracker-timeout-bugon", &scp_dts_str)){
-		if (!strncmp(scp_dts_str, "enable", strlen("enable"))) {
-			pr_notice("[SCP] scp_tracker_timeout_bugon enabled\n");
-			scpreg.traker_timeout_bugon = 1;
-		}
-	}
+	pr_notice("[SCP] scp_awake_timeout = %d\n", scp_awake_timeout);
 
 	scpreg.irq0 = platform_get_irq_byname(pdev, "ipc0");
 	if (scpreg.irq0 < 0)
@@ -3311,42 +3377,6 @@ static struct platform_driver mtk_scpsys_device = {
 	},
 };
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_FEEDBACK)
-/* user-space event notify */
-static int scp_user_event_notify(struct notifier_block *nb,
-				  unsigned long event, void *ptr)
-{
-	struct device *dev = scp_device.this_device;
-	int ret = 0;
-
-	pr_usrdebug("[SCP] %s: Enter scp db notifier\n", __func__);
-
-	if (!dev)
-		return NOTIFY_DONE;
-
-	switch (event) {
-	case SCP_EVENT_STOP:
-		ret = kobject_uevent(&dev->kobj, KOBJ_OFFLINE);
-		break;
-	case SCP_EVENT_READY:
-		ret = kobject_uevent(&dev->kobj, KOBJ_ONLINE);
-		break;
-	default:
-		pr_info("%s, ignore event %lu", __func__, event);
-		break;
-	}
-
-	if (ret)
-		pr_info("%s, uevent(%lu) fail, ret %d", __func__, event, ret);
-
-	return NOTIFY_OK;
-}
-
-struct notifier_block scp_uevent_notifier = {
-	.notifier_call = scp_user_event_notify,
-};
-#endif
-
 int notify_scp_semaphore_event(struct notifier_block *nb,
 			       unsigned long event, void *v)
 {
@@ -3515,11 +3545,6 @@ static int __init scp_init(void)
 
 	if (scp_dvfs_feature_enable())
 		scp_init_vcore_request();
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_FEEDBACK)
-	pr_notice("[SCP] %s: scp db uevent notifier\n", __func__);
-	scp_A_register_notify(&scp_uevent_notifier);
-#endif
 
 	register_3way_semaphore_notifier(&scp_semaphore_init_notifier);
 

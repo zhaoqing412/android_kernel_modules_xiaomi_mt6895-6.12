@@ -213,16 +213,6 @@ config DEVICE_MODULES_REGULATOR_MTK_DVFSRC
 	  of Mediatek. It allows for voting on regulator state
 	  between multiple users.
 
-config REGULATOR_WL28681C
-        tristate "Fairchild WL28681C Regulator"
-        depends on I2C && (OF || COMPILE_TEST)
-        select REGMAP_I2C
-        help
-          This driver supports Fairchild (ON Semiconductor) WL2868C
-          regulator. The regulator is a programmable power management IC
-          (PMIC), it is controlled by I2C and provides one BUCK, one BOOST
-          and four LDO outputs
-
 config REGULATOR_MTK_VMM_ISP71
 	tristate "MediaTek ISPDVFS regulator driver"
 	depends on MTK_CCU_RPROC

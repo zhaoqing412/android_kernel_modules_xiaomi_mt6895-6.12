@@ -59,12 +59,7 @@ define_mgk_ddk_ko(
         "//kernel_device_modules-{}/sound/soc/codecs:snd-soc-mt6681".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/sched:scheduler".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/task_turbo:vip_engine".format(kernel_version),
-        "//kernel_device_modules-{}/sound/soc/codecs/multimedia/feedback/bazel:oplus_mm_kevent_fb".format(kernel_version),
     ],
-    local_defines = [
-        "OPLUS_ARCH_EXTENDS",
-        "CONFIG_OPLUS_FEATURE_MM_FEEDBACK",
-    ]
 )
 
 define_mgk_ddk_ko(
@@ -83,9 +78,6 @@ define_mgk_ddk_ko(
         "//kernel_device_modules-{}/sound/soc/mediatek/common:ddk_public_headers".format(kernel_version),
         "//kernel_device_modules-{}/sound/soc/codecs:ddk_public_headers".format(kernel_version),
     ],
-    local_defines = [
-        "CONFIG_OPLUS_FEATURE_MM_FEEDBACK",
-    ],
     ko_deps = [
         "//kernel_device_modules-{}/drivers/misc/mediatek/aee/aed:aee_aed".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/audio_ipi:audio_ipi".format(kernel_version),
@@ -97,8 +89,5 @@ define_mgk_ddk_ko(
         "//kernel_device_modules-{}/sound/soc/codecs:snd-soc-mt6681".format(kernel_version),
         "//kernel_device_modules-{}/sound/soc/codecs:mt6681-accdet".format(kernel_version),
         "//kernel_device_modules-{}/drivers/mfd:mt6681-core".format(kernel_version),
-        "//kernel_device_modules-{}/sound/soc/codecs/audio/bazel:snd-audio-extend".format(kernel_version),
-        "//kernel_device_modules-{}/sound/soc/codecs/audio/bazel:snd-hal-feedback".format(kernel_version),
-        "//kernel_device_modules-{}/sound/soc/codecs/multimedia/feedback/bazel:oplus_mm_kevent_fb".format(kernel_version),
     ],
 )

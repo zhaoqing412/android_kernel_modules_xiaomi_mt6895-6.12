@@ -115,12 +115,6 @@ enum SCP_DUMP_TYPE {
 	DO_DUMP = 1,
 };
 
-/* bus tracker version */
-enum SCP_BUS_TRACKER_VER {
-	BUS_TRACKER_LEGACY = 1,
-	BUS_TRACKER_V2,
-};
-
 struct scp_bus_tracker_status {
 	u32 dbg_con;
 	u32 dbg_r[32];
@@ -158,8 +152,6 @@ struct scp_regs {
 	unsigned int ipi_timeout_bugon;
 	unsigned int task_monitor_dbg;
 	struct scp_bus_tracker_status tracker_status;
-	unsigned int tracker_version;
-	unsigned int traker_timeout_bugon;
 };
 
 /* scp work struct definition*/
@@ -198,16 +190,6 @@ struct scp_region_info_st {
 	uint32_t regdump_start;
 	uint32_t regdump_size;
 	uint32_t ap_params_start;
-// #ifdef OPLUS_SENSOR_FEATURE
-// due to scp_region_info restore overwriting sensor_data_addr
-	uint32_t scp_dram_region;
-// #endif /* OPLUS_SENSOR_FEATURE */
-/* #ifdef OPLUS_FEATURE_SENSOR_SMEM */
-	unsigned int nOperator;
-	unsigned int nPCBVersion;
-	unsigned int nProject;
-	unsigned int sensor_data_addr;
-/* #endif OPLUS_FEATURE_SENSOR_SMEM */
 };
 
 struct scp_reg_dump_st {
@@ -330,7 +312,6 @@ enum MTK_TINYSYS_SCP_KERNEL_OP {
 	MTK_TINYSYS_SCP_KERNEL_OP_WDT_CLEAR,
 	MTK_TINYSYS_SCP_KERNEL_OP_GPR_CLEAR,
 	MTK_TINYSYS_SCP_KERNEL_OP_GET_REGION_INFO,
-	MTK_TINYSYS_SCP_KERNEL_OP_SW_USAGE,
 	MTK_TINYSYS_SCP_KERNEL_OP_DRAM_REQ,
 	MTK_TINYSYS_SCP_KERNEL_OP_DRAM_REL,
 	MTK_TINYSYS_SCP_KERNEL_OP_NUM,

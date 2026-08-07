@@ -2138,31 +2138,6 @@ out:
 
 PROC_FOPS_RW(trace_slbc);
 
-#define ID_CPU 1
-#define ID_GPU 2
-static int slbc_dump_info;
-module_param(slbc_dump_info, int, 0644);
-
-static int slbc_status_proc_show(struct seq_file *m, void *v)
-{
-	int cpu_usage, gpu_usage, other_usage;
-	int cpu_hit_rate = 0, cpu_hit_bw = 0, gpu_hit_rate = 0, gpu_hit_bw = 0;
-
-	slbc_get_cache_usage(&cpu_usage, &gpu_usage, &other_usage);
-	if (slbc_dump_info) {
-		cpu_hit_rate = slbc_get_cache_hit_rate(ID_CPU);
-		cpu_hit_bw = slbc_get_cache_hit_bw(ID_CPU);
-		gpu_hit_rate = slbc_get_cache_hit_rate(ID_GPU);
-		gpu_hit_bw = slbc_get_cache_hit_bw(ID_GPU);
-	}
-	seq_printf(m, "%d,%d,%d,%d,%d,%d,%d\n",
-		cpu_usage, gpu_usage, other_usage,
-		cpu_hit_rate, cpu_hit_bw,
-		gpu_hit_rate, gpu_hit_bw);
-	return 0;
-}
-PROC_FOPS_RO(slbc_status);
-
 static int slbc_create_debug_fs(void)
 {
 	int i;
@@ -2177,7 +2152,6 @@ static int slbc_create_debug_fs(void)
 	const struct pentry entries[] = {
 		PROC_ENTRY(dbg_slbc),
 		PROC_ENTRY(trace_slbc),
-		PROC_ENTRY(slbc_status),
 	};
 
 	/* create /proc/slbc */

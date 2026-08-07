@@ -478,10 +478,7 @@ void mtk_vcodec_set_cpu_hint(struct mtk_vcodec_dev *dev, bool enable,
 
 #ifdef MTK_SCHED_SUPPORT
 extern void set_top_grp_aware(int val, int force_ctrl);
-extern void set_grp_dvfs_ctrl(int set);
-extern int get_grp_awr_min_opp_margin(int gear_id, int group_id);
 extern void set_grp_awr_min_opp_margin(int gear_id, int group_id, int val);
-extern int get_grp_awr_thr(int gear_id, int group_id);
 extern void set_grp_awr_thr(int gear_id, int group_id, int opp);
 #endif
 #ifdef MTK_VIP_SUPPORT

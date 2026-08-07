@@ -20,8 +20,6 @@ static inline void dpc_mmp_init(void) {}
 	mmprofile_log_ex(dpc_mmp_get_event()->event, flag, v1, v2)
 #define dpc_mmp2(event, flag, v1h, v1l, v2h, v2l) \
 	mmprofile_log_ex(dpc_mmp_get_event()->event, flag, v1h << 16 | v1l, v2h << 16 | v2l)
-#define dpc_mmp_raw(event, flag, v1, v2) \
-	mmprofile_log_ex(event, flag, v1, v2)
 
 struct dpc_mmp_events_t {
 	mmp_event folder;
@@ -29,16 +27,11 @@ struct dpc_mmp_events_t {
 	mmp_event idle_off;
 	mmp_event prete;
 	mmp_event mminfra;
-	mmp_event apsrc;
 	mmp_event vlp_vote;
 	mmp_event hwccf_vote;
 	mmp_event hwccf_gce_vote;
 	mmp_event mml_rrot_done;
 	mmp_event mml_sof;
-	mmp_event mtcmos_disp1_on;
-	mmp_event mtcmos_disp1_off;
-	mmp_event mtcmos_mml2_on;
-	mmp_event mtcmos_mml2_off;
 	mmp_event mtcmos_ovl0;
 	mmp_event mtcmos_disp1;
 	mmp_event mtcmos_mml1;
@@ -56,11 +49,6 @@ struct dpc_mmp_events_t {
 	mmp_event user_17;
 	mmp_event user_26;
 	mmp_event user_31;
-	mmp_event user_19;
-	mmp_event user_18;
-	mmp_event user_12;
-	mmp_event user_11;
-	mmp_event hide;
 };
 
 

@@ -39,7 +39,6 @@ define_mgk_ddk_ko(
                   "mbraink_sys_res_mbrain_plat.c",
                   "mbraink_sys_res.c",
                   "mbraink_sys_res_mbrain_dbg.c",
-                  "mbraink_v6993_systeminfo.c",
             ],
         },
     },

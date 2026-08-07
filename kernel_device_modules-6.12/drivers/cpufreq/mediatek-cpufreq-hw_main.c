@@ -22,9 +22,6 @@
 #include <linux/topology.h>
 
 #include "mediatek-cpufreq-hw_fdvfs.h"
-#if IS_ENABLED(CONFIG_OPLUS_OMRG)
-#include <linux/oplus_omrg.h>
-#endif
 
 #define LUT_MAX_ENTRIES			32U
 #define LUT_FREQ			GENMASK(11, 0)
@@ -236,10 +233,6 @@ static unsigned int mtk_cpufreq_hw_fast_switch(struct cpufreq_policy *policy,
 		printk_deferred("%s duration %llu, ts[0]=%llu, ts[1]=%llu\n",
 			__func__, ts[1] - ts[0], ts[0], ts[1]);
 	}
-#endif
-
-#if IS_ENABLED(CONFIG_OPLUS_OMRG)
-	omrg_cpufreq_check_limit(policy, policy->freq_table[index].frequency);
 #endif
 
 	return policy->freq_table[index].frequency;

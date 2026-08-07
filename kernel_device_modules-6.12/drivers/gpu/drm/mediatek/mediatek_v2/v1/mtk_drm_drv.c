@@ -112,18 +112,6 @@
 #include "mtk_disp_bdg.h"
 
 #include "mtk_disp_vdisp_ao.h"
-#ifdef OPLUS_FEATURE_DISPLAY
-#include "oplus_display_private_api.h"
-#include "oplus_display_panel.h"
-#include <mt-plat/mtk_boot_common.h>
-extern unsigned int silence_mode;
-extern int oplus_ofp_get_fp_type(void *buf);
-static unsigned int fp_type;
-static bool is_get_fp_type = false;
-#endif /* OPLUS_FEATURE_DISPLAY  */
-#ifdef OPLUS_FEATURE_DISPLAY_ADFR
-#include "oplus_adfr.h"
-#endif /* OPLUS_FEATURE_DISPLAY_ADFR  */
 #define CLKBUF_COMMON_H
 
 #define DRIVER_NAME "mediatek"
@@ -149,6 +137,9 @@ static spinlock_t top_clk_lock; /* power status protection*/
 
 struct device *g_dpc_dev; /* mminfra power control */
 
+unsigned int dsi_delay;
+EXPORT_SYMBOL(dsi_delay);
+
 unsigned long long mutex_time_start;
 unsigned long long mutex_time_end;
 long long mutex_time_period;
@@ -169,10 +160,6 @@ struct lcm_fps_ctx_t lcm_fps_ctx[MAX_CRTC];
 
 static int manual_shift;
 static bool no_shift;
-#ifdef OPLUS_FEATURE_DISPLAY
-int shut_down_flag = 0;
-EXPORT_SYMBOL(shut_down_flag);
-#endif
 
 static int mml_hw_caps;
 static int mml_mode_caps;
@@ -12106,6 +12093,13 @@ static int mtk_drm_probe(struct platform_device *pdev)
 	}
 
 	ret = of_property_read_u32(dev->of_node,
+				"dsi-delay", &dsi_delay);
+	if (ret){
+		dev_err(dev,"no dsi delay required %d\n",ret);
+		dsi_delay = 0;
+	}
+
+	ret = of_property_read_u32(dev->of_node,
 				"dispsys-num", &dispsys_num);
 	if (ret) {
 		dev_err(dev,
@@ -12538,19 +12532,6 @@ SKIP_OVLSYS_CONFIG:
 
 	memcpy(&mydev, pdev, sizeof(mydev));
 
-#ifdef OPLUS_FEATURE_DISPLAY
-	pr_info("[%s] get_boot_mode() is %d\n", __func__, get_boot_mode());
-	if ((get_boot_mode() == SILENCE_BOOT)
-			||(get_boot_mode() == OPPO_SAU_BOOT)) {
-		pr_info("[%s] set silence_mode to 1\n", __func__);
-		silence_mode = 1;
-	}
-
-	if(shut_down_flag)
-		shut_down_flag = 0;
-#endif /* OPLUS_FEATURE_DISPLAY */
-
-
 	return 0;
 
 err_pm:
@@ -12571,10 +12552,6 @@ static void mtk_drm_shutdown(struct platform_device *pdev)
 	struct mtk_drm_private *private = platform_get_drvdata(pdev);
 	struct drm_device *drm = private->drm;
 	int ret = 0;
-
-#ifdef OPLUS_FEATURE_DISPLAY
-	shut_down_flag = 1;
-#endif
 
 	if (!drm)
 		return;
@@ -12830,11 +12807,6 @@ static int __init mtk_drm_init(void)
 			goto err;
 		}
 	}
-#ifdef OPLUS_FEATURE_DISPLAY
-	oplus_display_private_api_init();
-	oplus_display_panel_init();
-	//oplus_display_trackpoint_report_init();
-#endif /* OPLUS_FEATURE_DISPLAY  */
 	DDPINFO("%s-\n", __func__);
 
 	return 0;

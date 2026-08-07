@@ -16,9 +16,7 @@ extern unsigned int gpu_av_loading;
 #define GED_APO_AUTOSUSPEND_DELAY_MS 10
 #define GED_APO_AUTOSUSPEND_DELAY_HFR_MS 16
 #define GED_APO_AUTOSUSPEND_DELAY_MAX_MS 25
-#ifndef OPLUS_ARCH_EXTENDS
-#define OPLUS_ARCH_EXTENDS
-#endif
+
 static atomic_t trigger_pm_callback_state = ATOMIC_INIT(0);
 
 
@@ -73,9 +71,6 @@ void ged_eb_dvfs_trace_dump(void);
 void ged_eb_dvfs_frame_done_dump(void);
 int check_pm_callback_state(enum ged_gpu_power_state power_state);
 void dump_pm_callback_kbase_info(void);
-#if defined(OPLUS_ARCH_EXTENDS)
-void oplus_ged_eb_dvfs_trace_dump(void);
-#endif
 
 #if defined(CONFIG_GPU_MT8167) || defined(CONFIG_GPU_MT8173) ||\
 defined(CONFIG_GPU_MT6739) || defined(CONFIG_GPU_MT6761) ||\

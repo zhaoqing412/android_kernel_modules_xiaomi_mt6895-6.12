@@ -27,7 +27,6 @@ struct loom_jerk {
 
 struct loom_proc {
 	int active_jerk_id;
-	int jerking_num;
 	struct loom_jerk jerks[LOOM_RESCUE_TIMER_NUM];
 };
 
@@ -43,8 +42,6 @@ struct loom_loading_info {
 struct loom_loading_ctrl {
 	int tid;
 	int tgid;
-	int rpid;
-	unsigned long long buffer_id;
 	int loading_window_count;
 	int loading_thr_up_bound;
 	int loading_thr_low_bound;
@@ -61,7 +58,6 @@ struct loom_loading_ctrl {
 	int rescue_f_opp;
 	int rescue_c_freq;
 	int rescue_time;
-	int is_eara_active;
 	unsigned long long prev_ts;
 	unsigned long long prev_runtime;
 	struct loom_proc loom_proc_obj;
@@ -79,7 +75,6 @@ int loom_cal_window_loading(struct loom_loading_ctrl *lc_info, int *avail_window
 void loom_add_new_frame(struct loom_loading_ctrl *lc_info, unsigned long long ts, unsigned long long runtime);
 int _update_userlimit_cpufreq_min(int cid, int value);
 int _update_userlimit_cpufreq_max(int cid, int value);
-void loom_delete_loading_ctrl_linger(struct work_struct *target_work);
 
 extern int fbt_cluster_X2Y(int cluster, unsigned long input, int in_type,
 	int out_type, int is_to_scale_cap, const char *caller);

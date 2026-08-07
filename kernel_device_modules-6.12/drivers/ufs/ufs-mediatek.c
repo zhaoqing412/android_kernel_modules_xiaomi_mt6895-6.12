@@ -55,10 +55,6 @@
 #include <mtk_battery_oc_throttling.h>
 #endif
 
-//#ifdef CONFIG_OPLUS_UFS_DRIVER
-#include <soc/oplus/ufs-oplus-dbg.h>
-//#endif
-
 #define UFS_WAKE_LOCK_TIMEOUT_MS	5000
 
 extern void mt_irq_dump_status(unsigned int irq);
@@ -500,6 +496,99 @@ static void ufs_mtk_dbg_sel(struct ufs_hba *hba)
 	} else {
 		ufshcd_writel(hba, 0x20, REG_UFS_DEBUG_SEL);
 	}
+}
+
+static void ufs_mtk_dbg_sel_mphy(struct ufs_hba *hba)
+{
+	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
+	static void __iomem *peri_dbg_mon;
+	static void __iomem *gpio;
+
+	/* Cannot touch mphy in user load or no mphy dump in dts */
+	if (host->mphy_base == NULL)
+		return;
+
+	/* only start one time, and only monitor host0 sdf */
+	if (host->host_id == 1)
+		return;
+
+	if (gpio == NULL)
+		gpio = ioremap(0x1002D000, 0x1000);
+
+	if (peri_dbg_mon == NULL)
+		peri_dbg_mon = ioremap(0x16840000, 0x1000);
+
+	/* dbg_mon gpio control bit */
+	if (gpio)
+		writel(0xA2, gpio+0x840);
+	/*
+	 * UFSCFG_AO (0xB0~0xB8) SUBSYS_DEBUG_MON_SEL0~3
+	 * 0: ufshci, 1: mphy, 2: unipro
+	 */
+	if (peri_dbg_mon) {
+		writel(0x1, peri_dbg_mon+0xB0);
+		writel(0x1, peri_dbg_mon+0xB4);
+		writel(0x1, peri_dbg_mon+0xB8);
+		writel(0x1, peri_dbg_mon+0xBC);
+	}
+
+	writel(0x00000001, host->mphy_base + 0x0);
+	writel(0x07321300, host->mphy_base + 0x04);
+	writel(0x00000002, host->mphy_base + 0x08);
+}
+
+static void ufs_mtk_dbg_sel_ufshci(struct ufs_hba *hba)
+{
+	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
+	static void __iomem *peri_dbg_mon;
+	static void __iomem *gpio;
+
+	/* only start one time, and only monitor host0 sdf */
+	if (host->host_id == 1)
+		return;
+
+	if (gpio == NULL)
+		gpio = ioremap(0x1002D000, 0x1000);
+
+	if (peri_dbg_mon == NULL)
+		peri_dbg_mon = ioremap(0x16840000, 0x1000);
+
+	/* dbg_mon gpio control bit */
+	if (gpio)
+		writel(0xA2, gpio+0x840);
+	/*
+	 * UFSCFG_AO (0xB0~0xB8) SUBSYS_DEBUG_MON_SEL0~3
+	 * 0: ufshci, 1: mphy, 2: unipro
+	 */
+	if (peri_dbg_mon) {
+		writel(0x0, peri_dbg_mon+0xB0);
+		writel(0x0, peri_dbg_mon+0xB4);
+		writel(0x0, peri_dbg_mon+0xB8);
+		writel(0x0, peri_dbg_mon+0xBC);
+	}
+
+	/*
+	 * set
+	 * 0x22f0[3:0] = 4'hc
+	 * 0x22d0[[1:0] = 2'b11
+	 * 0x22c0[9:4] = 6'h1
+	 * set
+	 * 0x22f0[11:8] = 4'h1
+	 * 0x22d4[7:6] = 2'b01
+	 * 0x22c0[15:10] = 6'h4
+	 * read 0x22c8[15:0]
+	 */
+	ufshcd_writel(hba,
+		ufshcd_readl(hba, 0x22F0) & 0xFFFFF0F0 | 0x10c, 0x22F0);
+
+	ufshcd_writel(hba,
+		ufshcd_readl(hba, 0x22D0) & 0xFFFFFFFC | 0x3, 0x22D0);
+
+	ufshcd_writel(hba,
+		ufshcd_readl(hba, 0x22D4) & 0xFFFFFF3F | 0x40, 0x22D4);
+
+	ufshcd_writel(hba,
+		ufshcd_readl(hba, 0x22C0) & 0xFFFF000F | 0x1010, 0x22C0);
 }
 
 static int ufs_mtk_wait_idle_state(struct ufs_hba *hba,
@@ -1379,7 +1468,7 @@ static void ufs_mtk_setup_clk_gating(struct ufs_hba *hba)
 		}
 
 		spin_lock_irqsave(hba->host->host_lock, flags);
-		hba->clk_gating.delay_ms = max(ah_ms, 50U);
+		hba->clk_gating.delay_ms = max(ah_ms, 10U);
 		spin_unlock_irqrestore(hba->host->host_lock, flags);
 	}
 }
@@ -1731,11 +1820,6 @@ static int ufs_mtk_init(struct ufs_hba *hba)
 		ufs_mtk_btag_init(hba);
 
 	ufs_mtk_dbg_register(hba);
-
-//#ifdef CONFIG_OPLUS_UFS_DRIVER
-	ufs_init_oplus_dbg(hba);
-        ufs_iostack_init(&host->iostack_work);
-//#endif
 
 	if (host->host_id == 0)
 		ufs_mtk_rpmb_init(hba);
@@ -2489,9 +2573,6 @@ static int ufs_mtk_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op,
 	struct arm_smccc_res res;
 	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
 
-//#ifdef CONFIG_OPLUS_UFS_DRIVER
-	ufs_sleep_time_get(hba);
-//#endif
 	if (status == PRE_CHANGE) {
 		if (!ufshcd_is_auto_hibern8_supported(hba))
 			return 0;
@@ -2552,9 +2633,6 @@ static int ufs_mtk_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 	struct arm_smccc_res res;
 	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
 
-//#ifdef CONFIG_OPLUS_UFS_DRIVER
-	ufs_active_time_get(hba);
-//#endif
 	if (hba->ufshcd_state != UFSHCD_STATE_OPERATIONAL)
 		ufs_mtk_dev_vreg_set_lpm(hba, false);
 
@@ -2640,6 +2718,19 @@ static void ufs_mtk_dbg_register_dump(struct ufs_hba *hba)
 		/* Direct debugging information to REG_MTK_PROBE */
 		ufs_mtk_dbg_sel(hba);
 		/* Dump ufshci register 0x22C8 */
+		ufshcd_dump_regs(hba, REG_UFS_PROBE, 0x4,
+				"Debug Probe (0x22C8): ");
+	}
+
+	if (host->ip_ver == IP_VER_MT6993) {
+		/* Direct debugging information to mphy */
+		ufs_mtk_dbg_sel_mphy(hba);
+		/* Dump ufshci register 0x22C8 */
+		ufshcd_dump_regs(hba, REG_UFS_PROBE, 0x4,
+				"Debug Probe (0x22C8): ");
+
+		/* Direct debugging information to ufshci */
+		ufs_mtk_dbg_sel_ufshci(hba);
 		ufshcd_dump_regs(hba, REG_UFS_PROBE, 0x4,
 				"Debug Probe (0x22C8): ");
 	}
@@ -2733,15 +2824,11 @@ static void ufs_mtk_fixup_dev_quirks(struct ufs_hba *hba)
 {
 	struct ufs_dev_info *dev_info = &hba->dev_info;
 	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
-        struct device_node *np = hba->dev->of_node;
 
 	ufshcd_fixup_dev_quirks(hba, ufs_mtk_dev_fixups);
 
 	if (STR_PRFX_EQUAL("H9HQ15AFAMBDAR", dev_info->model))
 		host->caps |= UFS_MTK_CAP_BROKEN_VCC | UFS_MTK_CAP_ALLOW_VCCQX_LPM;
-
-	if (STR_PRFX_EQUAL("MT256GAXAT4U31", dev_info->model))
-		host->caps |= UFS_MTK_CAP_BROKEN_VCC;
 
 	if (ufs_mtk_is_broken_vcc(hba) && hba->vreg_info.vcc &&
 	    (hba->dev_quirks & UFS_DEVICE_QUIRK_DELAY_AFTER_LPM)) {
@@ -2753,11 +2840,6 @@ static void ufs_mtk_fixup_dev_quirks(struct ufs_hba *hba)
 		hba->dev_quirks &= ~(UFS_DEVICE_QUIRK_DELAY_BEFORE_LPM |
 			UFS_DEVICE_QUIRK_DELAY_AFTER_LPM);
 	}
-
-	if (of_property_read_bool(np, "mediatek,ufs-vcc-always-on")) {
-		hba->rpm_lvl = UFS_PM_LVL_1;
-		hba->spm_lvl = UFS_PM_LVL_1;
-        }
 
 	ufs_mtk_vreg_fix_vcc(hba);
 	ufs_mtk_vreg_fix_vccqx(hba);
@@ -2782,9 +2864,6 @@ static void ufs_mtk_event_notify(struct ufs_hba *hba,
 	if (evt <= UFS_EVT_DME_ERR)
 		ufs_mtk_dbg_l2_dump(hba);
 
-//#ifdef CONFIG_OPLUS_UFS_DRIVER
-	recordSignalerr(hba, val, evt);
-//#endif
 	trace_ufs_mtk_event(evt, val);
 
 	/* error check for mbrain */
@@ -3222,17 +3301,11 @@ static void ufs_mtk_config_scsi_dev(struct scsi_device *sdev)
 
 	dev_dbg(hba->dev, "lu %llu scsi dev configured", sdev->lun);
 
-	if (!hba->mcq_enabled)
-		blk_queue_flag_set(QUEUE_FLAG_SAME_FORCE, sdev->request_queue);
-	else
-		blk_queue_flag_clear(QUEUE_FLAG_SAME_COMP, sdev->request_queue);
-
+	blk_queue_flag_set(QUEUE_FLAG_SAME_FORCE, sdev->request_queue);
 	if (hba->luns_avail == 1) {
 		dev_info(hba->dev, "%s: LUNs ready", __func__);
 		complete(&host->luns_added);
 	}
- 
-	ufs_oplus_init_sdev(sdev);
 }
 
 #if IS_ENABLED(CONFIG_MTK_UFS_DEBUG_BUILD)
@@ -3285,7 +3358,6 @@ static const struct ufs_hba_variant_ops ufs_hba_mtk_vops = {
 	//.check_bus_status    = ufs_mtk_check_bus_status,
 	//.dbg_dump            = _ufs_mtk_dbg_dump,
 #endif
-	.config_scsi_dev     = ufs_mtk_config_scsi_dev,
 };
 
 /**
@@ -3303,10 +3375,6 @@ static int ufs_mtk_probe(struct platform_device *pdev)
 	struct device_link *link;
 	struct ufs_hba *hba;
 	struct ufs_mtk_host *host;
-	struct device_node *peer_np;
-	struct platform_device *peer_pdev;
-	u32 peer_id = 0;
-	u32 id = 0;
 
 	reset_node = of_find_compatible_node(NULL, NULL,
 					     "ti,syscon-reset");
@@ -3329,31 +3397,6 @@ static int ufs_mtk_probe(struct platform_device *pdev)
 	if (link->status == DL_STATE_DORMANT) {
 		err = -EPROBE_DEFER;
 		goto out;
-	}
-
-	err = of_property_read_u32(dev->of_node, "id", &id);
-	if (err || id == 0) /* no property id or id is 0 */
-		goto skip_reset;
-
-	/* let ufs1 wait until all LUNs of ufs0 have been added */
-	for_each_compatible_node(peer_np, NULL, "mediatek,mt8183-ufshci") {
-		if (of_property_read_u32(peer_np, "id", &peer_id))
-			continue;
-		if (peer_id == 0) {
-			peer_pdev = of_find_device_by_node(peer_np);
-			if (!peer_pdev) {
-				dev_info(dev, "find UFS0 dev fail\n");
-				goto skip_reset;
-			}
-
-			hba = platform_get_drvdata(peer_pdev);
-			if (!hba || (hba->luns_avail != 1)) {
-				dev_info(dev, "UFS0 LUNs not all ready");
-				err = -EPROBE_DEFER;
-				goto out;
-			}
-			break;
-		}
 	}
 
 skip_reset:

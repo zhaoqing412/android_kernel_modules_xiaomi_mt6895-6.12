@@ -159,64 +159,6 @@ static struct scp_reserve_mblock scp_reserve_mblock[] = {
 		.start_virt = 0x0,
 		.size = 0x0,
 	},
-/* #ifdef OPLUS_FEATURE_SENSOR_SMEM */
- 	{
- 		.num = SCP_TMP_22,
- 		.alignment = 0,
- 		.start_phys = 0x0,
- 		.start_virt = 0x0,
- 		.size = 0x0,
- 	},
- 	{
- 		.num = SCP_TMP_23,
- 		.alignment = 0,
- 		.start_phys = 0x0,
- 		.start_virt = 0x0,
- 		.size = 0x0,
- 	},
- 	{
- 		.num = SCP_TMP_24,
- 		.alignment = 0,
- 		.start_phys = 0x0,
- 		.start_virt = 0x0,
- 		.size = 0x0,
- 	},
- 	{
- 		.num = SCP_TMP_25,
- 		.alignment = 0,
- 		.start_phys = 0x0,
- 		.start_virt = 0x0,
- 		.size = 0x0,
- 	},
-	{
- 		.num = SCP_TMP_26,
- 		.alignment = 0,
- 		.start_phys = 0x0,
- 		.start_virt = 0x0,
- 		.size = 0x0,
- 	},
- 	{
- 		.num = SCP_SENSOR_SHARE_MEM_ID,
- 		.alignment = 0,
- 		.start_phys = 0x0,
- 		.start_virt = 0x0,
- 		.size = 0x0,
- 	},
- 	{
- 		.num = SENS_FB_MEM_ID,
- 		.alignment = 0,
- 		.start_phys = 0x0,
- 		.start_virt = 0x0,
- 		.size = 0x0,
- 	},
- 	{
- 		.num = SENS_PSEUDO_SENSOR_MEM_ID,
- 		.alignment = 0,
- 		.start_phys = 0x0,
- 		.start_virt = 0x0,
- 		.size = 0x0,
- 	},
-/* #endif OPLUS_FEATURE_SENSOR_SMEM */
 };
 
 

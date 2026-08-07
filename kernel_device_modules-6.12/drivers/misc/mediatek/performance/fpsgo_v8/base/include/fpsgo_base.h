@@ -482,7 +482,6 @@ void fpsgo_sentcmd(int cmd, int value1, int value2);
 void fpsgo_ctrl2base_get_pwr_cmd(int *cmd, int *value1, int *value2);
 void fpsgo_stop_boost_by_render(struct render_info *r);
 int fpsgo_check_fbt_jerk_work_addr_invalid(struct work_struct *target_work);
-extern int fpsgo_set_fbt_cpu_ctrl_enable(int enable);
 struct no_boost_info *fpsgo_get_no_boost_info(int mode, int id, int create);
 void fpsgo_delete_no_boost_info(int mode, int id);
 int fpsgo_get_all_no_boost_info(int max_count, struct no_boost_info *arr);

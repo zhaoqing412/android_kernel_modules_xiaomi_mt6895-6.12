@@ -6,11 +6,6 @@
 #define _MT6681_PRIVATE_H_
 #define MT6681_NLE_GAIN_STAGE 8
 #include <linux/i2c.h>
-
-#ifndef OPLUS_ARCH_EXTENDS
-#define OPLUS_ARCH_EXTENDS
-#endif
-
 enum {
 	MT6681_MTKAIF_PROTOCOL_1 = 0,
 	MT6681_MTKAIF_PROTOCOL_2,
@@ -602,10 +597,6 @@ struct mt6681_priv {
 	int vow_single_mic_select;
 	int bypass_hpdet_dump;
 	int hdr_record;
-#ifdef OPLUS_ARCH_EXTENDS
-	/* breeno vow mic pga gain */
-	int vow_mic_pga_gain;
-#endif
 
 	/* regulator */
 	struct regulator *reg_vaud18;

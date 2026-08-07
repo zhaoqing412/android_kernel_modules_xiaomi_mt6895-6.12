@@ -12,7 +12,6 @@
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/power_supply.h>
-#include <linux/nvmem-consumer.h>
 #include "mtk_bp_thl.h"
 #include "mtk_md_power_throttling.h"
 #if IS_ENABLED(CONFIG_MTK_ECCCI_DRIVER)
@@ -22,7 +21,6 @@
 #define BPCB_MAX_NUM 16
 #define MAX_VALUE 0x7FFF
 
-static const char *efuse_field = "fab_info";
 static struct task_struct *bp_notify_thread;
 static bool bp_notify_flag;
 static bool bp_hpt_notify_only_flag;
@@ -728,32 +726,10 @@ static int parse_md_setting(struct device *dev, struct md_bp_priv *md_priv)
 
 static int bp_thl_probe(struct platform_device *pdev)
 {
-	size_t len;
 	struct bp_thl_priv *priv;
-	struct device_node *es_np;
 	struct md_bp_priv *md_priv;
-	struct nvmem_cell *cell;
 	int ret;
-	u32 *nvmem_buf, value;
 
-	cell = nvmem_cell_get(&pdev->dev, efuse_field);
-	if (!IS_ERR(cell)) {
-		nvmem_buf = (u32 *)nvmem_cell_read(cell, &len);
-		nvmem_cell_put(cell);
-		if (!IS_ERR(nvmem_buf)) {
-			value = *nvmem_buf;
-			pr_info("[%s]:fab_value = %u", __func__, value);
-			if (value == 0) {
-				es_np = of_find_compatible_node(NULL, NULL, "mediatek,es-mtk-bp-thl");
-				if (es_np != NULL)
-					pdev->dev.of_node = es_np;
-				else
-					pr_info("[%s]:es_np is NULL", __func__);
-			}
-			kfree(nvmem_buf);
-		} else
-			pr_info ("[%s]:get fab_info failed", __func__);
-	}
 	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;

@@ -109,16 +109,13 @@
 #define MONITOR_TJ_CORE_TEMP_TCM_OFFSET (0x188)
 
 #define CPU_COOLER_TCM_BASE             (0x1B0)
-#define EFFICIENCY_TCM_OFFSET           (0x1D4)
+
 
 #define DSU_CEILING_FREQ_TCM_OFFSET     (0x220)
 
 #define ABNORMAL_TEMP_TCM_OFFSET     (0x23C)
 
 #define MBRAIN_LOG_OFFSET     (0x240)
-
-#define CPU_COOLER_DBG_TCM_OFFSET       (0x2E0)
-#define CPU_COOLER_DBG2_TCM_OFFSET      (0x354)
 
 /*monitor Tj*/
 /*LVTS1~LVTS16,0x138~0x174; 0x178~0x184 reserved*/
@@ -244,7 +241,6 @@ struct TzInfo{
 
 extern void update_ap_ntc_headroom(int temp, int polling_interval);
 extern int get_thermal_headroom(enum headroom_id id);
-extern int get_cpu_cooler_dbg(int id);
 extern int set_cpu_min_opp(int gear, int opp);
 extern int set_cpu_active_bitmask(int mask);
 extern int get_cpu_temp(int cpu_id);

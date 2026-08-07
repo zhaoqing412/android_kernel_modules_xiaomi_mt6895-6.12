@@ -35,15 +35,12 @@ mgk_module_ext_outs = [
 mgk_module_eng_outs = mgk_module_ext_outs + [
     "fs/pstore/pstore_blk.ko",
     "fs/pstore/pstore_zone.ko",
-    "drivers/scsi/sg.ko"
 ]
 
 mgk_module_userdebug_outs = mgk_module_ext_outs + [
     "fs/pstore/pstore_blk.ko",
     "fs/pstore/pstore_zone.ko",
-    "drivers/scsi/sg.ko"
 ]
 
 mgk_module_user_outs = mgk_module_ext_outs + [
-    "drivers/scsi/sg.ko"
 ]

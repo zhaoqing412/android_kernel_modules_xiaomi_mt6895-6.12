@@ -11,7 +11,6 @@
 #include <linux/of_address.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
-#include <linux/ratelimit.h>
 #include <linux/sched/clock.h>
 #include <linux/sched/mm.h>
 #include <linux/spmi.h>
@@ -58,11 +57,6 @@
 
 #define MAX_MONITOR_LIST_SIZE	64
 #define MONITOR_PAIR_ITEM_NUM	2
-#define RCS_DEBUG	0
-#if !RCS_DEBUG
-#define MAX_RCS_MASK_SIZE	128
-#define RCS_MASK_PAIR_ITEM_NUM	2
-#endif
 
 #define PMIF_CH_MD_DVFS_HW	1
 #define PMIF_CH_MD_HW	0
@@ -197,14 +191,6 @@ enum pmif_regs {
 	PMIF_ACC_VIO_INFO_0,
 	PMIF_ACC_VIO_INFO_1,
 	PMIF_ACC_VIO_INFO_2,
-	PMIF_SPMI_CRC_STA,
-	PMIF_SPMI_CRC_INF0,
-	PMIF_SPMI_CRC_RDATA0,
-	PMIF_SPMI_CRC_RDATA1,
-	PMIF_SPMI_CRC_RDATA2,
-	PMIF_SPMI_CRC_RDATA3,
-	PMIF_SPMI_CRC_VAL,
-	PMIF_CRC_RECORD_CLR,
 };
 static const u32 mt6xxx_regs[] = {
 	[PMIF_INIT_DONE] =			0x0000,
@@ -260,14 +246,6 @@ static const u32 mt6xxx_regs[] = {
 	[PMIF_ACC_VIO_INFO_0] =			0x0980,
 	[PMIF_ACC_VIO_INFO_1] =			0x0984,
 	[PMIF_ACC_VIO_INFO_2] =			0x0988,
-	[PMIF_SPMI_CRC_STA] =			0x1814,
-	[PMIF_SPMI_CRC_INF0] =			0x1818,
-	[PMIF_SPMI_CRC_RDATA0] =		0x181C,
-	[PMIF_SPMI_CRC_RDATA1] =		0x1820,
-	[PMIF_SPMI_CRC_RDATA2] =		0x1824,
-	[PMIF_SPMI_CRC_RDATA3] =		0x1828,
-	[PMIF_SPMI_CRC_VAL] =			0x182C,
-	[PMIF_CRC_RECORD_CLR] =			0x1830,
 };
 
 static const u32 mt6853_regs[] = {
@@ -437,7 +415,6 @@ enum {
 	IRQ_WDT_V4                  = 30,
 	IRQ_PMIF_HWINF_0_CMD_VIO_1  = 30,
 	IRQ_ALL_PMIC_MPU_VIO_V4     = 31,
-	IRQ_PMIF_SPMI_CRC_ERR_V1    = 0,
 };
 
 enum {
@@ -449,12 +426,6 @@ static struct spmi_dev spmidev[16];
 static struct spmi_nack_monitor_pair nack_monitor_list[MAX_MONITOR_LIST_SIZE];
 static int nack_monitor_list_size;
 static struct pmif_irq_timer irq_timer[3];
-#if !RCS_DEBUG
-static struct spmi_rcs_mask_pair rcs_mask_list[MAX_RCS_MASK_SIZE];
-static int rcs_mask_list_size;
-static struct ratelimit_state ratelimit_log =
-	RATELIMIT_STATE_INIT("ratelimit_log", 5 * HZ, 2);
-#endif
 void __iomem *ext_pmif_base[3];
 EXPORT_SYMBOL(ext_pmif_base);
 
@@ -568,78 +539,6 @@ static bool in_spmi_nack_monitor_list(u32 spmi_nack)
 	pr_notice("%s Not in SPMI NACK monitor list\n", __func__);
 	return false;
 }
-
-#if !RCS_DEBUG
-static void spmi_rcs_mask_list_parse(struct platform_device *pdev)
-{
-	int i = 0, ret = 0;
-	int rcs_mask_list_arr_size = 0;
-
-	rcs_mask_list_arr_size = of_property_count_u32_elems(pdev->dev.of_node, "rcs-mask-list");
-	if (rcs_mask_list_arr_size < 0) {
-		dev_notice(&pdev->dev,
-			"Failed to get rcs-mask-list, ret = %d\n", rcs_mask_list_arr_size);
-		return;
-	}
-
-	/* RCS mask list are not in pair */
-	if (rcs_mask_list_arr_size % RCS_MASK_PAIR_ITEM_NUM != 0) {
-		dev_notice(&pdev->dev,
-			"SPMI RCS mask list slvid, sta are not in pair, array size = %d\n",
-			rcs_mask_list_arr_size);
-	}
-
-	rcs_mask_list_size = rcs_mask_list_arr_size / RCS_MASK_PAIR_ITEM_NUM;
-	dev_notice(&pdev->dev,
-			"rcs_mask_list_arr_size = %d, rcs_mask_list_size = %d\n",
-			rcs_mask_list_arr_size,
-			rcs_mask_list_size);
-
-	/* Monitor list size too large */
-	if (rcs_mask_list_size > MAX_RCS_MASK_SIZE) {
-		dev_notice(&pdev->dev,
-			"SPMI RCS mask list size is too large = %d, max size is %d\n",
-			rcs_mask_list_size, MAX_RCS_MASK_SIZE);
-		dev_notice(&pdev->dev,
-			"RCS mask over number %d in rcs-mask-list will be ignored\n",
-			MAX_RCS_MASK_SIZE - 1);
-		rcs_mask_list_size = MAX_RCS_MASK_SIZE;
-	}
-
-	for (i = 0; i < rcs_mask_list_size; i++) {
-		ret = of_property_read_u32_index(pdev->dev.of_node,
-				"rcs-mask-list",
-				i * RCS_MASK_PAIR_ITEM_NUM,
-				&rcs_mask_list[i].slvid);
-		if (ret) {
-			dev_notice(&pdev->dev,
-				"spmi-rcs-mask-list slvid read fail\n");
-		}
-
-		ret = of_property_read_u32_index(pdev->dev.of_node,
-				"rcs-mask-list",
-				i * RCS_MASK_PAIR_ITEM_NUM + 1,
-				&rcs_mask_list[i].sta);
-		if (ret) {
-			dev_notice(&pdev->dev,
-				"spmi-rcs-mask-list sta read fail\n");
-		}
-	}
-}
-
-static bool in_spmi_rcs_mask_list(int slvid, unsigned int rcs_sta)
-{
-	unsigned int i = 0;
-
-	for (i = 0; i < rcs_mask_list_size; i++) {
-		if ((slvid == rcs_mask_list[i].slvid) &&
-			(rcs_sta == rcs_mask_list[i].sta))
-			return true;
-	}
-	pr_notice("%s Not in SPMI RCS mask list\n", __func__);
-	return false;
-}
-#endif
 
 static int mt6316_revision_check(struct pmif *arb, unsigned int slvid)
 {
@@ -1154,60 +1053,6 @@ static void pmif_hwinf_err_irq_handler(int irq_0, int irq_1, int irq_2, void *da
 		hwintf_num, irq_0, irq_1, irq_2);
 }
 
-static void pmif_spmi_crc_err_irq_handler(int irq_0, int irq_1, int irq_2, void *data, int idx)
-{
-	struct pmif *arb = data;
-	unsigned int spmi_crc_sta = 0, spmi_crc_inf0 = 0;
-	unsigned int spmi_crc_rdata0 = 0, spmi_crc_rdata1 = 0;
-	unsigned int spmi_crc_rdata2 = 0, spmi_crc_rdata3 = 0;
-	unsigned int spmi_crc_val = 0;
-
-	pr_notice("[PMIF]:SPMI CRC ERROR\n");
-
-	if (irq_0) {
-		spmi_crc_sta = pmif_readl(arb->pmif_base[0], arb, PMIF_SPMI_CRC_STA);
-		spmi_crc_inf0 = pmif_readl(arb->pmif_base[0], arb, PMIF_SPMI_CRC_INF0);
-		spmi_crc_rdata0 = pmif_readl(arb->pmif_base[0], arb, PMIF_SPMI_CRC_RDATA0);
-		spmi_crc_rdata1 = pmif_readl(arb->pmif_base[0], arb, PMIF_SPMI_CRC_RDATA1);
-		spmi_crc_rdata2 = pmif_readl(arb->pmif_base[0], arb, PMIF_SPMI_CRC_RDATA2);
-		spmi_crc_rdata3 = pmif_readl(arb->pmif_base[0], arb, PMIF_SPMI_CRC_RDATA3);
-		spmi_crc_val = pmif_readl(arb->pmif_base[0], arb, PMIF_SPMI_CRC_VAL);
-		pmif_writel(arb->pmif_base[0], arb, 0x1, PMIF_CRC_RECORD_CLR);
-	} else if (irq_1) {
-		spmi_crc_sta = pmif_readl(arb->pmif_base[1], arb, PMIF_SPMI_CRC_STA);
-		spmi_crc_inf0 = pmif_readl(arb->pmif_base[1], arb, PMIF_SPMI_CRC_INF0);
-		spmi_crc_rdata0 = pmif_readl(arb->pmif_base[1], arb, PMIF_SPMI_CRC_RDATA0);
-		spmi_crc_rdata1 = pmif_readl(arb->pmif_base[1], arb, PMIF_SPMI_CRC_RDATA1);
-		spmi_crc_rdata2 = pmif_readl(arb->pmif_base[1], arb, PMIF_SPMI_CRC_RDATA2);
-		spmi_crc_rdata3 = pmif_readl(arb->pmif_base[1], arb, PMIF_SPMI_CRC_RDATA3);
-		spmi_crc_val = pmif_readl(arb->pmif_base[1], arb, PMIF_SPMI_CRC_VAL);
-		pmif_writel(arb->pmif_base[1], arb, 0x1, PMIF_CRC_RECORD_CLR);
-	} else {
-		spmi_crc_sta = pmif_readl(arb->pmif_base[2], arb, PMIF_SPMI_CRC_STA);
-		spmi_crc_inf0 = pmif_readl(arb->pmif_base[2], arb, PMIF_SPMI_CRC_INF0);
-		spmi_crc_rdata0 = pmif_readl(arb->pmif_base[2], arb, PMIF_SPMI_CRC_RDATA0);
-		spmi_crc_rdata1 = pmif_readl(arb->pmif_base[2], arb, PMIF_SPMI_CRC_RDATA1);
-		spmi_crc_rdata2 = pmif_readl(arb->pmif_base[2], arb, PMIF_SPMI_CRC_RDATA2);
-		spmi_crc_rdata3 = pmif_readl(arb->pmif_base[2], arb, PMIF_SPMI_CRC_RDATA3);
-		spmi_crc_val = pmif_readl(arb->pmif_base[2], arb, PMIF_SPMI_CRC_VAL);
-		pmif_writel(arb->pmif_base[2], arb, 0x1, PMIF_CRC_RECORD_CLR);
-	}
-
-	pr_notice("%s, CRC_R_CHECK_ERROR = 0x%x\n", __func__, ((spmi_crc_sta >> 11) & 0x1));
-	pr_notice("%s, CRC_TX_BYTECNT = 0x%x\n", __func__, ((spmi_crc_inf0 >> 23) & 0xF));
-	pr_notice("%s, CRC_TX_ADDR = 0x%x\n", __func__, ((spmi_crc_inf0 >> 7) & 0xFFFF));
-	pr_notice("%s, CRC_TX_SLVID = 0x%x\n", __func__, ((spmi_crc_inf0 >> 3) & 0xF));
-	pr_notice("%s, CRC_TX_WRITE = 0x%x\n", __func__, ((spmi_crc_inf0 >> 2) & 0x1));
-	pr_notice("%s, CRC_TX_CMD = 0x%x\n", __func__, ((spmi_crc_inf0 >> 0) & 0x3));
-	pr_notice("%s, CRC_R_DATA0 = 0x%x, CRC_R_DATA1 = 0x%x\n", __func__, spmi_crc_rdata0, spmi_crc_rdata1);
-	pr_notice("%s, CRC_R_DATA2 = 0x%x, CRC_R_DATA3 = 0x%x\n", __func__, spmi_crc_rdata2, spmi_crc_rdata3);
-	pr_notice("%s, CRC_VAL_SLV = 0x%x\n", __func__, ((spmi_crc_val >> 16) & 0xFFFF));
-	pr_notice("%s, CRC_VAL_MST = 0x%x\n", __func__, ((spmi_crc_val >> 0) & 0xFFFF));
-
-	pr_notice("[PMIF]:SPMI Read CRC error, trigger assert!\n");
-	BUG_ON(1);
-}
-
 static void pmif_hw_monitor_irq_handler(int irq, void *data)
 {
 	spmi_dump_pmif_record_reg(0, 0, 0);
@@ -1417,9 +1262,6 @@ static irqreturn_t pmif_event_1_irq_handler(int irq, void *data)
 				switch (idx) {
 				case IRQ_PMIF_HWINF_0_CMD_VIO_1:
 					pmif_hwinf_cmd_vio_irq_handler(irq_0, irq_1, irq_2, data, idx);
-				break;
-				case IRQ_PMIF_SPMI_CRC_ERR_V1:
-					pmif_spmi_crc_err_irq_handler(irq_0, irq_1, irq_2, data, idx);
 				break;
 				default:
 					pr_notice("%s IRQ[%d] triggered\n",
@@ -2291,13 +2133,8 @@ static irqreturn_t rcs_irq_handler(int irq, void *data)
 			mtk_spmi_writel(arb->spmimst_base[0], arb, (0xFF << ((i % 4) * 8)),
 					SPMI_SLV_3_0_EINT + (i / 4));
 			if (arb->rcs_enable_hwirq[i] && slv_irq_sta_0) {
-#if !RCS_DEBUG
-				if ((!in_spmi_rcs_mask_list(i, slv_irq_sta_0)) ||
-					((in_spmi_rcs_mask_list(i, slv_irq_sta_0)) &&
-					 (__ratelimit(&ratelimit_log))))
-#endif
-					dev_info(&arb->spmic->dev,
-						"spmi-0 hwirq=%d, sta=0x%x\n", i, slv_irq_sta_0);
+				dev_info(&arb->spmic->dev,
+					"spmi-0 hwirq=%d, sta=0x%x\n", i, slv_irq_sta_0);
 				handle_nested_irq(irq_find_mapping(arb->domain, i));
 			}
 		} else if (slv_irq_sta_1) {
@@ -2305,13 +2142,8 @@ static irqreturn_t rcs_irq_handler(int irq, void *data)
 				mtk_spmi_writel(arb->spmimst_base[1], arb, (0xFF << ((i % 4) * 8)),
 					SPMI_SLV_3_0_EINT + (i / 4));
 				if (arb->rcs_enable_hwirq[i] && slv_irq_sta_1) {
-#if !RCS_DEBUG
-					if ((!in_spmi_rcs_mask_list(i, slv_irq_sta_1)) ||
-						((in_spmi_rcs_mask_list(i, slv_irq_sta_1)) &&
-						 (__ratelimit(&ratelimit_log))))
-#endif
-						dev_info(&arb->spmic->dev,
-							"spmi-1 hwirq=%d, sta=0x%x\n", i, slv_irq_sta_1);
+					dev_info(&arb->spmic->dev,
+						"spmi-1 hwirq=%d, sta=0x%x\n", i, slv_irq_sta_1);
 					handle_nested_irq(irq_find_mapping(arb->domain, i));
 				}
 			}
@@ -2320,13 +2152,8 @@ static irqreturn_t rcs_irq_handler(int irq, void *data)
 				mtk_spmi_writel(arb->spmimst_base[2], arb, (0xFF << ((i % 4) * 8)),
 					SPMI_SLV_3_0_EINT + (i / 4));
 				if (arb->rcs_enable_hwirq[i] && slv_irq_sta_2) {
-#if !RCS_DEBUG
-					if ((!in_spmi_rcs_mask_list(i, slv_irq_sta_2)) ||
-						((in_spmi_rcs_mask_list(i, slv_irq_sta_2)) &&
-						 (__ratelimit(&ratelimit_log))))
-#endif
-						dev_info(&arb->spmic->dev,
-							"spmi-2 hwirq=%d, sta=0x%x\n", i, slv_irq_sta_2);
+					dev_info(&arb->spmic->dev,
+						"spmi-2 hwirq=%d, sta=0x%x\n", i, slv_irq_sta_2);
 					handle_nested_irq(irq_find_mapping(arb->domain, i));
 				}
 			}
@@ -2600,9 +2427,6 @@ static int mtk_spmi_probe(struct platform_device *pdev)
 	spmi_pmif_create_attr(&mtk_spmi_driver.driver);
 
 	spmi_nack_monitor_list_parse(pdev);
-#if !RCS_DEBUG
-	spmi_rcs_mask_list_parse(pdev);
-#endif
 
 	arb->irq = platform_get_irq_byname(pdev, "pmif_irq");
 	if (arb->irq < 0)

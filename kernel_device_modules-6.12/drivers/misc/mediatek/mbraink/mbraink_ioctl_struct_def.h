@@ -126,9 +126,6 @@
 
 #define MAX_GPU_FENCE_RECORD_DATA 8
 
-#define MAX_CM_CPU_NUM 8
-#define MAX_CM_SPLIT 5
-
 enum mbraink_op_mode {
 	mbraink_op_mode_normal = 0,
 	mbraink_op_mode_sbe = 1,
@@ -925,14 +922,6 @@ struct mbraink_power_smap_info {
 	unsigned int apu_snapshot;
 	unsigned long long real_time_start;
 	unsigned long long real_time_end;
-};
-
-struct mbraink_chipid_info {
-	int sw_ver;
-};
-
-struct mbraink_memory_cmVoteInfo {
-	uint32_t info[MAX_CM_CPU_NUM][MAX_CM_SPLIT];
 };
 
 #endif

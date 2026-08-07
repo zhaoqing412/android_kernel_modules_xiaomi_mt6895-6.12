@@ -305,7 +305,7 @@ int ssusb_host_enable(struct ssusb_mtk *ssusb)
 
 	check_clk = SSUSB_XHCI_RST_B_STS;
 	if (num_u3p > u3_ports_disabled)
-		check_clk |= SSUSB_U3_MAC_RST_B_STS;
+		check_clk = SSUSB_U3_MAC_RST_B_STS;
 
 	ret =  ssusb_check_clocks(ssusb, check_clk);
 
@@ -378,15 +378,11 @@ int ssusb_host_resume(struct ssusb_mtk *ssusb, bool p0_skipped)
 	int u2p_skip_msk = ssusb->u2p_dis_msk;
 	int num_u3p = ssusb->u3_ports;
 	int num_u2p = ssusb->u2_ports;
-	enum usb_device_speed max_speed = ssusb->u3d->max_speed_host;
-	int u3_ports_disabled;
 	u32 value;
-	u32 check_clk;
 	int i;
-	int ret = 0;
 
 	/* if dp 4-lane, set u3_ports = 0 */
-	if (get_dp_switch_status(ssusb) || max_speed < USB_SPEED_SUPER)
+	if (get_dp_switch_status(ssusb))
 		num_u3p = 0;
 
 	if (p0_skipped) {
@@ -399,12 +395,9 @@ int ssusb_host_resume(struct ssusb_mtk *ssusb, bool p0_skipped)
 	mtu3_clrbits(ibase, U3D_SSUSB_IP_PW_CTRL1, SSUSB_IP_HOST_PDN);
 
 	/* power on u3 ports except skipped ones */
-	u3_ports_disabled = 0;
 	for (i = 0; i < num_u3p; i++) {
-		if ((0x1 << i) & u3p_skip_msk) {
-			u3_ports_disabled++;
+		if ((0x1 << i) & u3p_skip_msk)
 			continue;
-		}
 
 		value = mtu3_readl(ibase, SSUSB_U3_CTRL(i));
 		/* resume u3phy since power issue. */
@@ -421,15 +414,6 @@ int ssusb_host_resume(struct ssusb_mtk *ssusb, bool p0_skipped)
 		value &= ~SSUSB_U2_PORT_PDN;
 		mtu3_writel(ibase, SSUSB_U2_CTRL(i), value);
 	}
-
-	check_clk = SSUSB_XHCI_RST_B_STS;
-	if (num_u3p > u3_ports_disabled)
-		check_clk |= SSUSB_U3_MAC_RST_B_STS;
-
-	ret = ssusb_check_clocks(ssusb, check_clk);
-
-	if (ret)
-		dev_info(ssusb->dev, "USB Host resume, check clk fail?\n");
 
 	return 0;
 }
@@ -508,31 +492,6 @@ int ssusb_host_u3_suspend(struct ssusb_mtk *ssusb)
 	return 0;
 }
 
-static void ssusb_get_host_info(struct ssusb_mtk *ssusb)
-{
-	struct device_node *parent_dn = ssusb->dev->of_node;
-	struct device_node *child;
-	struct platform_device *pdev;
-	struct resource *res;
-
-	for_each_child_of_node(parent_dn, child) {
-		if (of_device_is_compatible(child, "mediatek,mtk-xhci") ||
-			of_device_is_compatible(child, "mediatek,mtk-xhci-p1") ||
-			of_device_is_compatible(child, "mediatek,mtk-xhci-p2")) {
-			pdev = of_find_device_by_node(child);
-			if (pdev) {
-				res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "mac");
-				if (res)
-					ssusb->host_base = devm_ioremap(ssusb->dev, res->start,
-						resource_size(res));
-				if (IS_ERR_OR_NULL(ssusb->host_base))
-					dev_info(ssusb->dev, "failed to get host_base\n");
-			}
-			break;
-		}
-	}
-}
-
 static void ssusb_get_host_rscs(struct ssusb_mtk *ssusb)
 {
 	struct device_node *parent_dn = ssusb->dev->of_node;
@@ -545,7 +504,7 @@ static void ssusb_get_host_rscs(struct ssusb_mtk *ssusb)
 		    of_device_is_compatible(child, "mediatek,mtk-xhci-p1") ||
 		    of_device_is_compatible(child, "mediatek,mtk-xhci-p2")) {
 			pdev = of_find_device_by_node(child);
-			if (pdev && pdev->dev.driver) {
+			if (pdev) {
 				ssusb->xhci_pdrv = to_platform_driver(pdev->dev.driver);
 
 				res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "mac");
@@ -554,9 +513,6 @@ static void ssusb_get_host_rscs(struct ssusb_mtk *ssusb)
 					    resource_size(res));
 				if (IS_ERR_OR_NULL(ssusb->host_base))
 					dev_info(ssusb->dev, "failed to get host_base\n");
-			} else {
-				ssusb->xhci_pdrv = NULL;
-				dev_info(ssusb->dev, "pdev->dev.driver is NULL?, set xhci_pdrv to NULL\n");
 			}
 			break;
 		}
@@ -670,16 +626,13 @@ int ssusb_host_init_v2(struct ssusb_mtk *ssusb)
 		return ret;
 	}
 
-	/* get host info, such as host base...etc */
-	ssusb_get_host_info(ssusb);
+	ssusb_get_host_rscs(ssusb);
 
 	return 0;
 }
 
 void ssusb_host_exit_v2(struct ssusb_mtk *ssusb)
 {
-	/* before unregister, record host information. */
-	ssusb_get_host_rscs(ssusb);
 	ssusb_host_register(ssusb, false);
 	ssusb_host_cleanup(ssusb);
 }

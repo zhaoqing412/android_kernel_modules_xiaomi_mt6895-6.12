@@ -19,7 +19,6 @@
 #include <mt-plat/mtk_irq_mon.h>
 
 static atomic_t g_ff_enabled = ATOMIC_INIT(0);
-static atomic_t g_need_config = ATOMIC_INIT(1);
 static bool vidle_paused;
 
 static struct mtk_disp_vidle_para mtk_disp_vidle_flag = {
@@ -36,7 +35,6 @@ struct mtk_vdisp_funcs vdisp_func;
 static atomic_t g_vidle_pq_ref = ATOMIC_INIT(0);
 static DEFINE_MUTEX(g_vidle_pq_ref_lock);
 static DECLARE_COMPLETION(dpc_registered);
-static DEFINE_SPINLOCK(vidle_hint_lock);
 
 struct mtk_disp_vidle {
 	u8 level;
@@ -143,17 +141,14 @@ void mtk_vidle_user_power_release_by_gce(enum mtk_vidle_voter_user user, struct 
 	disp_dpc_driver.dpc_vidle_power_release_by_gce(pkt, user, NULL);
 }
 
-void mtk_vidle_user_power_clean_up_by_gce(void)
+void mtk_vidle_user_power_clean_up_by_gce(struct cmdq_pkt *pkt)
 {
-	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(vidle_data.drm_priv->crtc[0]);
-
 	if (disp_dpc_driver.dpc_power_clean_up_by_gce == NULL)
 		return;
-	if (!mtk_crtc)
-		return;
-	disp_dpc_driver.dpc_power_clean_up_by_gce(mtk_crtc->gce_obj.client[CLIENT_CFG]);
+
+	disp_dpc_driver.dpc_power_clean_up_by_gce(pkt);
 }
-EXPORT_SYMBOL(mtk_vidle_user_power_clean_up_by_gce);
+
 
 void mtk_dpc_monitor_config(struct cmdq_pkt *pkt, const u32 value)
 {
@@ -269,8 +264,6 @@ int mtk_vidle_user_power_keep_v3(enum mtk_vidle_voter_user _user)
 		vidle_data.pm_ret_crtc = pm_ret;
 	else if (user == DISP_VIDLE_USER_NST_LOCK)
 		vidle_data.pm_ret_nst_lock = pm_ret;
-	else if (user == DISP_VIDLE_USER_TOP_CLK_ISR)
-		vidle_data.pm_ret_isr = pm_ret;
 
 	return pm_ret;
 }
@@ -288,22 +281,9 @@ void mtk_vidle_user_power_release_v3(enum mtk_vidle_voter_user _user)
 	} else if (user == DISP_VIDLE_USER_NST_LOCK && vidle_data.pm_ret_nst_lock != VOTER_PM_DONE) {
 		DDPINFO("%s skipped, user(%u) ret(%d)\n", __func__, user, vidle_data.pm_ret_nst_lock);
 		return;
-	} else if (user == DISP_VIDLE_USER_TOP_CLK_ISR && vidle_data.pm_ret_isr != VOTER_PM_DONE) {
-		DDPAEE("%s skipped, user(%u) ret(%d)\n", __func__, user, vidle_data.pm_ret_isr);
-		return;
 	}
 
 	disp_dpc_driver.dpc_vidle_power_release(user);
-}
-
-void mtk_vidle_user_apsrc_enable(bool en, enum mtk_vidle_voter_user _user)
-{
-	enum mtk_vidle_voter_user user = _user & DISP_VIDLE_USER_MASK;
-
-	if (disp_dpc_driver.dpc_apsrc_enable == NULL || vidle_data.drm_priv == NULL)
-		return;
-
-	disp_dpc_driver.dpc_apsrc_enable(en, user);
 }
 
 int mtk_vidle_user_power_keep(enum mtk_vidle_voter_user user)
@@ -737,7 +717,7 @@ static void mtk_vidle_enable_v2(bool _en, void *_drm_priv)
 
 	/* reset status to config dpc setting at first time*/
 	if (!en && !mtk_vidle_is_ff_enabled())
-		atomic_set(&g_need_config, 1);
+		atomic_set(&g_ff_enabled, -1);
 }
 
 void mtk_vidle_enable(bool _en, void *_drm_priv)
@@ -824,8 +804,6 @@ u8 mtk_vidle_check_pll(void)
 
 void mtk_vidle_config_ff(bool en)
 {
-	unsigned long flags;
-
 	if (!disp_dpc_driver.dpc_config)
 		return;
 
@@ -836,20 +814,16 @@ void mtk_vidle_config_ff(bool en)
 	if (en && (atomic_read(&vidle_data.drm_priv->kernel_pm.wakelock_cnt) != 1))
 		return;
 
-	spin_lock_irqsave(&vidle_hint_lock, flags);
-
-	/* The first call after resume (g_need_config == 1) must always proceed and cannot be skipped.
-	 * For all other cases (g_need_config == 0), skip the same config.
+	/* skip the same config
+	 * the default value of g_ff_enabled is set as -1(true)
+	 * so the first config_ff(false) can pass this same check
 	 */
-	if ((vidle_data.dpc_version != DPC_VER1) &&
-	    (atomic_cmpxchg(&g_need_config, 1, 0) == 0) && (mtk_vidle_is_ff_enabled() == en))
-		goto out;
+	if ((vidle_data.dpc_version != DPC_VER1) && mtk_vidle_is_ff_enabled() == en)
+		return;
 
 	disp_dpc_driver.dpc_config(DPC_SUBSYS_DISP, en);
 
 	atomic_set(&g_ff_enabled, en);
-out:
-	spin_unlock_irqrestore(&vidle_hint_lock, flags);
 }
 EXPORT_SYMBOL(mtk_vidle_config_ff);
 
@@ -889,11 +863,6 @@ void mtk_vidle_dsi_pll_set(const u32 value)
 
 u32 mtk_vidle_hint_update(enum mtk_vidle_hint_type type)
 {
-	unsigned long flags = 0;
-	u32 ret;
-
-	spin_lock_irqsave(&vidle_hint_lock, flags);
-
 	switch (type) {
 	case VIDLE_HINT_MTCMOS_INIT:
 		vidle_data.hint.mtcmos_debounce = -1;
@@ -930,35 +899,20 @@ u32 mtk_vidle_hint_update(enum mtk_vidle_hint_type type)
 	case VIDLE_HINT_HSIDLE_LEAVE:
 		vidle_data.hint.hsidle_fuse--;
 		break;
-#ifdef OPLUS_FEATURE_DISPLAY
-	case VIDLE_HINT_OPEN_VIDLE:
-		vidle_data.hint.close_vidle = false;
-		break;
-	case VIDLE_HINT_CLOSE_VIDLE:
-		vidle_data.hint.close_vidle = true;
-		break;
-#endif /* OPLUS_FEATURE_DISPLAY */
 	default:
 		break;
 	}
 
-	ret = (vidle_data.hint.crtc_fuse << 24) |
-		  (vidle_data.hint.doze_debounce << 16) |
-		  (vidle_data.hint.mode_switch_debounce << 8) |
-		  vidle_data.hint.mtcmos_debounce;
-
-	spin_unlock_irqrestore(&vidle_hint_lock, flags);
-
-	return ret;
+	return (vidle_data.hint.crtc_fuse << 24) |
+	       (vidle_data.hint.doze_debounce << 16) |
+	       (vidle_data.hint.mode_switch_debounce << 8) |
+		vidle_data.hint.mtcmos_debounce;
 }
 EXPORT_SYMBOL(mtk_vidle_hint_update);
 
 int mtk_vidle_hint_decision(const char *caller)
 {
-	unsigned long flags = 0;
 	bool decision;
-
-	spin_lock_irqsave(&vidle_hint_lock, flags);
 
 	vidle_data.hint.mode_switch_debounce -= (vidle_data.hint.mode_switch_debounce > 0);
 	vidle_data.hint.mtcmos_debounce -= (vidle_data.hint.mtcmos_debounce > 0);
@@ -966,9 +920,6 @@ int mtk_vidle_hint_decision(const char *caller)
 	vidle_data.hint.smi_dump_debounce -= (vidle_data.hint.smi_dump_debounce > 0);
 
 	decision = !(vidle_data.hint.crtc_fuse |
-#ifdef OPLUS_FEATURE_DISPLAY
-		     vidle_data.hint.close_vidle |
-#endif /* OPLUS_FEATURE_DISPLAY */
 		     vidle_data.hint.tui_fuse |
 		     vidle_data.hint.hsidle_fuse |
 		     vidle_data.hint.doze_debounce |
@@ -976,7 +927,6 @@ int mtk_vidle_hint_decision(const char *caller)
 		     vidle_data.hint.mtcmos_debounce |
 		     vidle_data.hint.smi_dump_debounce);
 
-	spin_unlock_irqrestore(&vidle_hint_lock, flags);
 	mtk_vidle_config_ff(decision);
 
 	return decision;

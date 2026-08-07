@@ -14,7 +14,7 @@
 #include "eeprom_utils.h"
 
 // TODO: Move to Kconfig
-#define MAX_EEPROM_NUMBER 7
+#define MAX_EEPROM_NUMBER 5
 
 #define DEV_NAME_STR_LEN_MAX 50
 

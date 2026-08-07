@@ -97,9 +97,6 @@ struct spm_req_sta_list *spm_get_req_sta_list(void)
 {
 	return &req_sta_list;
 }
-#ifdef CONFIG_OPLUS_RPMH_MTK
-EXPORT_SYMBOL_GPL(spm_get_req_sta_list);
-#endif
 
 static struct rtc_time suspend_tm;
 

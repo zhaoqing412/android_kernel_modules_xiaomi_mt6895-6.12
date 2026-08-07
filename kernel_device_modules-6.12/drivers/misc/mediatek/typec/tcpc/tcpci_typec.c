@@ -73,11 +73,6 @@ static inline void typec_wait_ps_change(struct tcpc_device *tcpc,
 		tcpci_enable_discharge(tcpc, false, 0);
 		mutex_unlock(&tcpc->access_lock);
 #endif	/* CONFIG_TYPEC_ATTACHED_SRC_SAFE0V_TIMEOUT */
-	} else if (tcpc->typec_wait_ps_change == TYPEC_WAIT_PS_SRC_VSAFE5V
-		&& state != TYPEC_WAIT_PS_SRC_VSAFE5V) {
-#if CONFIG_TYPEC_ATTACHED_SRC_SAFE5V_DELAY
-		tcpc_disable_timer(tcpc, TYPEC_RT_TIMER_SAFE5V_DELAY);
-#endif	/* CONFIG_TYPEC_ATTACHED_SRC_SAFE5V_DELAY */
 	}
 
 	tcpc->typec_wait_ps_change = state;
@@ -643,21 +638,12 @@ static inline void typec_norp_src_attached_entry(struct tcpc_device *tcpc)
 #if CONFIG_TYPEC_CAP_TRY_SOURCE
 static inline void typec_try_src_entry(struct tcpc_device *tcpc)
 {
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	uint32_t chip_vid;
-#endif
 	TYPEC_NEW_STATE(typec_try_src);
 
 	tcpci_set_cc(tcpc, TYPEC_CC_RP);
 	tcpc->typec_drp_try_timeout = false;
 	tcpc_enable_timer(tcpc, TYPEC_TRY_TIMER_DRP_TRY);
 	tcpc_enable_timer(tcpc, TYPEC_TRY_TIMER_TRY_TOUT);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	tcpci_get_chip_vid(tcpc,&chip_vid);
-	if (SOUTHCHIP_PD_VID == chip_vid) {
-		tcpc_typec_handle_cc_change(tcpc);
-	}
-#endif
 }
 
 static inline void typec_trywait_snk_entry(struct tcpc_device *tcpc)
@@ -694,20 +680,11 @@ static inline void typec_trywait_snk_pe_entry(struct tcpc_device *tcpc)
 
 static inline void typec_try_snk_entry(struct tcpc_device *tcpc)
 {
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	uint32_t chip_vid;
-#endif
 	TYPEC_NEW_STATE(typec_try_snk);
 
 	tcpci_set_cc(tcpc, TYPEC_CC_RD);
 	tcpc->typec_drp_try_timeout = false;
 	tcpc_enable_timer(tcpc, TYPEC_TRY_TIMER_DRP_TRY);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	tcpci_get_chip_vid(tcpc,&chip_vid);
-	if (SOUTHCHIP_PD_VID == chip_vid) {
-		tcpc_typec_handle_cc_change(tcpc);
-	}
-#endif
 }
 
 static inline void typec_trywait_src_entry(struct tcpc_device *tcpc)
@@ -1027,10 +1004,6 @@ static inline bool typec_handle_cc_changed_entry(struct tcpc_device *tcpc)
 static inline void typec_attach_wait_entry(struct tcpc_device *tcpc)
 {
 	bool as_sink = tcpc_typec_is_act_as_sink_role(tcpc);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	uint32_t chip_vid;
-	int rv = 0;
-#endif
 #if CONFIG_USB_PD_REV30
 	uint8_t cc_res = typec_get_cc_res();
 	struct pd_port *pd_port = &tcpc->pd_port;
@@ -1106,18 +1079,6 @@ static inline void typec_attach_wait_entry(struct tcpc_device *tcpc)
 	}
 
 	tcpci_notify_attachwait_state(tcpc, as_sink);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	rv = tcpci_get_chip_vid(tcpc, &chip_vid);
-	if (!rv && SOUTHCHIP_PD_VID == chip_vid) {
-		if (as_sink) {
-			tcpci_set_cc(tcpc,TYPEC_CC_RD);
-		} else {
-			/* Advertise Rp level before Attached.SRC Ellisys 3.1.6359 */
-			tcpci_set_cc(tcpc,
-				TYPEC_CC_PULL(tcpc->typec_local_rp_level, TYPEC_CC_RP));
-		}
-	}
-#endif
 	TYPEC_NEW_STATE(as_sink ? typec_attachwait_snk : typec_attachwait_src);
 	tcpc_enable_timer(tcpc, TYPEC_TIMER_CCDEBOUNCE);
 }
@@ -1183,15 +1144,11 @@ static inline bool typec_is_cc_attach(struct tcpc_device *tcpc)
 
 	switch (tcpc->typec_state) {
 	case typec_attached_snk:
+	case typec_attached_src:
 #if CONFIG_TYPEC_CAP_DBGACC_SNK
 		fallthrough;
 	case typec_attached_dbgacc_snk:
 #endif	/* CONFIG_TYPEC_CAP_DBGACC_SNK */
-		if (typec_get_cc_res() != TYPEC_CC_VOLT_OPEN)
-			cc_attach = true;
-		break;
-
-	case typec_attached_src:
 		if (typec_get_cc_res() != TYPEC_CC_VOLT_OPEN)
 			cc_attach = true;
 		break;
@@ -1338,17 +1295,8 @@ int tcpc_typec_handle_cc_change(struct tcpc_device *tcpc)
 	if (typec_is_cc_attach(tcpc)) {
 		typec_disable_low_power_mode(tcpc);
 		typec_attach_wait_entry(tcpc);
-/*#ifdef OPLUS_FEATURE_CHG_BASIC*/
-#if !CONFIG_WD0_IRQ_ONLY
-		if (tcpc->tcpc_flags & TCPC_FLAGS_FLOATING_GROUND)
-			tcpci_set_floating_ground(tcpc, false);
-#endif /* CONFIG_WD0_IRQ_ONLY = 0 */
-/*#endif*/
 	} else {
 		typec_detach_wait_entry(tcpc);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		tcpc->int_invaild_cnt = 0;
-#endif
 	}
 
 	return 0;
@@ -1483,26 +1431,12 @@ static inline int typec_handle_src_reach_vsafe0v(struct tcpc_device *tcpc)
 int tcpc_typec_handle_timeout(struct tcpc_device *tcpc, uint32_t timer_id)
 {
 	int ret = 0;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	uint32_t chip_vid;
-	tcpci_get_chip_vid(tcpc, &chip_vid);
-#endif
 
 	if (timer_id >= TYPEC_TIMER_START_ID &&
 	    tcpc_is_timer_active(tcpc, TYPEC_TIMER_START_ID, PD_TIMER_NR)) {
 		TYPEC_DBG("[Type-C] Ignore timer_evt\n");
 		return 0;
 	}
-#ifdef CONFIG_TYPEC_CHECK_LEGACY_CABLE
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	if (timer_id == TYPEC_TIMER_DRP_SRC_TOGGLE &&
-		(tcpc->typec_state != typec_unattached_src) &&
-				!(!rv && SOUTHCHIP_PD_VID == chip_vid)) {
-		TCPC_DBG("Dummy SRC_TOGGLE\n");
-		return 0;
-	}
-#endif
-#endif /* CONFIG_TYPEC_CHECK_LEGACY_CABLE */
 
 	if (timer_id == TYPEC_TIMER_ERROR_RECOVERY)
 		return typec_handle_error_recovery_timeout(tcpc);
@@ -1684,35 +1618,8 @@ static inline int typec_handle_vbus_absent(struct tcpc_device *tcpc)
 	return 0;
 }
 
-/*#ifdef OPLUS_FEATURE_CHG_BASIC*/
-static bool oplus_charge_enable = 0;
-bool oplus_tcpc_direct_charge_en( bool enable)
-{
-	oplus_charge_enable = enable;
-	return oplus_charge_enable;
-}
-EXPORT_SYMBOL(oplus_tcpc_direct_charge_en);
-/*#endif OPLUS_FEATURE_CHG_BASIC */
-
 int tcpc_typec_handle_ps_change(struct tcpc_device *tcpc, int vbus_level)
 {
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	int rv = 0;
-	uint32_t chip_id = 0;
-	uint32_t chip_pid = 0;
-#endif
-
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	rv = tcpci_get_chip_id(tcpc, &chip_id);
-	rv |= tcpci_get_chip_pid(tcpc, &chip_pid);
-
-	if (!rv && chip_id == SC2150A_DID) {
-		if (vbus_level >= TCPC_VBUS_VALID)
-			typec_disable_low_power_mode(tcpc);
-		else
-			typec_enable_low_power_mode(tcpc);
-	}
-#endif
 	tcpci_notify_ps_change(tcpc, vbus_level);
 
 #if CONFIG_TYPEC_CAP_NORP_SRC
@@ -1729,13 +1636,6 @@ int tcpc_typec_handle_ps_change(struct tcpc_device *tcpc, int vbus_level)
 
 	if (vbus_level >= TCPC_VBUS_VALID)
 		return typec_handle_vbus_present(tcpc);
-
-	/*#ifdef OPLUS_FEATURE_CHG_BASIC*/
-	if(oplus_charge_enable) {
-		return typec_handle_vbus_present(tcpc);
-	}
-	pr_info("[%s]oplus_charge_enable=0x%x\n", __func__,oplus_charge_enable);
-	/*#endif OPLUS_FEATURE_CHG_BASIC */
 
 	return typec_handle_vbus_absent(tcpc);
 }
@@ -1820,10 +1720,6 @@ const char *const typec_role_name[] = {
 #if CONFIG_TYPEC_CAP_ROLE_SWAP
 int tcpc_typec_swap_role(struct tcpc_device *tcpc)
 {
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	uint32_t chip_vid;
-	int rv = 0;
-#endif
 	if (tcpc->typec_role < TYPEC_ROLE_DRP)
 		return TCPM_ERROR_NOT_DRP_ROLE;
 
@@ -1843,12 +1739,6 @@ int tcpc_typec_swap_role(struct tcpc_device *tcpc)
 		TYPEC_INFO("TypeC Role Swap Start\n");
 		tcpci_set_cc(tcpc, TYPEC_CC_OPEN);
 		tcpc_enable_timer(tcpc, TYPEC_RT_TIMER_ROLE_SWAP_STOP);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-		rv = tcpci_get_chip_vid(tcpc,&chip_vid);
-		if (!rv && SOUTHCHIP_PD_VID == chip_vid) {
-			tcpc_typec_handle_cc_change(tcpc);
-		}
-#endif
 		return TCPM_SUCCESS;
 	}
 

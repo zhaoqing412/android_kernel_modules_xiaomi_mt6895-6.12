@@ -16,10 +16,6 @@
 #define TRY_LOCK_RS_INTERVAL      (10 * HZ)
 #define TRY_LOCK_RS_BURST         (1)
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_OSVELTE)
-atomic64_t dmabuf_pool_pages = ATOMIC64_INIT(0);
-#endif
-
 static LIST_HEAD(pool_list);
 static DEFINE_MUTEX(pool_list_lock);
 
@@ -53,9 +49,6 @@ void mtk_dmabuf_page_pool_add(struct mtk_dmabuf_page_pool *pool, struct page *pa
 	spin_unlock(&pool->lock);
 	mod_node_page_state(page_pgdat(page), NR_KERNEL_MISC_RECLAIMABLE,
 			    1 << pool->order);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_OSVELTE)
-	atomic64_add(1 << pool->order, &dmabuf_pool_pages);
-#endif
 }
 EXPORT_SYMBOL_GPL(mtk_dmabuf_page_pool_add);
 
@@ -71,14 +64,7 @@ static struct page *mtk_dmabuf_page_pool_remove(struct mtk_dmabuf_page_pool *poo
 		spin_unlock(&pool->lock);
 		mod_node_page_state(page_pgdat(page), NR_KERNEL_MISC_RECLAIMABLE,
 				    -(1 << pool->order));
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_OSVELTE)
-		if (atomic64_sub_return(1 << pool->order, &dmabuf_pool_pages) < 0) {
-			pr_info("warn: %s, dmabuf page pool underflow, 0x%llx!!, reset as 0\n",
-				__func__, atomic64_read(&dmabuf_pool_pages));
-			atomic64_set(&dmabuf_pool_pages, 0);
-		}
 		goto out;
-#endif
 	}
 	spin_unlock(&pool->lock);
 out:

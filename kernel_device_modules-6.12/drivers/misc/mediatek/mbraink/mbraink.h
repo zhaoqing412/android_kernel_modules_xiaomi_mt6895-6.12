@@ -88,8 +88,6 @@
 #define POWER_THROTTLE_HW_OC_INFO	(NR_CODE_LAGACY_MAX + 2)
 #define MEMORY_VSMR_INFO	(NR_CODE_LAGACY_MAX + 3)
 #define POWER_SMAP_INFO	(NR_CODE_LAGACY_MAX + 4)
-#define CHIPID_INFO (NR_CODE_LAGACY_MAX + 5)
-#define MEMORY_CM_VOTE_INFO	(NR_CODE_LAGACY_MAX + 6)
 
 /*Mbrain Delegate IOCTL List*/
 #define AUTO_IOCTL_INFO			_IOR(IOC_MAGIC, AUTO_IOCTL, \
@@ -238,10 +236,6 @@
 						struct mbraink_memory_vsmrInfo*)
 #define RO_POWER_SMAP_INFO		_IOR(IOC_MAGIC, POWER_SMAP_INFO, \
 						struct mbraink_power_smap_info*)
-#define RO_CHIPID_INFO		_IOR(IOC_MAGIC, CHIPID_INFO,	\
-					struct mbraink_chipid_info*)
-#define RO_MEMORY_CM_VOTE_INFO	_IOR(IOC_MAGIC, MEMORY_CM_VOTE_INFO, \
-						struct mbraink_memory_cmVoteInfo*)
 
 #define SUSPEND_DATA	0
 #define RESUME_DATA		1

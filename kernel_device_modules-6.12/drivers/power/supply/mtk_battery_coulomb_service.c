@@ -535,11 +535,7 @@ void gauge_coulomb_service_init(struct mtk_battery *gm)
 	cs->wlock = wakeup_source_register(NULL, "gauge coulomb wakelock");
 	init_waitqueue_head(&cs->wait_que);
 	atomic_set(&cs->in_sleep, 0);
-#ifdef OPLUS_FEATURE_CHG_BASIC
-/* oplus add for  wakelock */
-	if (!gm->disableGM30)
-#endif
-		kthread_run(gauge_coulomb_thread, cs, "%s", cs->name);
+	kthread_run(gauge_coulomb_thread, cs, "%s", cs->name);
 
 	cs->pm_nb.notifier_call = system_pm_notify;
 	ret = register_pm_notifier(&cs->pm_nb);

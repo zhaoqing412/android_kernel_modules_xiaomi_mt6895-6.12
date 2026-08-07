@@ -396,38 +396,6 @@ static struct fstb_user_target_hint *fstb_get_user_target_hint(int mode,
 	return iter;
 }
 
-int fpsgo_other2fstb_get_magt_target_hint(int tgid, int pid, unsigned long long bufID)
-{
-	int magt_target_fps = 0;
-	const int magt_prio = 1;
-	struct fstb_user_target_hint *final_hint, *process_hint, *render_hint;
-
-	mutex_lock(&fstb_user_target_hint_lock);
-	process_hint = fstb_get_user_target_hint(0, tgid, 0);
-	render_hint = fstb_get_user_target_hint(1, pid, bufID);
-	if (render_hint)
-		final_hint = render_hint;
-	else if (process_hint)
-		final_hint = process_hint;
-	else {
-		mutex_unlock(&fstb_user_target_hint_lock);
-		return 0;
-	}
-
-	if (final_hint->target_fps_hint[magt_prio]) {
-		magt_target_fps = final_hint->target_fps_hint[magt_prio] <= dfps_ceiling ?
-						final_hint->target_fps_hint[magt_prio] : dfps_ceiling;
-	}
-
-	mutex_unlock(&fstb_user_target_hint_lock);
-
-	fpsgo_systrace_c_fstb_man(pid, bufID, magt_target_fps, "fstb_magt_fps[%d]", magt_prio);
-
-	return magt_target_fps;
-}
-EXPORT_SYMBOL(fpsgo_other2fstb_get_magt_target_hint);
-
-
 static int fstb_arbitrate_target(int raw_target_fps, int raw_target_time,
 	struct fstb_frame_info *iter)
 {
@@ -610,7 +578,7 @@ static void fstb_delete_policy_cmd(int mode, struct fstb_policy_cmd *iter)
 	}
 
 	hlist_for_each_entry_safe(tmp_iter, h, &fstb_policy_cmd_list, hlist) {
-		if (tmp_iter->ts < min_ts) {
+		if (tmp_iter->mode == mode && tmp_iter->ts < min_ts) {
 			min_ts = tmp_iter->ts;
 			min_iter = tmp_iter;
 		}
@@ -1661,9 +1629,6 @@ int fpsgo_ctrl2fstb_switch_fstb(int enable)
 
 	fstb_enable = enable;
 	if (!fstb_enable) {
-		fstb_active = 0;
-		fstb_active_dbncd = 0;
-		fstb_idle_cnt = 0;
 		hlist_for_each_entry_safe(iter, t, &fstb_frame_info_list, hlist) {
 			fstb_delete_frame_info(iter->pid, iter->bufid, iter);
 		}

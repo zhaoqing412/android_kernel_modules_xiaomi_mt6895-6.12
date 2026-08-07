@@ -19,7 +19,7 @@
 #include "inc/std_tcpci_v10.h"
 
 #define MT6379_INFO_EN		1
-#define MT6379_DBGINFO_EN	1
+#define MT6379_DBGINFO_EN	0
 #define MT6379_WD1_EN		1
 #define MT6379_WD2_EN		1
 #define VBUS_TO_CC_DEBOUNCE	100
@@ -1497,7 +1497,7 @@ static int mt6379_tcpc_init(struct tcpc_device *tcpc, bool sw_reset)
 	mt6379_write8(ddata, MT6379_REG_LPWRCTRL5, 0x2F);
 
 	/* Set HILOCCFILTER 250us */
-	mt6379_write8(ddata, MT6379_REG_HILOCTRL9, 0x8A);
+	mt6379_write8(ddata, MT6379_REG_HILOCTRL9, 0xAA);
 
 	/* Enable CC open 40ms when BATON disconnect */
 	mt6379_set_bits(ddata, MT6379_REG_SHIELDCTRL1, MT6379_MSK_OPEN40MS_EN);
@@ -1606,7 +1606,7 @@ static int mt6379_get_alert_status_and_mask(struct tcpc_device *tcpc,
 	*mask = le16_to_cpu(*(u16 *)&buf[2]);
 	return 0;
 }
-static int mt6379_is_vsafe0v(struct tcpc_device *tcpc);
+
 static int mt6379_vbus_change_helper(struct mt6379_tcpc_data *ddata)
 {
 	int ret;
@@ -1621,17 +1621,7 @@ static int mt6379_vbus_change_helper(struct mt6379_tcpc_data *ddata)
 	 * Vsafe0v only triggers when vbus falls under 0.8V,
 	 * also update parameter if vbus present triggers
 	 */
-	ret = mt6379_is_vsafe0v(tcpc);
-	if (ret < 0)
-		goto out;
-	tcpc->vbus_safe0v = ret ? true : false;
-out:
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	/*if (ddata->debug_data.msg_handler)
-		ddata->debug_data.msg_handler(ddata->debug_data.priv_data,
-					      DEBUG_MSG_POWER_STATUS_CHANGE);*/
-#endif /* OPLUS_FEATURE_CHG_BASIC */
-	//tcpc->vbus_safe0v = !!(data & MT6379_MSK_VBUS80);
+	tcpc->vbus_safe0v = !!(data & MT6379_MSK_VBUS80);
 	return 0;
 }
 
@@ -1796,20 +1786,6 @@ static int mt6379_tcpc_deinit(struct tcpc_device *tcpc)
 		usleep_range(20000, 30000);
 	}
 	return 0;
-}
-
-static int mt6379_is_vsafe0v(struct tcpc_device *tcpc)
-{
-	int ret;
-	u8 data;
-	struct mt6379_tcpc_data *ddata = tcpc_get_dev_data(tcpc);
-
-	ret = mt6379_read8(ddata, MT6379_REG_MTST1, &data);
-	if (ret < 0)
-		return ret;
-	ret = (data & MT6379_MSK_VBUS80) ? 1 : 0;
-	MT6379_INFO("vbus_safe0v:%d\n", ret);
-	return ret;
 }
 
 #if IS_ENABLED(CONFIG_USB_POWER_DELIVERY)
@@ -2048,23 +2024,6 @@ static int mt6379_wakeup_irq_handler(struct mt6379_tcpc_data *ddata)
 	return tcpci_alert_wakeup(ddata->tcpc);
 }
 
-static int mt6379_vbus_valid_irq_handler(struct mt6379_tcpc_data *ddata)
-{
-	int ret;
-	u8 data;
-
-	ret = mt6379_read8(ddata, MT6379_REG_MTST1, &data);
-	if (ret < 0)
-		return ret;
-	ddata->tcpc->vbus_present = !!(data & MT6379_MSK_VBUSVALID);
-
-	ret = mt6379_is_vsafe0v(ddata->tcpc);
-	if (ret < 0)
-		return ret;
-	ddata->tcpc->vbus_safe0v = ret ? true : false;
-	return 0;
-}
-
 static void mt6379_wd12_strise_irq_dwork_handler(struct work_struct *work)
 {
 	struct delayed_work *dwork = to_delayed_work(work);
@@ -2177,7 +2136,7 @@ static struct irq_mapping_tbl mt6379_vend_irq_mapping_tbl[] = {
 	MT6379_IRQ_MAPPING(23, 3, vbus_to_cc),	/* vbus_to_cc2 */
 
 	MT6379_IRQ_MAPPING(1, 4, vbus),		/* vsafe0V */
-	MT6379_IRQ_MAPPING(5, 4, vbus_valid),		/* vbus_valid */
+	MT6379_IRQ_MAPPING(5, 4, vbus),		/* vbus_valid */
 };
 
 static int mt6379_alert_vendor_defined_handler(struct tcpc_device *tcpc)
@@ -2281,7 +2240,6 @@ static struct tcpc_ops mt6379_tcpc_ops = {
 	.set_auto_dischg_discnt = mt6379_set_auto_dischg_discnt,
 	.get_vbus_voltage = mt6379_get_vbus_voltage,
 
-	.is_vsafe0v = mt6379_is_vsafe0v,
 	.set_low_power_mode = mt6379_set_low_power_mode,
 
 #if IS_ENABLED(CONFIG_USB_POWER_DELIVERY)
@@ -2313,12 +2271,10 @@ static irqreturn_t mt6379_pd_evt_handler(int irq, void *data)
 {
 	struct mt6379_tcpc_data *ddata = data;
 	bool handled = false;
-	u8 evt = 0;
 	int ret = 0;
 	u8 pd_evt = 0, pd_stat = 0;
 
 	MT6379_DBGINFO("++\n");
-	disable_irq_nosync(irq);
 	pm_stay_awake(ddata->dev);
 
 	do {
@@ -2336,17 +2292,6 @@ static irqreturn_t mt6379_pd_evt_handler(int irq, void *data)
 		tcpci_unlock_typec(ddata->tcpc);
 		if (ret < 0)
 			break;
-
-		ret = mt6379_read8(ddata, 0x1df, &evt);
-		if (ret < 0)
-			break;
-		MT6379_DBGINFO("evt = %x\n", evt);
-		if (evt & 0x01) {
-			ret = mt6379_write8(ddata, 0x1df, 0x01);
-			if (ret < 0)
-				break;
-		} else
-			break;
 	} while (1);
 
 	if (handled) {
@@ -2355,7 +2300,6 @@ static irqreturn_t mt6379_pd_evt_handler(int irq, void *data)
 			MT6379_DBGINFO("Failed to do IRQ retrigger\n");
 	}
 
-	enable_irq(irq);
 	pm_relax(ddata->dev);
 	MT6379_DBGINFO("--\n");
 

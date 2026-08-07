@@ -1413,27 +1413,6 @@ static int vdec_vcp_init(struct mtk_vcodec_ctx *ctx, unsigned long *h_vdec)
 
 error_free_inst_and_list:
 	mtk_vcodec_del_ctx_list(ctx);
-
-	/* Clean up any buffers allocated during failed init */
-	if (inst->vcu.ctx_ipi_lock) {
-		struct vcp_dec_mem_list *tmp = NULL;
-		struct list_head *p, *q;
-		struct device *dev = NULL;
-
-		mutex_lock(inst->vcu.ctx_ipi_lock);
-		list_for_each_safe(p, q, &inst->vcu.bufs) {
-			tmp = list_entry(p, struct vcp_dec_mem_list, list);
-			dev = get_dev_by_mem_type(inst, &tmp->mem);
-			mtk_vcodec_free_mem(&tmp->mem, dev, tmp->attach, tmp->sgt);
-			mtk_v4l2_debug(0, "[%d] init error cleanup: free va 0x%llx pa 0x%llx iova 0x%llx len %d type %d",
-				inst->ctx->id, tmp->mem.va, tmp->mem.pa,
-				tmp->mem.iova, tmp->mem.len, tmp->mem.type);
-			list_del(p);
-			kfree(tmp);
-		}
-		mutex_unlock(inst->vcu.ctx_ipi_lock);
-	}
-
 error_free_inst:
 	kfree(inst->vcu.ctx_ipi_lock);
 	kfree(inst);
@@ -1794,11 +1773,11 @@ static int vdec_vcp_set_param(unsigned long h_vdec,
 		inst->vsi->dec_params.wait_key_frame = (__u8)(*param_ptr);
 		inst->vsi->dec_params.dec_param_change |= MTK_DEC_PARAM_WAIT_KEY_FRAME;
 		break;
-	case SET_PARAM_VDEC_CUSTOM_HDR_MODE:
+	case SET_PARAM_VDEC_DV_MODE:
 		if (inst->vsi == NULL)
 			return -EINVAL;
-		inst->vsi->dec_params.custom_hdr_mode = (__u8)(*param_ptr);
-		inst->vsi->dec_params.dec_param_change |= MTK_DEC_PARAM_CUSTOM_HDR_MODE;
+		inst->vsi->dec_params.dv_mode = (__u8)(*param_ptr);
+		inst->vsi->dec_params.dec_param_change |= MTK_DEC_PARAM_DV_MODE;
 		break;
 	case SET_PARAM_DECODE_ERROR_HANDLE_MODE:
 		if (inst->vsi == NULL)

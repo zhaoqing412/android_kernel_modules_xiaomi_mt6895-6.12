@@ -139,7 +139,6 @@ struct cmdq_util {
 	struct cmdq_user_buf_record ussr_buf_record[CMDQ_USER_BUF_RECORD_NUM];
 	u8	cmdq_irq_thrd_history[CMDQ_HW_MAX][CMDQ_IRQ_HISTORY_MAX_SIZE];
 	u16	cmdq_irq_thrd_history_idx[CMDQ_HW_MAX];
-	spinlock_t irq_record_lock[CMDQ_HW_MAX];
 	char	*buf_rec_buffer;
 	char	*buf_rec_mbrain;
 	u32		total_length;
@@ -177,18 +176,15 @@ static struct cmdq_sec_shared_mem *shared_mem;
 void cmdq_thrd_irq_history_record(u8 hwid ,u8 thread_idx)
 {
 	u16 arr_idx;
-	unsigned long flags;
 
 	if(thread_idx >= CMDQ_THR_MAX_COUNT || hwid >= gce_hw_cnt)
 		return;
 
-	spin_lock_irqsave(&util.irq_record_lock[hwid], flags);
 	arr_idx = util.cmdq_irq_thrd_history_idx[hwid]++;
 	if(util.cmdq_irq_thrd_history_idx[hwid] >= CMDQ_IRQ_HISTORY_MAX_SIZE)
 		util.cmdq_irq_thrd_history_idx[hwid] = 0;
 
 	util.cmdq_irq_thrd_history[hwid][arr_idx] = thread_idx;
-	spin_unlock_irqrestore(&util.irq_record_lock[hwid], flags);
 }
 
 void cmdq_dump_thrd_irq_history(u8 hwid)
@@ -514,6 +510,7 @@ static int cmdq_util_status_print(struct seq_file *seq, void *data)
 
 static int cmdq_util_record_print(struct seq_file *seq, void *data)
 {
+#if IS_ENABLED(CONFIG_MTK_CMDQ_DEBUG)
 	struct cmdq_record *rec;
 	u32 acq_time, irq_time, begin_wait, exec_time, total_time, hw_time;
 	u64 submit_sec;
@@ -562,9 +559,8 @@ static int cmdq_util_record_print(struct seq_file *seq, void *data)
 		seq_printf(seq, "%u,%u,%u.%06lu,\n",
 			rec->exec_begin, rec->exec_end, hw_time, hw_time_rem);
 	}
-
 	mutex_unlock(&cmdq_record_mutex);
-
+#endif
 	return 0;
 }
 
@@ -1622,7 +1618,6 @@ int cmdq_util_init(void)
 	of_node_put(np);
 
 	for (i = 0; i < gce_core_num; i++) {
-		spin_lock_init(&util.irq_record_lock[i]);
 		cmdq_msg("%s i:%u alloc:%u", __func__, i, first_error_disable[i]);
 		if (first_error_disable[i])
 			continue;

@@ -545,15 +545,6 @@ enum MTK_CRTC_PROP {
 	CRTC_PROP_BL_SYNC_GAMMA_GAIN,
 	CRTC_PROP_DYNAMIC_WCG_OFF,
 	CRTC_PROP_WCG_BY_COLOR_MODE,
-#ifdef OPLUS_FEATURE_DISPLAY_ADFR
-	CRTC_PROP_AUTO_MODE,
-	CRTC_PROP_AUTO_FAKE_FRAME,
-	CRTC_PROP_AUTO_MIN_FPS,
-#endif /* OPLUS_FEATURE_DISPLAY_ADFR */
-/* #ifdef OPLUS_FEATURE_LOCAL_HDR  */
-	CRTC_PROP_HW_BRIGHTNESS,
-	CRTC_PROP_BRIGHTNESS_NEED_SYNC,
-/* #endif */
 	/*DBI HW counting */
 	CRTC_PROP_DBI_COUNT_ENABLE,
 	CRTC_PROP_DBI_COUNT_SLICE_NUM,
@@ -1208,12 +1199,8 @@ struct mtk_drm_crtc {
 	int mode_idx;
 	int mode_chg;
 	enum RES_SWITCH_TYPE res_switch;
-	bool skip_unnecessary_switch;
 	struct mtk_scaling_ctx scaling_ctx;
 	int fbt_layer_id;
-	bool set_mmclk_by_mode;
-	int fake_mode_idx;
-	bool skip_mmclk_set_flag;
 
 	wait_queue_head_t state_wait_queue;
 	bool crtc_blank;
@@ -1285,10 +1272,6 @@ struct mtk_drm_crtc {
 
 	atomic_t force_high_step;
 	int force_high_enabled;
-#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
-	struct oplus_apollo_brightness *oplus_apollo_br;
-#endif /* OPLUS_FEATURE_DISPLAY_APOLLO */
-
 	struct total_tile_overhead tile_overhead;
 	struct total_tile_overhead_v tile_overhead_v;
 
@@ -1419,9 +1402,6 @@ struct mtk_cmdq_cb_data {
 	ktime_t signal_ts;
 	struct cb_data_store *store_cb_data;
 	uint64_t pts;
-#ifdef OPLUS_FEATURE_DISPLAY
-	unsigned int bl;
-#endif
 };
 #define TIGGER_INTERVAL_S(x) ((unsigned long long)x*1000*1000*1000)
 extern unsigned int disp_spr_bypass;
@@ -1733,10 +1713,6 @@ void mtk_crtc_exec_atf_prebuilt_instr(struct mtk_drm_crtc *mtk_crtc,
 
 unsigned int mtk_get_cur_spr_type(struct drm_crtc *crtc);
 
-#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
-extern int mtk_drm_setbacklight_without_lock(struct drm_crtc *crtc, unsigned int level,
-			unsigned int panel_ext_param, unsigned int cfg_flag);
-#endif /* OPLUS_FEATURE_DISPLAY_APOLLO */
 int mtk_drm_switch_spr(struct drm_crtc *crtc, unsigned int en, unsigned int need_lock);
 
 int mtk_vblank_config_rec_init(struct drm_crtc *crtc);
@@ -1776,17 +1752,6 @@ void mtk_bwm_calc_hrt_bw(struct drm_crtc *crtc, struct drm_atomic_state *state);
 void mtk_bwm_get_compress_ratio(struct drm_crtc *crtc,
 	struct mtk_drm_private *priv, struct cmdq_pkt *cmdq_handle);
 
-#ifdef OPLUS_FEATURE_DISPLAY
-void mtk_drm_send_lcm_cmd_prepare(struct drm_crtc *crtc,
-		struct cmdq_pkt **cmdq_handle);
-void mtk_drm_send_lcm_cmd_flush(struct drm_crtc *crtc,
-		struct cmdq_pkt **cmdq_handle, bool sync);
-bool mtk_crtc_is_event_loop_active(struct mtk_drm_crtc *mtk_crtc);
-#endif /* OPLUS_FEATURE_DISPLAY */
-#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
-void mtk_atomic_hbm_bypass_pq(struct drm_crtc *crtc,
-		struct cmdq_pkt *handle, int en);
-#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 #if IS_ENABLED(CONFIG_DRM_MEDIATEK_AUTO_YCT)
 struct mtk_ddp_comp *mtk_crtc_get_comp_with_index(struct mtk_drm_crtc *mtk_crtc,
 						  struct mtk_plane_state *plane_state);

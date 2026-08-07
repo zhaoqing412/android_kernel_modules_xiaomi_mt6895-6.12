@@ -104,25 +104,9 @@ define_mgk_ddk_ko(
         "mtk_disp_bwm.c",
         "mtk_disp_dbi_count.c",
         "mtk_disp_relay.c",
-#OPLUS_FEATURE_DISPLAY
-        "oplus_drm_v1/oplus_adfr.c",
-        "oplus_drm_v1/oplus_display_common.c",
-        "oplus_drm_v1/oplus_display_dc.c",
-        "oplus_drm_v1/oplus_display_mtk_debug.c",
-        "oplus_drm_v1/oplus_display_onscreenfingerprint.c",
-        "oplus_drm_v1/oplus_display_panel.c",
-        "oplus_drm_v1/oplus_display_panel_power.c",
-        "oplus_drm_v1/oplus_display_private_api.c",
-        "oplus_drm_v1/oplus_display_temp_compensation.c",
-        "oplus_drm_v1/oplus_display_apollo_brightness.c",
-        "oplus_drm_v1/oplus_display_pwm.c"
-#end OPLUS_FEATURE_DISPLAY
     ],
     includes = [
         ".",
-#OPLUS_FEATURE_DISPLAY
-         "oplus_drm_v1",
-#end OPLUS_FEATURE_DISPLAY
         "$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
         "$(srctree)/drivers"
     ],
@@ -145,15 +129,6 @@ define_mgk_ddk_ko(
             ],
             "//conditions:default" : []
     }) + [
-        "OPLUS_FEATURE_DISPLAY",
-        "OPLUS_FEATURE_DISPLAY_ADFR",
-        "OPLUS_FEATURE_DISPLAY_HPWM",
-        "OPLUS_FEATURE_DISPLAY_APOLLO",
-        "OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT",
-        "OPLUS_FEATURE_DISPLAY_TEMP_COMPENSATION",
-        "OPLUS_FEATURE_DISPLAY_MAINLINE",
-        "OPLUS_TRACKPOINT_REPORT",
-        "CONFIG_OPLUS_FEATURE_MM_FEEDBACK",
         "DDISP_MDP_COLOR_ON=1",
     ] ,
     copts = [
@@ -219,14 +194,6 @@ define_mgk_ddk_ko(
         #"-Wno-error",
     ],
     ko_deps = [
-#OPLUS_FEATURE_DISPLAY
-        "//kernel_device_modules-{}/drivers/soc/oplus/boot:oplus_bsp_boot_projectinfo".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/misc/mediatek/boot_common:mtk_boot_common".format(kernel_version),
-        "//kernel_device_modules-{}/sound/soc/codecs/multimedia/feedback/bazel:oplus_mm_kevent_fb".format(kernel_version),
-        "//kernel_device_modules-{}/sound/soc/codecs/multimedia/feedback/bazel:oplus_mm_kevent".format(kernel_version),
-        "//kernel_device_modules-{}/drivers/pinctrl/mediatek:pinctrl-mtk-common-v2_debug".format(kernel_version),
-		"//kernel_device_modules-{}/drivers/base/touchpanel_notify:oplus_bsp_tp_notify".format(kernel_version),
-#end OPLUS_FEATURE_DISPLAY
         "//kernel_device_modules-{}/drivers/misc/mediatek/mmp/src:mmprofile".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/aee/aed:aee_aed".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/tinysys_scmi:tinysys-scmi".format(kernel_version),

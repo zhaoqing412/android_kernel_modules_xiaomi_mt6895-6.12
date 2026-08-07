@@ -94,10 +94,36 @@ enum mtk_slbc_kernel_ops {
 #define GID_MAX					80
 #define GID_REQ					(-1)
 
-enum force_type {
+enum slc_gid_list {
+	GID_GPU = 7,
+	GID_GPU_OVL,
+	GID_VDEC_FRAME,
+	GID_VDEC_UBE,
+	GID_SMMU_0,
+	GID_SMMU_1,
+	GID_SMMU_2,
+	GID_SMMU_3,
+	GID_MD,
+	GID_ADSP,
+	GID_AOV,
+	GID_IMG_SMT,
+	GID_IMG_MCNR,
+	GID_CAM,
+	GID_MAE,
+	GID_DMR,
+	GID_OD,
+	GID_DBI,
+};
+
+enum force_type{
 	FORCE_TYPE_NORMAL = 0,
 	FORCE_TYPE_DYNAMIC,
 };
+
+#define BUF_ID_NOT_CARE			0x00000000
+#define BUF_ID_GPU				0x0000000f
+#define BUF_ID_OVL				0x000000f0
+#define BUF_ID_VDEC				0x00000f00
 
 #define SLC_CUST_PMU_CONFIG_NUM 8   /* cust pmu config num in dts */
 #define SLC_CUST_PMU_NUM        16  /* cust pmu num in dts */
@@ -126,7 +152,6 @@ static struct mtk_slbc *slbc;
 static int venc_count;
 
 static bool slbc_cg_pri;
-static u16 slbc_init_window_size;
 static int slb_disable;
 static int slc_disable;
 static int slbc_sram_enable;
@@ -161,8 +186,6 @@ static int debug_level;
 static int uid_ref[UID_MAX]; /* SLB */
 static int slc_uid_ref[ID_MAX]; /* SLC */
 static int slc_vld_cnt[ID_MAX]; /* SLC */
-static uint32_t slc_api_lvl_ref[API_ID_MAX]; /* SLC API priority */
-static uint8_t slc_api_lvl_req[API_ID_MAX]; /* SLC API priority */
 static struct slbc_cust_pmu_t *slbc_cust_pmu_data; /* SLC cust pmu*/
 static u64 slbc_ipic_start_ts; /* ipic debug info */
 static u64 slbc_ipic_end_ts; /* ipic debug info */
@@ -175,8 +198,6 @@ static u64 req_val_total;
 static u64 rel_val_min;
 static u64 rel_val_max;
 static u64 rel_val_total;
-
-static int dis_sf_count;
 
 static struct slbc_data test_d;
 static struct slbc_gid_data test_gid_d;
@@ -425,74 +446,17 @@ static void slbc_dcc_ctrl(u32 dcc_flag)
 	mutex_unlock(&slbc_ref_lock);
 }
 
-static int slbc_check_api_lvl(uint8_t uid, uint32_t api_id, uint32_t enable)
-{
-	int ret = 0;
-
-	if (uid >= ID_MAX)
-		return -1;
-
-	mutex_lock(&slbc_ref_lock);
-	if (slc_api_lvl_req[api_id] == API_LVL_SDK) {
-		if (enable)
-			slc_api_lvl_ref[api_id] |= ((uint32_t)1 << uid);
-		else
-			slc_api_lvl_ref[api_id] &= ~((uint32_t)1 << uid);
-	} else {
-		if (slc_api_lvl_ref[api_id] & ((uint32_t)1 << uid)) {
-			SLBC_TRACE_REC(LVL_ERR, TYPE_C, 0, 0,
-			"slc api lvl err(id:%u, req:%u, ref_cnt:%u), proc:%s",
-			api_id, slc_api_lvl_req[api_id], slc_api_lvl_ref[api_id], current->comm);
-			ret = -1;
-		}
-	}
-	mutex_unlock(&slbc_ref_lock);
-	return ret;
-}
-
-static void slbc_set_api_lvl(uint32_t api_id, uint8_t lvl)
-{
-	mutex_lock(&slbc_ref_lock);
-	slc_api_lvl_req[api_id] = lvl;
-	mutex_unlock(&slbc_ref_lock);
-}
-
 int slbc_enable_gpu_dynamic_cache(uint32_t type)
 {
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SCMI)
 	int ret = 0;
 	struct scmi_tinysys_slbc_ctrl_status rvalue = {0};
 
-	ret = slbc_check_api_lvl((uint8_t)0, API_ID_ENABLE_GPU_DC, type);
-	if (ret)
-		return ret;
-
-	/* check if there is any OEM's GPU force cmd before enable gpu dc mode */
-	/* to prevent gpu dc mode from bypassing api lvl constraint and releasing GPU force size */
-	if ((slc_api_lvl_req[API_ID_ENABLE_GPU_DC] != API_LVL_SDK) &&
-			(slc_api_lvl_ref[API_ID_FORCE_CMD] & ((uint32_t)1 << ID_GPU))) {
-		SLBC_TRACE_REC(LVL_ERR, TYPE_C, 0, 0,
-		"enable gpu dc failed (req:%u, force_ref_cnt:%u), proc:%s",
-		slc_api_lvl_req[API_ID_ENABLE_GPU_DC],
-		slc_api_lvl_ref[API_ID_FORCE_CMD],
-		current->comm);
-		return -1;
-	}
-
-	/* clear GPU's ref bit in force cmd when gpu dc mode is disabled */
-	/* in case of user forgetting to release dc force size explicitly */
-	if (!type && (slc_api_lvl_req[API_ID_ENABLE_GPU_DC] == API_LVL_SDK))
-		slc_api_lvl_ref[API_ID_FORCE_CMD] &= ~((uint32_t)1 << ID_GPU);
-
 	ret = slbc_ctrl_scmi_info(IPI_SLBC_GPU_DYNAMIC_CACHE, type, 0, 0, 0, &rvalue);
 	if (ret)
 		return ret;
 
-	SLBC_TRACE_REC(LVL_NORM, TYPE_C, 0, 0,
-			"type: %u  (proc:%s)",
-			type, current->comm);
-
-	return ret;
+	return 0;
 #else
 	return 0;
 #endif /* CONFIG_MTK_TINYSYS_SCMI */
@@ -501,35 +465,15 @@ int slbc_enable_gpu_dynamic_cache(uint32_t type)
 int slbc_force_cmd(unsigned int force, unsigned int type)
 {
 	uint32_t enable = 0;
-	uint32_t uid = force & 0xffff;
-	uint32_t size = (force >> 16) & 0x7fff;
-	int ret = 0;
+	uint32_t uid = 0;
 
-	/* disable GPU DC mode(lvl < SDK) if normal force is set by SDK */
+	uid = force & 0xffff;
 	enable = slbc_sram_read(SLBC_ENABLE_GPU_DYNAMIC);
-	if (enable && type == FORCE_TYPE_NORMAL &&
-			(slc_api_lvl_req[API_ID_FORCE_CMD] == API_LVL_SDK) &&
-			(slc_api_lvl_req[API_ID_ENABLE_GPU_DC] < API_LVL_SDK)) {
-		ret = (int)slc_api_lvl_req[API_ID_ENABLE_GPU_DC];
-		slbc_set_api_lvl(API_ID_ENABLE_GPU_DC, slc_api_lvl_req[API_ID_FORCE_CMD]);
-		slbc_enable_gpu_dynamic_cache(0);
-		slc_api_lvl_req[API_ID_ENABLE_GPU_DC] = (uint8_t)ret;
-	}
-
-	ret = slbc_check_api_lvl((uint8_t)uid, API_ID_FORCE_CMD, size);
-	if (ret)
-		return ret;
-
-	enable = slbc_sram_read(SLBC_ENABLE_GPU_DYNAMIC);
-	if (enable && (type != FORCE_TYPE_DYNAMIC) && (uid == ID_GPU)) {
+	if (enable != type && uid == ID_GPU) {
 		SLBC_TRACE_REC(LVL_ERR, TYPE_C, 0, 0, "cmd:0x%x invalid, type:%u, enable:%u, uid:%u",
 			force, type, enable, uid);
 		return -EREQ_FAIL;
 	}
-
-	SLBC_TRACE_REC(LVL_NORM, TYPE_C, 0, 0,
-			"force:%u, type: %u (proc:%s)",
-			force, type, current->comm);
 
 	slbc_force = force;
 	return slbc_force_scmi_cmd(force);
@@ -539,8 +483,7 @@ int slbc_force_cache_ratio(enum slc_ach_uid uid, unsigned int ratio)
 {
 	unsigned int force_cmd;
 
-	SLBC_TRACE_REC(LVL_QOS, TYPE_C, uid, 0, "uid:%d, ratio:%u (proc:%s)",
-		uid, ratio, current->comm);
+	SLBC_TRACE_REC(LVL_QOS, TYPE_C, uid, 0, "uid:%d, ratio:%u", uid, ratio);
 
 	/* set force_cmd[31] = 0x1 to indicate setting cache ratio */
 	force_cmd = (0x1 << 31 | (ratio & 0x7fff) << 16) | (uid & 0xffff);
@@ -553,8 +496,7 @@ int slbc_force_cache(enum slc_ach_uid uid, unsigned int size)
 {
 	unsigned int force_cmd;
 
-	SLBC_TRACE_REC(LVL_QOS, TYPE_C, uid, 0, "uid:%d, size:%u (proc:%s)",
-		uid, size, current->comm);
+	SLBC_TRACE_REC(LVL_QOS, TYPE_C, uid, 0, "uid:%d, size:%u", uid, size);
 
 	/* set force_cmd[31] = 0x0 to indicate setting cache size */
 	force_cmd = (0x0 << 31 | (size & 0x7fff) << 16) | (uid & 0xffff);
@@ -568,13 +510,8 @@ int slbc_force_dynamic_cache(enum slc_ach_uid uid, unsigned int size)
 	unsigned int force_cmd = 0, enable = 0;
 	int ret = 0;
 
-	ret = slbc_check_api_lvl((uint8_t)uid, API_ID_FORCE_CMD, size);
-	if (ret)
-		return ret;
-
 	enable = slbc_sram_read(SLBC_ENABLE_GPU_DYNAMIC);
 	if (!enable) {
-		slbc_set_api_lvl(API_ID_ENABLE_GPU_DC, slc_api_lvl_req[API_ID_FORCE_CMD]);
 		ret = slbc_enable_gpu_dynamic_cache(1);
 		if (ret) {
 			SLBC_TRACE_REC(LVL_ERR, TYPE_C, uid, 0, "fail(ret=%d), uid:%d, size:%u",
@@ -583,14 +520,29 @@ int slbc_force_dynamic_cache(enum slc_ach_uid uid, unsigned int size)
 		}
 	}
 
-	SLBC_TRACE_REC(LVL_QOS, TYPE_C, uid, 0, "force_dynamic_cache, uid:%d, size:%u (proc:%s)",
-		uid, size, current->comm);
+	SLBC_TRACE_REC(LVL_QOS, TYPE_C, uid, 0, "force_dynamic_cache, uid:%d, size:%u", uid, size);
 
 	/* set force_cmd[31] = 0x0 to indicate setting cache size */
 	force_cmd = (0x0 << 31 | (size & 0x7fff) << 16) | (uid & 0xffff);
 	slbc_force = force_cmd;
 
 	return slbc_force_cmd(force_cmd, FORCE_TYPE_DYNAMIC);
+}
+
+static int slbc_set_policy(uint32_t type)
+{
+#if IS_ENABLED(CONFIG_MTK_TINYSYS_SCMI)
+	int ret = 0;
+	struct scmi_tinysys_slbc_ctrl_status rvalue = {0};
+
+	ret = slbc_ctrl_scmi_info(IPI_SLBC_SET_POLICY, type, 0, 0, 0, &rvalue);
+	if (ret)
+		return ret;
+
+	return 0;
+#else
+	return 0;
+#endif /* CONFIG_MTK_TINYSYS_SCMI */
 }
 
 static int slbc_get_gpu_wb(uint32_t *val)
@@ -1241,12 +1193,7 @@ int slbc_ceil(enum slc_ach_uid uid, unsigned int ceil)
 	int ret = 0;
 	struct scmi_tinysys_slbc_ctrl_status rvalue = {0};
 
-	ret = slbc_check_api_lvl((uint8_t)uid, API_ID_CEIL, ceil);
-	if (ret)
-		return ret;
-
-	SLBC_TRACE_REC(LVL_QOS, TYPE_C, uid, 0, "uid:%d, ceil:%u, (proc:%s)",
-		uid, ceil, current->comm);
+	SLBC_TRACE_REC(LVL_QOS, TYPE_C, uid, 0, "uid:%d, ceil:%u", uid, ceil);
 	ret = slbc_ctrl_scmi_info(IPI_SLBC_CACHE_USER_CEIL_SET, uid ,ceil, 0, 0, &rvalue);
 
 	return ret;
@@ -1261,12 +1208,7 @@ int slbc_total_ceil(unsigned int ceil)
 	int ret = 0;
 	struct scmi_tinysys_slbc_ctrl_status rvalue = {0};
 
-	ret = slbc_check_api_lvl((uint8_t)0, API_ID_TOTAL_CEIL, ceil);
-	if (ret)
-		return ret;
-
-	SLBC_TRACE_REC(LVL_QOS, TYPE_C, 0, 0, "total ceil:%u (proc:%s)",
-		ceil, current->comm);
+	SLBC_TRACE_REC(LVL_QOS, TYPE_C, 0, 0, "total ceil:%u", ceil);
 	ret = slbc_ctrl_scmi_info(IPI_SLBC_CACHE_USER_CEIL_SET, 0 ,ceil, 0, 0, &rvalue);
 
 	return ret;
@@ -1279,17 +1221,9 @@ int slbc_window(unsigned int window)
 {
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SCMI)
 	int ret = 0;
-	uint32_t val = 0;
 	struct scmi_tinysys_slbc_ctrl_status rvalue = {0};
 
-	val = ((window == slbc_init_window_size) || (window == 0)) ? 0 : 1;
-
-	ret = slbc_check_api_lvl((uint8_t)0, API_ID_WINDOW, val);
-	if (ret)
-		return ret;
-
-	SLBC_TRACE_REC(LVL_QOS, TYPE_C, 0, 0, "window:%d (proc:%s)",
-		window, current->comm);
+	SLBC_TRACE_REC(LVL_QOS, TYPE_C, 0, 0, "window:%d", window);
 	ret = slbc_ctrl_scmi_info(IPI_SLBC_CACHE_WINDOW_SET, window, 0, 0, 0, &rvalue);
 
 	return ret;
@@ -1304,12 +1238,7 @@ int slbc_cg_priority(bool gpu_first)
 	int ret = 0;
 	struct scmi_tinysys_slbc_ctrl_status rvalue = {0};
 
-	ret = slbc_check_api_lvl((uint8_t)0, API_ID_CG_PRIORITY, (unsigned int)gpu_first);
-	if (ret)
-		return ret;
-
-	SLBC_TRACE_REC(LVL_QOS, TYPE_C, 0, 0, "CG priority:%d, (proc:%s)",
-		gpu_first, current->comm);
+	SLBC_TRACE_REC(LVL_QOS, TYPE_C, 0, 0, "CG priority:%d", gpu_first);
 	ret = slbc_ctrl_scmi_info(IPI_SLBC_CG_PRIORITY_SET, gpu_first, 0, 0, 0, &rvalue);
 
 	return ret;
@@ -1318,46 +1247,9 @@ int slbc_cg_priority(bool gpu_first)
 #endif /* CONFIG_MTK_TINYSYS_SCMI */
 }
 
-int slbc_disable_sf(uint32_t disable)
-{
-	mutex_lock(&slbc_ref_lock);
-	disable = disable & 0x10001;
-	slbc_dis_sf_cmd(disable);
-	if (disable & (0x1 << 16)) {
-		if (disable & 0x1)
-			dis_sf_count |= (0x1 << 1);
-		else
-			dis_sf_count &= ~(0x1 << 1);
-	} else {
-		if (disable & 0x1)
-			dis_sf_count |= 0x1;
-		else
-			dis_sf_count &= ~0x1;
-	}
-
-	SLBC_TRACE_REC(LVL_QOS, TYPE_C, 0, 0, "disable:0x%x, dis_sf_count:0x%x (proc:%s)",
-		disable, dis_sf_count, current->comm);
-	mutex_unlock(&slbc_ref_lock);
-	return 0;
-}
-
-#ifdef CONFIG_OPLUS_FEATURE_SLC
-#include <linux/module.h>
-static int dcc_disable;
-module_param(dcc_disable, int, 0644);
-#endif
-
 int slbc_disable_dcc(bool disable)
 {
 	mutex_lock(&slbc_ref_lock);
-#ifdef CONFIG_OPLUS_FEATURE_SLC
-	if (dcc_disable) {
-		pr_err("#@# %s(%d) venc_count %d %s %d\n",
-				__func__, __LINE__, venc_count, current->comm, current->pid);
-		mutex_unlock(&slbc_ref_lock);
-		return 0;
-	}
-#endif
 	if (disable) {
 		if (venc_count == 0)
 			slbc_smc_send(MTK_SLBC_KERNEL_OP_CPU_DCC, 0, 0);
@@ -1367,15 +1259,8 @@ int slbc_disable_dcc(bool disable)
 		if (venc_count == 0)
 			slbc_smc_send(MTK_SLBC_KERNEL_OP_CPU_DCC, 1, 1);
 	}
-#ifdef CONFIG_OPLUS_FEATURE_SLC
-	pr_info("#@# %s(%d) venc_count %d %s %d\n",
-		__func__, __LINE__, venc_count, current->comm, current->pid);
-#else
 	pr_debug("#@# %s(%d) venc_count %d\n",
 		__func__, __LINE__, venc_count);
-#endif
-	SLBC_TRACE_REC(LVL_QOS, TYPE_C, 0, 0, "venc_count:%d, (proc:%s)",
-		venc_count, current->comm);
 	slbc_sram_write(SLBC_DCC_COUNT, venc_count);
 	mutex_unlock(&slbc_ref_lock);
 	return 0;
@@ -1386,8 +1271,6 @@ int slbc_disable_slc(bool disable)
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SCMI)
 	slc_disable = (int)disable;
 	pr_info("slc disable %d\n", slc_disable);
-	SLBC_TRACE_REC(LVL_QOS, TYPE_C, 0, 0, "slc_disable:%d (proc:%s)",
-		slc_disable, current->comm);
 
 	return slbc_sspm_slc_disable(slc_disable);
 #else
@@ -1405,8 +1288,6 @@ int slbc_get_cache_size(enum slc_ach_uid uid)
 	if (ret)
 		return -1;
 
-	SLBC_TRACE_REC(LVL_NORM, TYPE_C, 0, 0,"cache_size:%u", rvalue.slbc_resv1);
-
 	return rvalue.slbc_resv1;
 #else
 	return 0;
@@ -1423,8 +1304,6 @@ int slbc_get_cache_hit_rate(enum slc_ach_uid uid)
 	if (ret)
 		return -1;
 
-	SLBC_TRACE_REC(LVL_NORM, TYPE_C, 0, 0,"cache_hit_rate:%u", rvalue.slbc_resv2);
-
 	return rvalue.slbc_resv2;
 #else
 	return 0;
@@ -1440,8 +1319,6 @@ int slbc_get_cache_hit_bw(enum slc_ach_uid uid)
 	ret = slbc_ctrl_scmi_info(IPI_SLBC_CACHE_USER_INFO, uid, 0, 0, 0, &rvalue);
 	if (ret)
 		return -1;
-
-	SLBC_TRACE_REC(LVL_NORM, TYPE_C, 0, 0,"cache_hit_bw:%u", rvalue.slbc_resv3);
 
 	return rvalue.slbc_resv3;
 #else
@@ -1462,10 +1339,6 @@ int slbc_get_cache_usage(int *cpu, int *gpu, int *other)
 	*cpu = (int) rvalue.slbc_resv1;
 	*gpu = (int) rvalue.slbc_resv2;
 	*other = (int) rvalue.slbc_resv3;
-
-	SLBC_TRACE_REC(LVL_NORM, TYPE_C, 0, 0,
-		"cpu size:%d, gpu size:%d, other size:%d",
-		rvalue.slbc_resv1, rvalue.slbc_resv2, rvalue.slbc_resv3);
 
 	return 0;
 #else
@@ -1613,7 +1486,6 @@ static int dbg_slbc_proc_show(struct seq_file *m, void *v)
 	seq_printf(m, "slbc_ref %x\n", slbc_ref);
 	seq_printf(m, "venc_count %x\n", venc_count);
 	seq_printf(m, "dcc_count %x\n", venc_count);
-	seq_printf(m, "sf_count %x\n", dis_sf_count);
 	seq_printf(m, "debug_level %x\n", debug_level);
 	seq_printf(m, "slbc_sta %x\n", slbc_sta);
 	seq_printf(m, "slbc_ack_c %x\n", slbc_ack_c);
@@ -1636,18 +1508,6 @@ static int dbg_slbc_proc_show(struct seq_file *m, void *v)
 	seq_printf(m, "slbc_ipic_uid %u\n", slbc_ipic_uid);
 	seq_printf(m, "slbc_ipic_ret %u\n", slbc_ipic_ret);
 	seq_printf(m, "slbc_gpu_dynamic_cache %u\n", slbc_gpu_dynamic_cache);
-	seq_puts(m, "SLC_API_ID         ");
-	for (i = 0; i < API_ID_MAX; i++)
-		seq_printf(m, "%3d", i);
-	seq_puts(m, "\n");
-	seq_puts(m, "SLC_API_REF        ");
-	for (i = 0; i < API_ID_MAX; i++)
-		seq_printf(m, "%3u", slc_api_lvl_ref[i]);
-	seq_puts(m, "\n");
-	seq_puts(m, "SLC_API_REQ        ");
-	for (i = 0; i < API_ID_MAX; i++)
-		seq_printf(m, "%3u", slc_api_lvl_req[i]);
-	seq_puts(m, "\n");
 	if (slbc_all_cache_mode) {
 		seq_puts(m, "slc uid        ");
 		for (i = 0; i < ID_MAX; i++)
@@ -1824,7 +1684,7 @@ static ssize_t dbg_slbc_proc_write(struct file *file,
 	} else if (!strcmp(cmd, "slc_disable")) {
 		pr_info("slc disable %ld\n", val_1);
 		slc_disable = val_1;
-		slbc_disable_slc(!!val_1);
+		slbc_sspm_slc_disable((int)!!val_1);
 	} else if (!strcmp(cmd, "slbc_uid_used")) {
 		slbc_uid_used = val_1;
 		slbc_sram_write(SLBC_UID_USED, slbc_uid_used & 0xffffffff);
@@ -1899,31 +1759,26 @@ static ssize_t dbg_slbc_proc_write(struct file *file,
 			ret = -EPERM;
 			goto out;
 		}
-		slbc_set_api_lvl(API_ID_CEIL, API_LVL_NORMAL);
 		slbc_ceil((enum slc_ach_uid)val_1, val_2);
 	} else if (!strcmp(cmd, "slbc_total_ceil")) {
-		slbc_set_api_lvl(API_ID_TOTAL_CEIL, API_LVL_NORMAL);
 		slbc_total_ceil(val_1);
 	} else if (!strcmp(cmd, "slbc_window")) {
-		slbc_set_api_lvl(API_ID_WINDOW, API_LVL_NORMAL);
 		slbc_window(val_1);
 	} else if (!strcmp(cmd, "slbc_cg_priority")) {
-		slbc_set_api_lvl(API_ID_CG_PRIORITY, API_LVL_NORMAL);
 		slbc_cg_priority(val_1);
 	} else if (!strcmp(cmd, "slbc_force")) {
 		slbc_force = val_1;
-		slbc_set_api_lvl(API_ID_FORCE_CMD, API_LVL_NORMAL);
 		slbc_force_cmd(slbc_force, FORCE_TYPE_NORMAL);
 	}  else if (!strcmp(cmd, "slbc_dynamic_force")) {
-		slbc_set_api_lvl(API_ID_FORCE_CMD, API_LVL_NORMAL);
 		slbc_force_dynamic_cache(val_1, val_2);
 	} else if (!strcmp(cmd, "debug_level")) {
 		debug_level = val_1;
 	} else if (!strcmp(cmd, "slc_cpu_setting")) {
 		slbc_disable_dcc(val_1);
 	} else if (!strcmp(cmd, "slbc_enable_gpu_dynamic_cache")) {
-		slbc_set_api_lvl(API_ID_ENABLE_GPU_DC, API_LVL_NORMAL);
 		slbc_enable_gpu_dynamic_cache(val_1);
+	} else if (!strcmp(cmd, "slbc_set_policy")) {
+		slbc_set_policy(val_1);
 	} else if (!strcmp(cmd, "slbc_get_cust_pmu")) {
 		slbc_get_cust_pmu((unsigned char)val_1, &val_1_64_bit, &val_2_64_bit);
 		SLBC_TRACE_REC(LVL_NORM, TYPE_C, 0, 0,
@@ -1933,8 +1788,6 @@ static ssize_t dbg_slbc_proc_write(struct file *file,
 		slbc_get_gpu_wb(&val_1_32_bit);
 		SLBC_TRACE_REC(LVL_NORM, TYPE_C, 0, 0,
 		"gpu_wb = %u", val_1_32_bit);
-	} else if (!strcmp(cmd, "slbc_disable_sf")) {
-		slbc_disable_sf(val_1);
 	} else if (!strcmp(cmd, "slbc_get_cust_pmu_config")) {
 		for (i = 0; i < SLC_CUST_PMU_NUM; i++)
 			SLBC_TRACE_REC(LVL_NORM, TYPE_C, 0, 0,
@@ -1942,12 +1795,6 @@ static ssize_t dbg_slbc_proc_write(struct file *file,
 			slbc_cust_pmu_data->config[i].enable, slbc_cust_pmu_data->config[i].sel,
 			slbc_cust_pmu_data->config[i].r_w, slbc_cust_pmu_data->config[i].category,
 			slbc_cust_pmu_data->config[i].pmu_id);
-	} else if (!strcmp(cmd, "slbc_get_cache_user_info")) {
-		slbc_get_cache_size((enum slc_ach_uid)val_1);
-		slbc_get_cache_hit_rate((enum slc_ach_uid)val_1);
-		slbc_get_cache_hit_bw((enum slc_ach_uid)val_1);
-	} else if (!strcmp(cmd, "slbc_get_cache_user_usage")) {
-		slbc_get_cache_usage(&i, &temp, &ret);
 #if IS_ENABLED(CONFIG_MTK_SLBC_IPI)
 	} else if (!strcmp(cmd, "gid_set")) {
 		slbc_table_gid_set(val_1, val_2, val_3);
@@ -1983,11 +1830,6 @@ static ssize_t dbg_slbc_proc_write(struct file *file,
 
 		print_hex_dump(KERN_INFO, "SLBC: ", DUMP_PREFIX_OFFSET,
 				16, 4, slbc->sram_vaddr, slbc->regsize, 1);
-	} else if(!strcmp(cmd, "debug_slc_api_lv")) {
-		for (i = 0; i < API_ID_MAX;i++){
-			SLBC_TRACE_REC(LVL_NORM, TYPE_N, 0, 0,
-			"[%d]ref_cnt=%u, req=%u", i, slc_api_lvl_ref[i],slc_api_lvl_req[i]);
-		}
 	} else {
 		SLBC_TRACE_REC(LVL_WARN, TYPE_N, 0, 0,
 				"wrong cmd %s val %ld", cmd, val_1);
@@ -2096,31 +1938,6 @@ out:
 
 PROC_FOPS_RW(trace_slbc);
 
-#define ID_CPU 1
-#define ID_GPU 2
-static int slbc_dump_info;
-module_param(slbc_dump_info, int, 0644);
-
-static int slbc_status_proc_show(struct seq_file *m, void *v)
-{
-	int cpu_usage, gpu_usage, other_usage;
-	int cpu_hit_rate = 0, cpu_hit_bw = 0, gpu_hit_rate = 0, gpu_hit_bw = 0;
-
-	slbc_get_cache_usage(&cpu_usage, &gpu_usage, &other_usage);
-	if (slbc_dump_info) {
-		cpu_hit_rate = slbc_get_cache_hit_rate(ID_CPU);
-		cpu_hit_bw = slbc_get_cache_hit_bw(ID_CPU);
-		gpu_hit_rate = slbc_get_cache_hit_rate(ID_GPU);
-		gpu_hit_bw = slbc_get_cache_hit_bw(ID_GPU);
-	}
-	seq_printf(m, "%d,%d,%d,%d,%d,%d,%d\n",
-		cpu_usage, gpu_usage, other_usage,
-		cpu_hit_rate, cpu_hit_bw,
-		gpu_hit_rate, gpu_hit_bw);
-	return 0;
-}
-PROC_FOPS_RO(slbc_status);
-
 static int slbc_create_debug_fs(void)
 {
 	int i;
@@ -2135,7 +1952,6 @@ static int slbc_create_debug_fs(void)
 	const struct pentry entries[] = {
 		PROC_ENTRY(dbg_slbc),
 		PROC_ENTRY(trace_slbc),
-		PROC_ENTRY(slbc_status),
 	};
 
 	/* create /proc/slbc */
@@ -2179,7 +1995,6 @@ static struct slbc_common_ops common_ops = {
 	.slbc_window = slbc_window,
 	.slbc_cg_priority = slbc_cg_priority,
 	.slbc_enable_gpu_dynamic_cache = slbc_enable_gpu_dynamic_cache,
-	.slbc_disable_sf = slbc_disable_sf,
 	.slbc_disable_dcc = slbc_disable_dcc,
 	.slbc_disable_slc = slbc_disable_slc,
 	.slbc_get_cache_size = slbc_get_cache_size,
@@ -2188,7 +2003,6 @@ static struct slbc_common_ops common_ops = {
 	.slbc_get_cache_usage = slbc_get_cache_usage,
 	.slbc_get_cust_pmu = slbc_get_cust_pmu,
 	.slbc_get_gpu_wb = slbc_get_gpu_wb,
-	.slbc_set_api_lvl = slbc_set_api_lvl,
 };
 
 static struct slbc_ipi_ops ipi_ops = {
@@ -2203,9 +2017,6 @@ static int slbc_probe(struct platform_device *pdev)
 	int ret = 0, i = 0;
 	/* struct resource *res; */
 	uint32_t reg[4] = {0, 0, 0, 0};
-#if IS_ENABLED(CONFIG_MTK_TINYSYS_SCMI)
-	struct scmi_tinysys_slbc_ctrl_status rvalue = {0};
-#endif /* CONFIG_MTK_TINYSYS_SCMI */
 
 	ret = slbc_trace_init(pdev);
 	if (ret)
@@ -2354,15 +2165,6 @@ static int slbc_probe(struct platform_device *pdev)
 			SLBC_TRACE_REC(LVL_ERR, TYPE_N, 0, ret,
 					"failed to get sspm version (%d)", ret);
 		}
-#if IS_ENABLED(CONFIG_MTK_TINYSYS_SCMI)
-		ret = slbc_ctrl_scmi_info(IPI_SLBC_CACHE_WINDOW_GET, 0, 0, 0, 0, &rvalue);
-		if (ret) {
-			pr_info("SLBC FAILED TO GET SLC WINDOW SIZE (%d)\n", ret);
-			SLBC_TRACE_REC(LVL_ERR, TYPE_N, 0, ret,
-					"failed to get sspm version (%d)", ret);
-		}
-		slbc_init_window_size = rvalue.slbc_resv1;
-#endif /* CONFIG_MTK_TINYSYS_SCMI */
 	}
 
 #ifdef SLBC_CB_TEST

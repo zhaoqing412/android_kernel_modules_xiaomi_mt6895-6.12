@@ -35,9 +35,9 @@
 	/* battery temperature t2 */
 	temperature-t3 = <(0)>;
 	/* battery temperature t3 */
-	temperature-t4 = <(-10)>;
+	temperature-t4 = <(-7)>;
 	/* battery temperature t4 */
-	temperature-t5 = <(-20)>;
+	temperature-t5 = <(-10)>;
 	/* battery temperature t5 */
 	g-fg-pseudo100-t0 = <(100)>;
 	/* pseudo 100% percentage at t0 */
@@ -63,11 +63,11 @@
 	/* compensate r-sense resistance */
 	enable-tmp-intr-suspend = <(0)>;
 	/* enable update temp when suspend */
-	active-table = <(5)>;
+	active-table = <(6)>;
 	/* table numbers per battery */
 	multi-temp-gauge0 = <(1)>;
 	/* multi gauge0 enable */
 	rbat-pull-up-volt = <(2800)>;
-//#include "mt6789_battery_table.dtsi"
-//#include "mt6789_battery_prop_dim2_ext.dtsi"
+#include "mt6789_battery_table.dtsi"
+#include "mt6789_battery_prop_dim2_ext.dtsi"
 };

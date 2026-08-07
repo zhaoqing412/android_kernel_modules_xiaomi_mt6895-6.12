@@ -871,14 +871,6 @@ static bool mt6366_bypass_register(struct mt6358_regulator_info *info)
 		info->desc.id == MT6358_ID_VLDO28);
 }
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-int oplus_chg_set_dischg_enable(bool en)
-{
-	return 0;
-}
-EXPORT_SYMBOL(oplus_chg_set_dischg_enable);
-#endif
-
 static int mt6358_regulator_probe(struct platform_device *pdev)
 {
 	struct mt6397_chip *mt6397 = dev_get_drvdata(pdev->dev.parent);

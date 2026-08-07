@@ -20,9 +20,8 @@ static int loom_task_cfg_length;
 static int loom_render_num;
 static HLIST_HEAD(loom_render_list);
 static HLIST_HEAD(loom_task_cfg);
-static DEFINE_MUTEX(render_lock);	// main lock for loom
-static DEFINE_MUTEX(cfg_lock);		// lock for loom_task_cfg
-static DEFINE_MUTEX(mode_lock);		// lock for register fpsgo callback
+static DEFINE_MUTEX(render_lock);
+static DEFINE_MUTEX(cfg_lock);
 //static DEFINE_MUTEX(loom_cb_lock);  need or not??
 
 void *loom_alloc(int size)
@@ -122,8 +121,8 @@ void loom_clear_loom_attr(struct hlist_head *head)
 	INIT_HLIST_HEAD(head);
 }
 
-/* use for delete or reset loom lc active list */
-void loom_clear_loading_ctrl_list(struct list_head *head)
+/* use for delete loom lc active list */
+static void loom_clear_loading_ctrl_list(struct list_head *head)
 {
 	struct loom_loading_ctrl *iter = NULL, *tmp = NULL;
 
@@ -296,7 +295,6 @@ struct loom_attr_info *loom_search_add_task_cfg(struct hlist_head *head, int mod
 
 	iter->vip_set = 0;
 	iter->cmask_set = 0;
-	iter->is_exclusive = 0;
 out:
 	return iter;
 }
@@ -328,13 +326,10 @@ struct loom_render_info *loom_search_add_render_info(int tgid, int add)
 	if (!iter)
 		goto out;
 	iter->tgid = tgid;
-	iter->pid = 0;
-	iter->buffer_id = 0;
-	iter->q_cnt = 0;
+	iter->pid = 0; // do we need??
+	iter->buffer_id = 0; // do we need??
+	iter->target_fps = 0;
 	iter->last_update_ts = 0;
-	iter->queue_end_ts = 0;
-	iter->thermal_bypass = 0;
-	iter->last_thermal_check_ts = 0;
 	INIT_HLIST_HEAD(&iter->active_list);
 	INIT_LIST_HEAD(&iter->lc_active_list);
 
@@ -343,25 +338,6 @@ struct loom_render_info *loom_search_add_render_info(int tgid, int add)
 out:
 	return iter;
 }
-
-int get_loom_is_enable(int rpid)
-{
-	struct loom_render_info *iter = NULL;
-	struct hlist_node *h = NULL;
-	int found = 0;
-
-	loom_render_lock();
-	hlist_for_each_entry_safe(iter, h, &loom_render_list, render_hlist) {
-		if (iter->pid == rpid) {
-			found = 1;
-			break;
-		}
-	}
-	loom_render_unlock();
-
-	return found;
-}
-EXPORT_SYMBOL(get_loom_is_enable);
 
 struct hlist_head *loom_get_render_list(void)
 {
@@ -401,16 +377,6 @@ void loom_cfg_lock(void)
 void loom_cfg_unlock(void)
 {
 	mutex_unlock(&cfg_lock);
-}
-
-void loom_mode_lock(void)
-{
-	mutex_lock(&mode_lock);
-}
-
-void loom_mode_unlock(void)
-{
-	mutex_unlock(&mode_lock);
 }
 
 static unsigned long long loom_traverse_render_hlist(struct hlist_head *render_list,

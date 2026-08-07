@@ -53,7 +53,6 @@ define_mgk_ddk_ko(
 		"//kernel_device_modules-{}/drivers/misc/mediatek/power_throttling:mtk_low_battery_throttling".format(kernel_version),
 		"//kernel_device_modules-{}/drivers/misc/mediatek/sda:irq-dbg".format(kernel_version),
 		"//kernel_device_modules-{}/drivers/ufs:ufs-mediatek-dbg".format(kernel_version),
-		"//kernel_device_modules-{}/drivers/soc/oplus/storage:ufs-oplus-dbg".format(kernel_version),
 	],
 
 	includes = [
@@ -147,7 +146,6 @@ define_mgk_ddk_ko(
 		"//kernel_device_modules-{}/drivers/misc/mediatek/power_throttling:mtk_battery_oc_throttling".format(kernel_version),
 		"//kernel_device_modules-{}/drivers/misc/mediatek/power_throttling:mtk_low_battery_throttling".format(kernel_version),
 		"//kernel_device_modules-{}/drivers/ufs:ufs-mediatek-dbg".format(kernel_version),
-		"//kernel_device_modules-{}/drivers/soc/oplus/storage:ufs-oplus-dbg".format(kernel_version),
 	],
 
 	includes = [
@@ -239,7 +237,6 @@ define_mgk_ddk_ko(
 		"//kernel_device_modules-{}/drivers/misc/mediatek/aee/aed:aee_aed".format(kernel_version),
 		"//kernel_device_modules-{}/drivers/misc/mediatek/aee/mrdump:mrdump".format(kernel_version),
 		"//kernel_device_modules-{}/drivers/misc/mediatek/sda:irq-dbg".format(kernel_version),
-		"//kernel_device_modules-{}/drivers/soc/oplus/storage:ufs-oplus-dbg".format(kernel_version),
 	],
 
 	includes = [

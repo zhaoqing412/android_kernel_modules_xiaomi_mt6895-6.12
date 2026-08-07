@@ -623,14 +623,6 @@ static u16 engine_reset_bit[MML_ENGINE_TOTAL] = {
 };
 /* !!Above code generate by topology parser (tpparser.py)!! */
 
-static u8 mt6993_larb_sys_map[MML_MAX_LARB] = {
-	[MML_LARB2_IDX] = mml_sys_tile,
-	[MML_LARB3_IDX] = mml_sys_frame,
-	[MML_LARB56_IDX] = mml_sys_dma,
-	[MML_LARB57_IDX] = mml_sys_dma,
-	[MML_LARB58_IDX] = mml_sys_dma,
-};
-
 static inline bool engine_input(u32 id)
 {
 	return id == MML2_RDMA1 ||
@@ -1012,11 +1004,6 @@ static s32 tp_init_cache(struct mml_dev *mml, struct mml_topology_cache *cache,
 		return -ECHILD;
 	}
 
-	/* assign larb index to mmlsys id map,
-	 * since mml2_rrot0 in hybrid mode, which use in both dc and dl mode.
-	 */
-	cache->larb_sys_map = mt6993_larb_sys_map;
-
 	/* assign sys id for mmlsys/mutex compse different behavior */
 	for (i = MML1_MMLSYS; i < MML1_ENGINE_TOTAL; i++) {
 		comp = mml_dev_get_comp_by_id(mml, i);
@@ -1058,13 +1045,6 @@ static s32 tp_init_cache(struct mml_dev *mml, struct mml_topology_cache *cache,
 		path->clt_id = clt_dispatch[i];
 		path->mux_group = grp_dispatch[i];
 	}
-
-	/* for mt6993, it is necessary for dpc to enable all subsys,
-	 * hence cache all sys into driver, to enable all on/off feature.
-	 */
-	mml_drv_sys_comp_set(mml, MML2_MMLSYS, 0);
-	mml_drv_sys_comp_set(mml, MML0_MMLSYS, 1);
-	mml_drv_sys_comp_set(mml, MML1_MMLSYS, 2);
 
 	return 0;
 }
@@ -1280,8 +1260,6 @@ static bool tp_check_tput_dc(struct mml_frame_info *info, struct mml_topology_ca
 	info_cache->duration = pixel / max_clock;
 	if (info_cache->duration > MML_DC_MAX_DURATION_US)
 		return false;
-	if (!info_cache->remain)
-		return false;
 
 	tput = pixel / info_cache->remain;
 	for (i = 0; i < tp->dvfs->opp_cnt; i++) {
@@ -1492,9 +1470,6 @@ static enum mml_mode tp_query_mode_dl(struct mml_dev *mml, struct mml_frame_info
 		goto decouple;
 	}
 
-	if (info->alpha)
-		goto decouple;
-
 	if (info->src.width > MML_DL_MAX_W) {
 		*reason = mml_query_inwidth;
 		goto decouple;
@@ -1504,11 +1479,6 @@ static enum mml_mode tp_query_mode_dl(struct mml_dev *mml, struct mml_frame_info
 		*reason = mml_query_inheight;
 		goto decouple;
 	}
-
-	mml_log("%s src %d, %d, dst %d, %d, crop  %d, %d, rotate %d, rotated %d", __func__,
-		info->src.width, info->src.height,
-		dest->data.width, dest->data.height,
-		dest->crop.r.width, dest->crop.r.height, dest->rotate, rotated);
 
 	if ((!rotated && dest->crop.r.width < MML_MIN_SIZE) ||
 		(rotated && dest->crop.r.height < MML_MIN_SIZE)) {
@@ -1702,11 +1672,6 @@ static void tp_pre_query_mode(struct mml_dev *mml, struct mml_frame_info *info,
 	struct mml_topology_cache *tp = mml_topology_get_cache(mml);
 	enum mml_mode mode;
 
-	if (unlikely(!info_cache)) {
-		mml_err("%s info_cache is NULL", __func__);
-		return;
-	}
-
 	if (unlikely(mml_path_mode)) {
 		mml_log("%s force use path mode %d", __func__, mml_path_mode);
 		if (mml_path_mode < sizeof(info_cache->mode_caps) * 8)
@@ -1731,13 +1696,6 @@ static void tp_pre_query_mode(struct mml_dev *mml, struct mml_frame_info *info,
 	/* skip all racing mode check if user prefer dc */
 	if (mml_isdc(info->mode)) {
 		*reason = mml_query_userdc;
-		if (info->mode == MML_MODE_MML_DECOUPLE2 &&
-			tp_query_mode_dc2(info) != MML_MODE_MML_DECOUPLE2)
-			return;
-		if (info->mode == MML_MODE_MML_DECOUPLE &&
-			tp_query_mode_dc(info) != MML_MODE_MML_DECOUPLE)
-			return;
-
 		mode = info->mode;
 		goto check_dc_tput;
 	}
@@ -1780,7 +1738,7 @@ check_dc_tput:
 		/* dl mode support, compare opp with dc */
 		if (!(info->pry_mode == MML_PERFORMANCE_PRY || mml_perf_pry) &&
 			tp_check_tput_dc(info, tp, panel_width, panel_height, info_cache) &&
-			info_cache->dl_opp > info_cache->dc_opp) {
+			info_cache && info_cache->dl_opp > info_cache->dc_opp) {
 			*reason = mml_query_lowpower;
 			info_cache->mode_caps &= ~(BIT(MML_MODE_DIRECT_LINK) |
 						   BIT(MML_MODE_RACING));
@@ -1859,12 +1817,9 @@ static enum mml_mode tp_support_couple(void)
 	return MML_MODE_DIRECT_LINK;
 }
 
-static bool tp_support_dc2(struct mml_frame_info *info)
+static bool tp_support_dc2(void)
 {
-	if (tp_query_mode_dc2(info) == MML_MODE_MML_DECOUPLE2)
-		return true;
-
-	return false;
+	return true;
 }
 
 static enum mml_hw_caps support_hw_caps(void)

@@ -6,7 +6,6 @@
 #include <linux/rbtree.h>
 #include <linux/workqueue.h>
 #include <linux/hrtimer.h>
-#include <linux/slab.h>
 
 #define SBE_AFFNITY_TASK 0
 /*define cpu mask, maybe change setting to DTS not here*/
@@ -38,7 +37,6 @@
 #define RESCUE_TYPE_PRE_ANIMATION         (1 << 10)
 #define RESCUE_TYPE_ENABLE_MARGIN         (1 << 11)
 #define RESCUE_TYPE_AI_RESCUE             (1 << 12)
-#define RESCUE_TYPE_TRAVERSAL_HEAVY       (1 << 13)
 
 /*define render loading */
 #define RENDER_LOADING_LOW         (1 << 0)
@@ -70,7 +68,6 @@ void sbe_notify_fpsgo_do_virtual_boost(int enable, int tgid, int render_tid);
 void  __sbe_set_per_task_cap(struct sbe_render_info *thr, int min_cap, int max_cap);
 int get_sbe_critical_basic_cap(void);
 void sbe_core_ctl_ignore_vip_task(struct sbe_render_info *thr, int ignore_enable);
-int get_sbe_sbe_without_dptv2_enable(void);
 
 struct ux_frame_info {
 	unsigned long long frameID;
@@ -144,12 +141,12 @@ void count_scroll_rescue_info(struct sbe_render_info *thr, struct hwui_frame_inf
 
 int get_ux_list_length(struct list_head *head);
 void sbe_exec_doframe_end(struct sbe_render_info *thr, unsigned long long frame_id,
-			long long frame_flags, unsigned long long cur_ts);
+			long long frame_flags);
 void clear_ux_info(struct sbe_render_info *thr);
 void enqueue_ux_scroll_info(int type, unsigned long long start_ts, struct sbe_render_info *thr);
 struct ux_scroll_info *search_ux_scroll_info(unsigned long long ts, struct sbe_render_info *thr);
 int sbe_calculate_dy_enhance(struct sbe_render_info *thr);
-void sbe_ux_scrolling_end(unsigned long long ts, struct sbe_render_info *thr);
+void sbe_ux_scrolling_end(struct sbe_render_info *thr);
 void sbe_ux_scrolling_start(int type, unsigned long long start_ts, struct sbe_render_info *thr);
 void update_fpsgo_hint_param(int scrolling, int tgid);
 
@@ -175,20 +172,14 @@ void sbe_do_rescue_legacy(struct sbe_render_info *thr, int start, int enhance,
 		unsigned long long frame_id);
 
 int sbe_get_perf(void);
-int sbe_get_rescue_enhance(void);
-int sbe_get_render_loading(void);
 int get_sbe_disable_runnable_util_est_status(void);
 int get_sbe_extra_sub_en_deque_enable(void);
 unsigned long long get_sbe_extra_sub_deque_margin_time(void);
 void fbt_ux_set_perf(int cur_pid, int cur_blc);
 void sbe_set_global_sbe_dy_enhance(int cur_pid, int cur_dy_enhance);
-void sbe_set_global_render_loading(int cur_pid, int cur_loading);
 void sbe_register_jank_cb(unsigned long mask);
 void sbe_notify_ux_jank_detection(bool enable, int tgid, int pid, unsigned long mask,
 					struct sbe_render_info *sbe_thr, unsigned long long buf_id);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_QOS_ARBITER)
-void sbe_set_curr_q2q_jerk_pid(int cur_pid, unsigned long long cur_buffID);
-#endif
 
 extern int group_set_threshold(int grp_id, int val);
 extern int group_reset_threshold(int grp_id);

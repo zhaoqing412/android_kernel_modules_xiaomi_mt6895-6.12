@@ -9,7 +9,6 @@
 #include <linux/clk.h>
 #include <linux/cpu.h>
 #include <linux/delay.h>
-#include <linux/workqueue.h>
 #include <linux/hrtimer.h>
 #include <linux/init.h>
 #include <linux/interconnect.h>
@@ -56,14 +55,13 @@ static int cm_mgr_idx;
 static int cm_chip_ver;
 static unsigned int prev_freq_idx[CM_MGR_CPU_CLUSTER];
 static unsigned int prev_freq[CM_MGR_CPU_CLUSTER];
-static struct delayed_work cm_thermal_work;
+
 static struct cm_mgr_hook local_hk;
 
 u32 *cm_mgr_perfs;
 
 void __iomem *csram_base;
 static void __iomem *qos_sram_base;
-static void __iomem *sdk_sram_base;
 u32 cm_vendor_id, cm_mem_info, cm_num_opp, nr_vc0, nr_vc1, nr_bound;
 u32 *cm_mem_support, *cm_mem_dynamic, *cm_mem_capacity, *cm_mem_bound;
 /* only for debug use*/
@@ -319,7 +317,7 @@ static int cm_get_base_addr(void)
 ERROR:
 	return ret;
 }
-/*CM SDK*/
+
 unsigned int csram_read(unsigned int offs)
 {
 	if (IS_ERR_OR_NULL((void *)csram_base))
@@ -334,76 +332,6 @@ void csram_write(unsigned int offs, unsigned int val)
 	__raw_writel(val, csram_base + (offs));
 }
 
-static int cm_get_sdk_base(void)
-{
-	int ret = 0;
-	struct device_node *dn = NULL;
-	struct platform_device *pdev = NULL;
-	struct resource *csram_res = NULL;
-
-	dn = of_find_node_by_name(NULL, "slbc");
-
-	if (!dn) {
-		ret = -ENOMEM;
-		pr_info("find slbc node failed\n");
-		goto ERROR;
-	}
-
-	pdev = of_find_device_by_node(dn);
-	of_node_put(dn);
-	if (!pdev) {
-		ret = -ENODEV;
-		pr_info("slbc is not ready\n");
-		goto ERROR;
-	}
-
-	csram_res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (!csram_res) {
-		ret = -ENODEV;
-		pr_info("slbc resource is not found\n");
-		goto ERROR;
-	}
-
-	sdk_sram_base = ioremap(csram_res->start, resource_size(csram_res));
-	if (IS_ERR_OR_NULL((void *)sdk_sram_base)) {
-		ret = -ENOMEM;
-		pr_info("find csram base failed\n");
-		goto ERROR;
-	}
-
-ERROR:
-	return ret;
-}
-
-static unsigned int cm_sdkram_read(unsigned int offs)
-{
-	if (IS_ERR_OR_NULL((void *)sdk_sram_base)) {
-		cm_get_sdk_base();
-		return 0;
-	}
-	return __raw_readl(sdk_sram_base + 0x15C + (offs));
-}
-
-int cm_profile_get_vote(struct cm_vote_info *info_ptr)
-{
-	int ret = 0;
-	uint32_t val, idx = 0;
-	short i, j;
-
-	if (!info_ptr) {
-		ret = -1;
-	} else {
-		for (i = 0; i < 8; i++) {
-			for (j = 0; j < 5; j++) {
-				val = cm_sdkram_read(idx);
-				info_ptr->info[i][j] = val;
-				idx += 0x4;
-			}
-		}
-	}
-	return ret;
-}
-EXPORT_SYMBOL(cm_profile_get_vote);
 static int cm_get_qos_base(void)
 {
 	int ret = 0;
@@ -555,13 +483,6 @@ static void cm_mgr_thermal_hint(int is_thermal)
 	cm_mgr_to_sspm_command(IPI_CM_MGR_ENABLE, !(is_thermal & 0x02));
 }
 
-static void cm_mgr_thermal_routine(struct work_struct *work)
-{
-	pr_info("cm mgr thermal hint: [0x%x, 0x%x]\n",
-	cm_mgr_get_perf_mode_enable(),
-	cm_mgr_get_enable());
-	schedule_delayed_work(&cm_thermal_work, 10 * HZ);
-}
 static int cm_mgr_check_dts_setting_mt6993(struct platform_device *pdev)
 {
 #if IS_ENABLED(CONFIG_MTK_DVFSRC)
@@ -722,21 +643,12 @@ static int platform_cm_mgr_probe(struct platform_device *pdev)
 		goto ERROR;
 	}
 
-	ret = cm_get_sdk_base();
-	if (ret) {
-		pr_info("%s(%d): fail to get sdk csram base. ret %d\n", __func__,
-		__LINE__, ret);
-		goto ERROR;
-	}
-
 	local_hk.cm_mgr_get_dram_bw = cm_get_dram_bw;
 
 	cm_mgr_register_hook(&local_hk);
 	dev_pm_genpd_set_performance_state(&pdev->dev, 0);
 
 	cm_thermal_hint_register(cm_mgr_thermal_hint);
-	INIT_DELAYED_WORK(&cm_thermal_work, cm_mgr_thermal_routine);
-	schedule_delayed_work(&cm_thermal_work, 10 * HZ);
 
 	cm_mgr_get_sspm_version();
 
@@ -748,6 +660,7 @@ static int platform_cm_mgr_probe(struct platform_device *pdev)
 				   cm_mgr_get_perf_mode_thd());
 	cm_mgr_to_sspm_command(IPI_CM_MGR_CHIP_VER, cm_chip_ver);
 	cm_mgr_to_sspm_command(IPI_CM_MGR_ENABLE, cm_mgr_get_enable());
+
 	pr_info("%s(%d): platform-cm_mgr_probe Done.\n", __func__, __LINE__);
 
 	return 0;
@@ -760,7 +673,6 @@ static void platform_cm_mgr_remove(struct platform_device *pdev)
 {
 	cm_mgr_unregister_hook(&local_hk);
 	cm_thermal_hint_unregister();
-	cancel_delayed_work_sync(&cm_thermal_work);
 	cm_mgr_common_exit();
 	icc_put(cm_mgr_get_bw_path());
 }

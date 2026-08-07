@@ -57,7 +57,6 @@ ddk_headers(
         "include/ged_thread.h",
         "include/ged_tracepoint.h",
         "include/ged_type.h",
-        "include/ged_perfetto_tracepoint.h",
     ],
     includes = [
         "include",
@@ -140,7 +139,6 @@ define_mgk_ddk_ko(
         "include/ged_thread.h",
         "include/ged_tracepoint.h",
         "include/ged_type.h",
-        "include/ged_perfetto_tracepoint.h",
     ],
     includes = [
         "include",
@@ -182,9 +180,6 @@ define_mgk_ddk_ko(
         "MTK_GPU_SLC_POLICY",
         "MTK_GPU_MEMSYS_UTIL",
     ],
-    conditional_defines = {
-        "k6993v1_64":  ["CONFIG_OPLUS_FEATURE_SLC"],
-    },
     copts = [
         "-I$(DEVICE_MODULES_PATH)/include",
         "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",

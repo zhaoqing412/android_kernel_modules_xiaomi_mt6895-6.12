@@ -1425,12 +1425,7 @@ static void cmdq_task_exec(struct cmdq_pkt *pkt, struct cmdq_thread *thread)
 	} while (++i < alloc_retry_cnt);
 
 	if (unlikely(!task)) {
-// #ifdef OPLUS_FEATURE_CAMERA_COMMON
-		if (pkt->retry_cnt == CMDQ_FLUSH_RETRY_MAX - 1) {
-			cmdq_msg("allocate fail, call user callback");
-			cmdq_task_callback(pkt, -ENOMEM);
-		}
-// #endif /* OPLUS_FEATURE_CAMERA_COMMON */
+		cmdq_task_callback(pkt, -ENOMEM);
 		cmdq_mtcmos_by_fast(cmdq, false);
 		cmdq_trace_end("%s pkt:%p", __func__, pkt);
 		return;
@@ -3006,29 +3001,6 @@ void cmdq_check_thread_complete(struct mbox_chan *chan)
 	spin_unlock_irqrestore(&thread->chan->lock, flags);
 }
 EXPORT_SYMBOL(cmdq_check_thread_complete);
-
-void cmdq_mbox_thread_check_empty(struct mbox_chan *chan)
-{
-	struct cmdq_thread *thread = (struct cmdq_thread *)chan->con_priv;
-	struct cmdq_task *task;
-	unsigned long flags;
-
-	spin_lock_irqsave(&thread->chan->lock, flags);
-	if (list_empty(&thread->task_busy_list)) {
-		cmdq_msg("%s thread no task", __func__);
-		spin_unlock_irqrestore(&thread->chan->lock, flags);
-		return;
-	}
-
-	list_for_each_entry(task, &thread->task_busy_list, list_entry) {
-		cmdq_msg("%s pkt:%#lx submit:%llu", __func__, (unsigned long)task->pkt, task->exec_time);
-		cmdq_set_alldump(true);
-		cmdq_pkt_dump_buf(task->pkt, 0);
-		cmdq_set_alldump(false);
-	}
-	spin_unlock_irqrestore(&thread->chan->lock, flags);
-}
-EXPORT_SYMBOL(cmdq_mbox_thread_check_empty);
 
 static void cmdq_mbox_thread_stop(struct cmdq_thread *thread)
 {

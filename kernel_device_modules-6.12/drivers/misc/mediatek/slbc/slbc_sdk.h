@@ -15,7 +15,6 @@ extern int slbc_ceil(enum slc_ach_uid uid, unsigned int ceil);
 extern int slbc_total_ceil(unsigned int ceil);
 extern int slbc_window(unsigned int window);
 extern int slbc_disable_dcc(bool disable);
-extern int slbc_disable_sf(uint32_t disable);
 extern int slbc_disable_slc(bool disable);
 extern int slbc_cg_priority(bool gpu_first);
 extern int slbc_get_cache_size(enum slc_ach_uid uid);
@@ -23,7 +22,6 @@ extern int slbc_get_cache_hit_rate(enum slc_ach_uid uid);
 extern int slbc_get_cache_hit_bw(enum slc_ach_uid uid);
 extern int slbc_get_cache_usage(int *cpu, int *gpu, int *other);
 extern int slbc_enable_gpu_dynamic_cache(uint32_t type);
-extern int slbc_enable_gpu_dynamic_cache_h(uint32_t type);
 extern int slbc_get_cust_pmu(unsigned char idx, u64 *cnt, u64 *timestamp);
 extern int slbc_get_gpu_wb(uint32_t *val);
 #else
@@ -34,7 +32,6 @@ __weak int slbc_ceil(enum slc_ach_uid uid, unsigned int ceil) { return -EDISABLE
 __weak int slbc_total_ceil(unsigned int ceil) { return -EDISABLED; }
 __weak int slbc_window(unsigned int window) { return -EDISABLED; }
 __weak int slbc_disable_dcc(bool disable) { return -EDISABLED; }
-__weak int slbc_disable_sf(uint32_t disable) { return -EDISABLED; }
 __weak int slbc_disable_slc(bool disable) { return -EDISABLED; }
 __weak int slbc_cg_priority(bool gpu_first) { return -EDISABLED; }
 __weak int slbc_get_cache_size(enum slc_ach_uid uid) { return -EDISABLED; }
@@ -42,7 +39,6 @@ __weak int slbc_get_cache_hit_rate(enum slc_ach_uid uid) { return -EDISABLED; }
 __weak int slbc_get_cache_hit_bw(enum slc_ach_uid uid) { return -EDISABLED; }
 __weak int slbc_get_cache_usage(int *cpu, int *gpu, int *other) { return -EDISABLED; }
 __weak int slbc_enable_gpu_dynamic_cache(uint32_t type) { return -EDISABLED; }
-__weak int slbc_enable_gpu_dynamic_cache_h(uint32_t type) { return -EDISABLED; }
 __weak int slbc_get_cust_pmu(unsigned char idx, u64 *cnt, u64 *timestamp) { return -EDISABLED; }
 __weak int slbc_get_gpu_wb(uint32_t *val) { return -EDISABLED; }
 #endif /* CONFIG_MTK_SLBC */

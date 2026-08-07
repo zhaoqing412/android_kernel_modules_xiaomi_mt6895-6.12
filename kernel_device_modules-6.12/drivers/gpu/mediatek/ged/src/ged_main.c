@@ -86,7 +86,6 @@ static int ged_pdrv_probe(struct platform_device *pdev);
 static void ged_pdrv_remove(struct platform_device *pdev);
 static void ged_exit(void);
 static int ged_init(void);
-static bool g_ged_probe_done;
 
 /**
  * ===============================================
@@ -666,11 +665,6 @@ GED_ERROR check_frame_base_optimize(void)
 	return ret;
 }
 
-unsigned int ged_driver_done(void)
-{
-	return g_ged_probe_done;
-}
-EXPORT_SYMBOL(ged_driver_done);
 
 /******************************************************************************
  * Module related
@@ -729,13 +723,6 @@ static int ged_pdrv_probe(struct platform_device *pdev)
 	GED_ERROR err = GED_OK;
 
 	GED_LOGI("@%s: start to probe ged driver\n", __func__);
-
-	/* defer probe when gpufreq wrapper isn't ready */
-	if (!ged_gpufreq_get_gpufreq_ready() && !ged_gpufreq_bringup()) {
-		GED_LOGE("gpufreq wrapper has not been probed, defer ged probe");
-		err = -EPROBE_DEFER;
-		goto ERROR;
-	}
 
 	if (proc_create(GED_DRIVER_DEVICE_NAME, 0644, NULL, &ged_proc_fops)
 		== NULL) {
@@ -917,7 +904,6 @@ static int ged_pdrv_probe(struct platform_device *pdev)
 	gpufreq_ged_log = 0;
 #endif /* CONFIG_MTK_ENABLE_GMO */
 
-	g_ged_probe_done = true;
 	GED_LOGI("@%s: ged driver probe done\n", __func__);
 
 ERROR:

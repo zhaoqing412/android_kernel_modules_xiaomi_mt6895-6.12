@@ -13,8 +13,6 @@
 #include "inc/pd_policy_engine.h"
 
 /* From DTS */
-#define SVDM_REV20 1
-#define SVDM_REV10 0
 
 #if CONFIG_USB_PD_REV30_BAT_INFO
 static inline void pd_parse_pdata_bat_info(
@@ -600,11 +598,6 @@ int pd_core_init(struct tcpc_device *tcpc)
 
 	pd_port->tcpc = tcpc;
 	pd_port->pe_pd_state = PE_IDLE2;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-#ifdef CONFIG_USB_PD_REV30_PPS_SINK
-	pd_port->extra_pps_curr = false;
-#endif	/* CONFIG_USB_PD_REV30_PPS_SINK */
-#endif
 
 	pe_data_init(pe_data);
 
@@ -712,11 +705,6 @@ uint32_t pd_get_cable_current_limit(struct pd_port *pd_port)
 
 bool pd_is_cable_communication_available(struct pd_port *pd_port)
 {
-#ifdef OPLUS_FEATURE_CHG_BASIC
-/* add for pd_svooc charger*/
-	if (pd_port->power_role == PD_ROLE_SINK)
-		return false;
-#endif
 	return !!pd_port->vconn_role;
 }
 
@@ -816,9 +804,6 @@ int pd_reset_protocol_layer(struct pd_port *pd_port, bool sop_only)
 
 int pd_set_rx_enable(struct pd_port *pd_port, uint8_t enable)
 {
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	pd_port->rx_cap = enable;
-#endif
 	return tcpci_set_rx_enable(pd_port->tcpc, enable);
 }
 
@@ -1241,8 +1226,7 @@ int pd_send_svdm_request(struct pd_port *pd_port,
 		uint32_t timer_id)
 {
 	int ret;
-	uint8_t ver_major = SVDM_MAJOR_REV10;
-	uint8_t ver_minor = SVDM_MINOR_REV0;
+	uint8_t ver = SVDM_REV10;
 	uint32_t payload[PD_DATA_OBJ_SIZE];
 
 	if (cnt > VDO_MAX_NR) {
@@ -1250,12 +1234,11 @@ int pd_send_svdm_request(struct pd_port *pd_port,
 		return -EINVAL;
 	}
 
-	if (pd_get_rev(pd_port, sop_type) >= PD_REV30) {
-		ver_major = SVDM_MAJOR_REV20;
-		ver_minor = SVDM_MINOR_REV1;
-	}
+	if (pd_get_rev(pd_port, sop_type) >= PD_REV30)
+		ver = SVDM_REV20;
 
-	payload[0] = VDO_S(svid, ver_major, ver_minor, CMDT_INIT, vdm_cmd, obj_pos);
+	payload[0] = VDO_S(svid, ver, pd_get_svdm_ver_min(pd_port, sop_type),
+			   CMDT_INIT, vdm_cmd, obj_pos);
 	memcpy(&payload[1], data_obj, sizeof(uint32_t) * cnt);
 
 	ret = pd_send_data_msg(
@@ -1270,19 +1253,17 @@ int pd_send_svdm_request(struct pd_port *pd_port,
 int pd_reply_svdm_request(struct pd_port *pd_port,
 	uint8_t reply, uint8_t cnt, uint32_t *data_obj)
 {
-	uint8_t ver_major = SVDM_MAJOR_REV10;
-	uint8_t ver_minor = SVDM_MINOR_REV0;
+	uint8_t ver = SVDM_REV10;
 	uint32_t payload[PD_DATA_OBJ_SIZE];
 	struct tcpc_device __maybe_unused *tcpc = pd_port->tcpc;
 
 	PD_WARN_ON(cnt > VDO_MAX_NR);
 
-	if (pd_check_rev30(pd_port)) {
-		ver_major = SVDM_MAJOR_REV20;
-		ver_minor = SVDM_MINOR_REV1;
-	}
+	if (pd_check_rev30(pd_port))
+		ver = SVDM_REV20;
 
-	payload[0] = VDO_REPLY(ver_major, ver_minor, reply, pd_get_msg_vdm_hdr(pd_port));
+	payload[0] = VDO_REPLY(ver, pd_get_svdm_ver_min(pd_port, TCPC_TX_SOP),
+			       reply, pd_get_msg_vdm_hdr(pd_port));
 
 	if (cnt > 0 && cnt <= PD_DATA_OBJ_SIZE - 1) {
 		PD_WARN_ON(data_obj == NULL);
@@ -1327,34 +1308,6 @@ void pd_reset_pe_timer(struct pd_port *pd_port)
 	}
 #endif	/* CONFIG_USB_PD_REV30_PPS_SINK */
 }
-
-#ifdef OPLUS_FEATURE_CHG_BASIC
-void pd_add_miss_msg(struct pd_port *pd_port,struct pd_event *pd_event,
-		     uint8_t msg)
-{
-	struct pd_msg *pd_msg = pd_event->pd_msg;
-	struct pd_msg * miss_msg = NULL;
-	uint8_t sop_type = 0;
-	struct pd_event evt = {
-		.event_type = PD_EVT_CTRL_MSG,
-		.msg = msg,
-		.pd_msg = NULL,
-	};
-
-	if (pd_msg != NULL)
-		sop_type = pd_msg->frame_type;
-	pd_put_event(pd_port->tcpc, &evt, true);
-	miss_msg = pd_alloc_msg(pd_port->tcpc);
-	if (miss_msg == NULL)
-		return;
-	if (pd_msg != NULL)
-		memcpy(miss_msg, pd_msg, sizeof(struct pd_msg));
-
-	pd_put_pd_msg_event(pd_port->tcpc,miss_msg);
-	pd_port->pe_data.msg_id_rx[sop_type]--;
-	return;
-}
-#endif
 
 int pd_update_connect_state(struct pd_port *pd_port, uint8_t state)
 {

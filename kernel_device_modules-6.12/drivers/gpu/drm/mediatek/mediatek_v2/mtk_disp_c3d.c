@@ -120,7 +120,7 @@ static int disp_c3d_acquire_clock(struct mtk_ddp_comp *comp)
 {
 	struct mtk_disp_c3d *c3d_data = comp_to_c3d(comp);
 
-	DDPINFO("%s: ref: %d+\n", __func__, atomic_read(&c3d_data->c3d_clock_ref));
+	C3DAPI_LOG("ref: %d+\n", atomic_read(&c3d_data->c3d_clock_ref));
 
 	mutex_lock(&c3d_data->primary_data->clk_lock);
 	if (atomic_read(&c3d_data->c3d_clock_ref) == 0) {
@@ -140,7 +140,7 @@ static int disp_c3d_acquire_clock(struct mtk_ddp_comp *comp)
 	}
 	atomic_inc(&c3d_data->c3d_clock_ref);
 	mutex_unlock(&c3d_data->primary_data->clk_lock);
-	DDPINFO("%s: ref: %d-\n", __func__, atomic_read(&c3d_data->c3d_clock_ref));
+	C3DAPI_LOG("ref: %d-\n", atomic_read(&c3d_data->c3d_clock_ref));
 	return 0;
 }
 
@@ -148,7 +148,7 @@ static int disp_c3d_release_clock(struct mtk_ddp_comp *comp)
 {
 	struct mtk_disp_c3d *c3d_data = comp_to_c3d(comp);
 
-	DDPINFO("%s: ref: %d+\n", __func__, atomic_read(&c3d_data->c3d_clock_ref));
+	C3DAPI_LOG("ref: %d+\n", atomic_read(&c3d_data->c3d_clock_ref));
 
 	mutex_lock(&c3d_data->primary_data->clk_lock);
 	if (atomic_read(&c3d_data->c3d_clock_ref) == 0) {
@@ -168,7 +168,7 @@ static int disp_c3d_release_clock(struct mtk_ddp_comp *comp)
 	}
 	atomic_dec(&c3d_data->c3d_clock_ref);
 	mutex_unlock(&c3d_data->primary_data->clk_lock);
-	DDPINFO("%s: ref: %d-\n", __func__, atomic_read(&c3d_data->c3d_clock_ref));
+	C3DAPI_LOG("ref: %d-\n", atomic_read(&c3d_data->c3d_clock_ref));
 	return 0;
 }
 
@@ -514,7 +514,7 @@ static void disp_c3d_async_flush_done_cb(struct cmdq_cb_data data)
 
 		CRTC_MMP_MARK(0, c3d_frame_config,
 			atomic_read(&c3d_data->c3d_clock_ref), (unsigned long)cmdq_handle);
-		DDPINFO("%s: clk_ref: %d\n", __func__, atomic_read(&c3d_data->c3d_clock_ref));
+		C3DFLOW_LOG("clk_ref: %d\n", atomic_read(&c3d_data->c3d_clock_ref));
 	}
 }
 
@@ -558,8 +558,6 @@ static bool disp_c3d_flush_3dlut_sram(struct mtk_ddp_comp *comp, enum C3D_CMDQ_T
 
 	switch (cmd_type) {
 	case C3D_USERSPACE:
-		DDPINFO("%s: (comp: %s)\n", __func__, mtk_dump_comp_str(comp));
-		CRTC_MMP_MARK(0, c3d_frame_config, (0xFF << 16) | comp->id, (unsigned long)cmdq_handle);
 		if (c3d_data->auto_flip == 1) {
 			cmdq_pkt_refinalize(cmdq_handle);
 			atomic_inc(&c3d_data->c3d_clock_ref);
@@ -568,8 +566,6 @@ static bool disp_c3d_flush_3dlut_sram(struct mtk_ddp_comp *comp, enum C3D_CMDQ_T
 
 				atomic_inc(&c3d1_data->c3d_clock_ref);
 			}
-
-			DDPMSG("%s: cmdq_pkt_flush_async(handle: 0x%x)\n", __func__, cmdq_handle);
 
 			if (cmdq_pkt_flush_async(cmdq_handle,
 					disp_c3d_async_flush_done_cb, (void *)cb_data) < 0) {
@@ -850,10 +846,10 @@ static int disp_c3d_set_3dlut_v2(struct mtk_ddp_comp *comp,
 		return 0;
 	}
 	mtk_drm_idlemgr_kick(__func__, &mtk_crtc->base, 0);
+	DDP_MUTEX_UNLOCK_CONDITION(&mtk_crtc->lock, __func__, __LINE__, false);
 
 	// 2. lock for protect crtc & power
 	clk_ret = disp_c3d_acquire_clock(comp);
-	DDP_MUTEX_UNLOCK_CONDITION(&mtk_crtc->lock, __func__, __LINE__, false);
 	if (clk_ret == 0) {
 		pm_ret = mtk_vidle_pq_power_get(__func__);
 		if (pm_ret) {
@@ -1178,32 +1174,33 @@ static void disp_c3d_unprepare(struct mtk_ddp_comp *comp)
 	struct mtk_drm_crtc *mtk_crtc = comp->mtk_crtc;
 	struct mtk_disp_c3d_primary *primary_data = c3d_data->primary_data;
 	struct cmdq_client *client = NULL;
-	int total_num = 1;
+	int retry = 0;
 
 	c3d_data->has_set_1dlut = false;
-	total_num = mtk_ddp_comp_get_total_num_by_type(comp->mtk_crtc, MTK_DISP_C3D);
 
-	DDPINFO("%s: comp +: %s, path_order: %d, total_num: %d\n",
-		__func__, mtk_dump_comp_str(comp), c3d_data->path_order, total_num);
+	C3DFLOW_LOG("comp +: %s\n", mtk_dump_comp_str(comp));
 
 	mutex_lock(&primary_data->clk_lock);
 	atomic_dec(&c3d_data->c3d_clock_ref);
 	while (atomic_read(&c3d_data->c3d_clock_ref) > 0) {
+		if (retry >= 5) {
+			PQ_ERR("%s: can't wait clk_ref to 0\n", __func__);
+			break;
+		}
+		DDPMSG("%s: retry: %d\n", __func__, retry);
 		mutex_unlock(&primary_data->clk_lock);
-		usleep_range(500, 600);
+		usleep_range(50, 100);
+		retry++;
 		mutex_lock(&primary_data->clk_lock);
 	}
 
 	if (mtk_crtc->gce_obj.client[CLIENT_PQ]) {
 		client = mtk_crtc->gce_obj.client[CLIENT_PQ];
-		if ((total_num == 1) || ((total_num == 2) && (c3d_data->path_order == 1)))
-			cmdq_mbox_thread_check_empty(client->chan);
 		cmdq_mbox_disable(client->chan);
 	}
-
 	mtk_ddp_comp_clk_unprepare(comp);
 	mutex_unlock(&primary_data->clk_lock);
-	DDPINFO("%s: comp -: %s\n", __func__, mtk_dump_comp_str(comp));
+	C3DFLOW_LOG("comp -: %s\n", mtk_dump_comp_str(comp));
 }
 
 static void disp_c3d_init_cmdq_flush_cb_data(struct mtk_ddp_comp *comp)

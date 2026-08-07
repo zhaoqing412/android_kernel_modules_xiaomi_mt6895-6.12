@@ -55,8 +55,6 @@ static int g_limit_min_freq;
 static int g_limit_max_freq;
 static int g_expected_fps;
 
-static LIST_HEAD(loading_ctrl_linger_list);
-
 struct freq_qos_request *freq_max_request;
 struct freq_qos_request *freq_min_request;
 
@@ -69,29 +67,21 @@ module_param(g_expected_fps, int, 0644);
 
 static int _reset_userlimit_cpufreq_min(int cid)
 {
-	if (!freq_min_request || cid < 0 || cid >= policy_num)
-		return -1;
 	return freq_qos_remove_request(&(freq_min_request[cid]));
 }
 
 static int _reset_userlimit_cpufreq_max(int cid)
 {
-	if (!freq_max_request || cid < 0 || cid >= policy_num)
-		return -1;
 	return freq_qos_remove_request(&(freq_max_request[cid]));
 }
 
 int _update_userlimit_cpufreq_min(int cid, int value)
 {
-	if (!freq_min_request || cid < 0 || cid >= policy_num)
-		return -1;
 	return freq_qos_update_request(&(freq_min_request[cid]), value);
 }
 
 int _update_userlimit_cpufreq_max(int cid, int value)
 {
-	if (!freq_max_request || cid < 0 || cid >= policy_num)
-		return -1;
 	return freq_qos_update_request(&(freq_max_request[cid]), value);
 }
 
@@ -193,9 +183,7 @@ struct loom_loading_ctrl *loom_search_and_add_loading_ctrl_info(struct list_head
 
 	INIT_LIST_HEAD(&iter->loading_list);
 	iter->tid = tid;
-	iter->rpid = 0;
 	iter->tgid = tgid;
-	iter->buffer_id = 0;
 	iter->loading_window_count = 0;
 	iter->loading_thr_up_bound = loading_thr_up_bound;
 	iter->loading_thr_low_bound = loading_thr_low_bound;
@@ -207,51 +195,12 @@ struct loom_loading_ctrl *loom_search_and_add_loading_ctrl_info(struct list_head
 	iter->prev_runtime = 0;
 	iter->limit_min_freq = 0;
 	iter->limit_max_freq = 0;
-	iter->loom_proc_obj.active_jerk_id = 0;
-	iter->loom_proc_obj.jerking_num = 0;
 	for (i = 0; i < LOOM_RESCUE_TIMER_NUM; i++)
 		loom_init_jerk(&(iter->loom_proc_obj.jerks[i]), i);
 
 	list_add_tail(&iter->hlist, lc_active_list);
 
 	return iter;
-}
-
-void loom_delete_loading_ctrl_linger(struct work_struct *target_work)
-{
-	struct loom_loading_ctrl *iter = NULL, *tmp = NULL;
-	struct loom_proc *proc_iter = NULL;
-	struct work_struct *work_iter = NULL;
-	int i = 0, found = 0;
-	unsigned long long target_addr = 0, local_addr = 0;
-
-	if (!target_work)
-		return;
-
-	target_addr = (unsigned long long)target_work;
-
-	list_for_each_entry_safe(iter, tmp, &loading_ctrl_linger_list, hlist) {
-		proc_iter = &(iter->loom_proc_obj);
-		for (i = 0; i < LOOM_RESCUE_TIMER_NUM; i++) {
-			work_iter = &(proc_iter->jerks[i].work);
-			local_addr = (unsigned long long)work_iter;
-			if (local_addr == target_addr) {
-				if (proc_iter->jerking_num > 0) {
-					proc_iter->jerking_num--;
-					found = 1;
-					break;
-				}
-			}
-		}
-		if (found)
-			break;
-	}
-
-	if (found && proc_iter->jerking_num == 0) {
-		game_main_trace("[loom] pid=%d, delete=%llx", iter->tid, target_addr);
-		list_del(&iter->hlist);
-		kvfree(iter);
-	}
 }
 
 void loom_delete_loading_ctrl_info(struct loom_loading_ctrl *lc_info)
@@ -271,12 +220,6 @@ void loom_delete_loading_ctrl_info(struct loom_loading_ctrl *lc_info)
 	_update_userlimit_cpufreq_min(lc_info->cluster, 0);
 
 	list_del(&lc_info->hlist);
-
-	if (lc_info->loom_proc_obj.jerking_num > 0) {
-		game_main_trace("[loom] pid=%d, jerk_num=%d", lc_info->tid, lc_info->loom_proc_obj.jerking_num);
-		list_add_tail(&lc_info->hlist, &loading_ctrl_linger_list);
-		return;
-	}
 	kvfree(lc_info);
 }
 
@@ -416,9 +359,6 @@ int loom_loading_ctrl_operation(struct loom_loading_ctrl *lc_info, unsigned long
 	else
 		limit_min_freq_final = g_limit_min_freq;
 
-	if (lc_info->is_eara_active)
-		limit_min_freq_final = 0;
-
 	if (lc_info->limit_max_freq >= 1 && lc_info->limit_max_freq <= 3200000)
 		limit_max_freq_final = lc_info->limit_max_freq;
 	else
@@ -463,7 +403,7 @@ int init_loom_loading_ctrl(void)
 {
 	int ret = 0;
 	int cpu;
-	int num = 0, cpu_num = 0, has_offline_cpu = 0;
+	int num = 0, cpu_num = 0;
 	struct cpufreq_policy *policy;
 
 	loading_thr_up_bound = 100;
@@ -476,8 +416,6 @@ int init_loom_loading_ctrl(void)
 	g_limit_max_freq = 0;
 	g_expected_fps = 0;
 
-	INIT_LIST_HEAD(&loading_ctrl_linger_list);
-
 	for_each_possible_cpu(cpu) {
 		policy = cpufreq_cpu_get(cpu);
 		if (policy) {
@@ -486,24 +424,14 @@ int init_loom_loading_ctrl(void)
 			cpu_num++;
 			cpu = cpumask_last(policy->related_cpus);
 			cpufreq_cpu_put(policy);
-		} else {
-			has_offline_cpu = 1;
-			break;
 		}
 	}
-
-	if (has_offline_cpu)
-		return -1;
-
 	policy_num = cpu_num;
 
 	freq_min_request = kcalloc(policy_num, sizeof(struct freq_qos_request), GFP_KERNEL);
 	freq_max_request = kcalloc(policy_num, sizeof(struct freq_qos_request), GFP_KERNEL);
-	if (freq_min_request == NULL || freq_max_request == NULL) {
-		kfree(freq_min_request);
-		kfree(freq_max_request);
-		return -1;
-	}
+	if (freq_min_request == NULL || freq_max_request == NULL)
+		return 0;
 
 	for_each_possible_cpu(cpu) {
 		if (num >= policy_num)
@@ -515,12 +443,12 @@ int init_loom_loading_ctrl(void)
 			continue;
 
 		ret = freq_qos_add_request(&policy->constraints,
-			&(freq_max_request[num]), FREQ_QOS_MAX, FREQ_QOS_MAX_DEFAULT_VALUE);
+			&(freq_max_request[num]), FREQ_QOS_MAX, fbt_cluster_X2Y(num, 0, OPP, FREQ, 1, __func__));
 		if (ret < 0)
 			pr_info("%s freq_qos_add_request return %d\n", __func__, ret);
 
 		ret = freq_qos_add_request(&policy->constraints,
-			&(freq_min_request[num]), FREQ_QOS_MIN, FREQ_QOS_MIN_DEFAULT_VALUE);
+			&(freq_min_request[num]), FREQ_QOS_MIN,	0);
 		if (ret < 0)
 			pr_info("%s freq_qos_add_request return %d\n", __func__, ret);
 

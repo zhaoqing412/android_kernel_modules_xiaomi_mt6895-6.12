@@ -43,9 +43,8 @@ struct loom_attr_info {
 	int rescue_time;
 	struct hlist_node hlist;
 
-	int vip_set;		// flag indicates vip is already set
-	int cmask_set;		// flag indicates the cpu mask which is already set
-	int is_exclusive;	// flag indicates whether affinity is cpu dedicated
+	int vip_set;
+	int cmask_set;
 };
 
 struct loom_render_info {
@@ -53,16 +52,12 @@ struct loom_render_info {
 	int tgid;
 	int pid;
 	unsigned long long buffer_id;
+	int target_fps;
 	unsigned long long last_update_ts;
 	unsigned long long queue_end_ts;
 	struct hlist_head active_list;
 	struct list_head lc_active_list;
-
-	int q_cnt; // workaround for minchao app hang
-
-	/* for thermal */
-	int thermal_bypass;
-	unsigned long long last_thermal_check_ts; // use for cooldown calculation
+	// do we need to save queue ts?
 };
 
 void *loom_alloc(int size);
@@ -72,8 +67,6 @@ void loom_render_lock(void);
 void loom_render_unlock(void);
 void loom_cfg_lock(void);
 void loom_cfg_unlock(void);
-void loom_mode_lock(void);
-void loom_mode_unlock(void);
 int loom_get_render_num(void);
 int loom_get_cfg_length(void);
 unsigned long long loom_get_time(void);
@@ -93,8 +86,6 @@ struct loom_render_info *loom_search_add_render_info(int tgid, int add);
 void loom_delete_render_info(struct loom_render_info *iter);
 struct hlist_head *loom_get_cfg_list(void);
 struct hlist_head *loom_get_render_list(void);
-void loom_clear_loading_ctrl_list(struct list_head *head);
-int get_loom_is_enable(int rpid);
 
 int loom_check_loom_jerk_work_addr_invalid(struct work_struct *target_work);
 #endif // _LOOM_BASE_H_

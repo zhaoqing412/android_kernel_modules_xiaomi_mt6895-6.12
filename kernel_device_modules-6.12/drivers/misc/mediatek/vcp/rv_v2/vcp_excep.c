@@ -24,7 +24,6 @@
 #include "vcp_feature_define.h"
 #include "vcp_reservedmem_define.h"
 #include "vcp_status.h"
-#include "dbgtop.h"
 
 #define POLLING_RETRY 100
 
@@ -474,10 +473,8 @@ void vcp_aed(enum VCP_RESET_TYPE type, enum vcp_core_id id)
 	if (vcp_excep_mode == VCP_NO_EXCEP) {
 		pr_debug("[VCP]ee disable value=%d\n", vcp_excep_mode);
 		return;
-	}  else if ((vcp_excep_mode == VCP_KE_ENABLE) || (id != VCP_ID)) {
-		mtk_dbgtop_write_non_reset_reg(MTK_DBGTOP_NONRST1, 0x24741001);
+	}  else if ((vcp_excep_mode == VCP_KE_ENABLE) || (id != VCP_ID))
 		BUG_ON(1);
-	}
 
 	mutex_lock(&vcp_excep_mutex);
 

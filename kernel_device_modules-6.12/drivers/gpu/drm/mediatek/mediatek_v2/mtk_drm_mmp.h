@@ -110,22 +110,19 @@ struct CRTC_MMP_Events {
 	mmp_event ovl_bw_monitor;
 	mmp_event channel_bw;
 	mmp_event atomic_delay;
-	mmp_event atomic_commit;
 	mmp_event atomic_begin;
 	mmp_event atomic_flush;
-	mmp_event frame_cfg;
-	mmp_event retrig;
 	mmp_event retrig_flush;
-	mmp_event retrig_cfg;
 	mmp_event enable_vblank;
 	mmp_event disable_vblank;
 	mmp_event esd_check;
 	mmp_event esd_recovery;
 	mmp_event leave_idle;
 	mmp_event enter_idle;
-	mmp_event idle_sw_async;
 	mmp_event idle_async;
 	mmp_event idle_async_cb;
+	mmp_event frame_cfg;
+	mmp_event retrig_cfg;
 	mmp_event suspend;
 	mmp_event resume;
 	mmp_event dsi_suspend;
@@ -142,6 +139,7 @@ struct CRTC_MMP_Events {
 	mmp_event user_cmd;
 	mmp_event check_trigger;
 	mmp_event kick_trigger;
+	mmp_event atomic_commit;
 	mmp_event mml_dbg;
 	mmp_event mml_job_status;
 	mmp_event dli_relay;
@@ -188,14 +186,9 @@ struct CRTC_MMP_Events {
 	mmp_event oddmr_sof_thread;
 	mmp_event oddmr_ctl;
 	mmp_event oddmr_dmr_enable;
-	mmp_event oddmr_dmr_hw_enable;
 	mmp_event oddmr_dmr_cfg_done;
 	mmp_event oddmr_dmr_query_hrt_done;
 	mmp_event oddmr_dmr_timing_state_chg;
-	mmp_event oddmr_dmr_bin_chg;
-	mmp_event oddmr_dmr_io_cmd;
-	mmp_event oddmr_dmr_ch_hrt;
-	mmp_event oddmr_dmr_srt;
 	/*dsi underrun irq check*/
 	mmp_event dsi_underrun_irq;
 	/*pq common ioctl*/

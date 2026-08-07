@@ -303,32 +303,6 @@ static bool mtk_disp_check_segment(struct mtk_drm_crtc *mtk_crtc,
 		}
 	}
 
-	if (priv->data->mmsys_id == MMSYS_MT6895) {
-		switch (priv->seg_id) {
-		case 1:
-			if (hact >= 1440)
-				ret = false;
-			else if (hact >= 1080 && vrefresh > 168)
-				ret = false;
-			break;
-		case 2:
-			if (hact >= 1440 && vrefresh > 120)
-				ret = false;
-			else if (hact >= 1080 && vrefresh > 168)
-				ret = false;
-			break;
-		case 3:
-			if (hact >= 1440 && vrefresh > 120)
-				ret = false;
-			else if (hact >= 1080 && vrefresh > 180)
-				ret = false;
-			break;
-		default:
-			ret = true;
-			break;
-		}
-	}
-
 /*
  *	DDPMSG("%s, segment:%d, mode(%d, %d, %d)\n",
  *			__func__, priv->seg_id, hact, vact, vrefresh);
@@ -1591,9 +1565,6 @@ void mtk_disp_mmqos_bw_repaint(struct mtk_drm_private *priv)
 	bool is_hrt;
 
 	if (priv->data->respective_ostdl)
-		return;
-
-	if (priv->data->mmsys_id == MMSYS_MT6895 && (priv->seg_id == 3 || priv->seg_id == 2))
 		return;
 
 	for (c = 0 ; c < MAX_CRTC ; ++c) {

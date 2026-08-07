@@ -33,11 +33,6 @@
 #include "scp.h"
 #endif
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-#include <soc/oplus/system/oplus_mm_kevent_fb.h>
-#define HEADSET_ERR_FB_VERSION    "1.0.0"
-#endif
-
 /* SCP -> AP ipi structure */
 /* 2 x 4-byte(unit) = 8 */
 #define ACCDET_IPI_RX_LEN	1
@@ -137,10 +132,6 @@ struct mt63xx_accdet_data {
 	/* when eint issued, queue work: eint_work */
 	struct work_struct eint_work;
 	struct workqueue_struct *eint_workqueue;
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-	struct delayed_work fb_delaywork;
-	struct workqueue_struct *fb_workqueue;
-#endif
 	u32 water_r;
 	u32 moisture_ext_r;
 	u32 moisture_int_r;
@@ -1708,41 +1699,6 @@ static void dis_micbias_work_callback(struct work_struct *work)
 	scp_wake_release(adap);
 }
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-#define TEST_KERNEL_FEEDBACK_10047          0x01
-#define TEST_HEADPHONE_FEEDBACK_10009       0x02
-#define BYPASS_HEADPHONE_FEEDBACK_10009     0x04
-static unsigned int g_fb_ctrl = 0;
-void oplus_set_feedback_ctrl_val(unsigned int ctrl_val)
-{
-	g_fb_ctrl = ctrl_val;
-	pr_notice("%s set g_fb_ctrl = %u\n", __func__, g_fb_ctrl);
-}
-EXPORT_SYMBOL(oplus_set_feedback_ctrl_val);
-
-static void feedback_work_callback(struct work_struct *work)
-{
-	char fd_buf[MM_KEVENT_MAX_PAYLOAD_SIZE] = {0};
-
-	pr_notice("%s enter\n", __func__);
-
-	mini_dump_register();
-
-	if (g_fb_ctrl & TEST_HEADPHONE_FEEDBACK_10009) {
-		scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@just for test 10009, ignore");
-	} else {
-		scnprintf(fd_buf, sizeof(fd_buf) - 1, \
-			"payload@@ACCDET_IRQ not trigger,cable_type=%u,caps=0x%x,cur_eint=%u," \
-			"eint0=%u,eint1=%u,regs:%s", \
-			accdet->cable_type, accdet->data->caps, accdet->eint_id, \
-			accdet->eint0_state, accdet->eint1_state, accdet_log_buf);
-	}
-
-	mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_HEADSET_DET,
-					MM_FB_KEY_RATELIMIT_5MIN, fd_buf);
-}
-#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
-
 static void eint_work_callback(struct work_struct *work)
 {
 	struct i2c_adapter *adap = accdet->i2c_client->adapter;
@@ -1759,29 +1715,7 @@ static void eint_work_callback(struct work_struct *work)
 		enable_accdet(0);
 		if (accdet_dts.accdet_irq_gpio_enable == 0x1)
 			enable_irq(accdet->gpioirq);
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-/* delay time must less than __pm_wakeup_event time 7 * HZ */
-		if (accdet->fb_workqueue && !(g_fb_ctrl & BYPASS_HEADPHONE_FEEDBACK_10009)) {
-			if (g_fb_ctrl & TEST_HEADPHONE_FEEDBACK_10009) {
-				pr_notice("%s just for test 10009, ignore\n", __func__);
-				queue_delayed_work(accdet->fb_workqueue, \
-						&accdet->fb_delaywork, 0);
-			} else {
-				queue_delayed_work(accdet->fb_workqueue, \
-						&accdet->fb_delaywork, 6 * HZ);
-				pr_notice("%s queue_delayed_work fb_delaywork\n", __func__);
-			}
-		}
-#endif
 	} else {
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-		if (accdet->fb_workqueue) {
-			cancel_delayed_work_sync(&accdet->fb_delaywork);
-			pr_notice("%s cancel_delayed_work_sync fb_delaywork\n", __func__);
-		}
-#endif
-
 		mutex_lock(&accdet->res_lock);
 		accdet->eint_sync_flag = false;
 		accdet->thing_in_flag = false;
@@ -1999,13 +1933,6 @@ static inline void check_cable_type(void)
 static void accdet_work_callback(struct work_struct *work)
 {
 	u32 pre_cable_type = accdet->cable_type;
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-	if (accdet->fb_workqueue) {
-		cancel_delayed_work_sync(&accdet->fb_delaywork);
-		pr_notice("%s cancel_delayed_work_sync fb_delaywork\n", __func__);
-	}
-#endif
 
 	__pm_wakeup_event(accdet->wake_lock, accdet_dts.app_wakelock_time);
 	check_cable_type();
@@ -2377,9 +2304,6 @@ static inline int ext_eint_setup(struct platform_device *pdev)
 
 	//enable top level irq
 	pmic_write(MT6681_TOP_INT_CON0, 0x80);
-
-	/* Enable AP EINT to wake up system from suspend */
-	enable_irq_wake(accdet->gpioirq);
 
 	dev_info(&pdev->dev, "%s ret:%d\n", __func__, ret);
 	if (ret)
@@ -3340,17 +3264,6 @@ static int accdet_probe(struct platform_device *pdev)
 		if (ret)
 			destroy_workqueue(accdet->eint_workqueue);
 	}
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-/*2022/05/31, Add for headset feedback.*/
-	accdet->fb_workqueue = create_singlethread_workqueue("hs_feedback");
-	INIT_DELAYED_WORK(&accdet->fb_delaywork, feedback_work_callback);
-	if (!accdet->fb_workqueue) {
-		dev_dbg(&pdev->dev, "Error: Create feedback workqueue failed\n");
-	}
-	dev_info(&pdev->dev, "%s: event_id=%u, version:%s\n", __func__, \
-			OPLUS_AUDIO_EVENTID_HEADSET_DET, HEADSET_ERR_FB_VERSION);
-#endif
 
 	ret = accdet_create_attr(&accdet_driver.driver);
 	if (ret) {

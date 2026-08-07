@@ -10,7 +10,6 @@
 #include <linux/of_irq.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
-#include <linux/vmalloc.h>
 
 #ifndef DRM_CMDQ_DISABLE
 #include <linux/soc/mediatek/mtk-cmdq-ext.h>
@@ -1108,7 +1107,7 @@ int disp_pq_helper_frame_config(struct drm_crtc *crtc, struct cmdq_pkt *cmdq_han
 				if (in_size <= sizeof(stack_kdata))
 					kdata = stack_kdata;
 				else
-					kdata = kvmalloc(in_size, GFP_KERNEL);
+					kdata = kmalloc(in_size, GFP_KERNEL);
 
 				if (!kdata) {
 					PQ_ERR("%s:%d, kdata alloc failed comp:%d,%d\n",
@@ -1128,7 +1127,7 @@ int disp_pq_helper_frame_config(struct drm_crtc *crtc, struct cmdq_pkt *cmdq_han
 				}
 
 				if (kdata != stack_kdata)
-					kvfree(kdata);
+					kfree(kdata);
 			}
 		}
 	}

@@ -36,8 +36,8 @@ extern unsigned int default_emi_eff;
 
 #define VIDLE_MTCMOS_DEBOUNCE 6	/* 6 for resync */
 #define VIDLE_MODE_SWITCH_DEBOUNCE 4
-#define VIDLE_DOZE_DEBOUNCE 100
-#define VIDLE_ERR_DUMP_DEBOUNCE U8_MAX	/* disable vidle 255 frames */
+#define VIDLE_DOZE_DEBOUNCE 3
+#define VIDLE_ERR_DUMP_DEBOUNCE 6
 
 enum mtk_vidle_hint_type {
 	VIDLE_HINT_GET,
@@ -54,10 +54,6 @@ enum mtk_vidle_hint_type {
 	VIDLE_HINT_TUI_OFF,
 	VIDLE_HINT_HSIDLE_ENTER,
 	VIDLE_HINT_HSIDLE_LEAVE,
-#ifdef OPLUS_FEATURE_DISPLAY
-	VIDLE_HINT_OPEN_VIDLE,
-	VIDLE_HINT_CLOSE_VIDLE,
-#endif /* OPLUS_FEATURE_DISPLAY */
 };
 
 struct mtk_vidle_hint {
@@ -68,9 +64,6 @@ struct mtk_vidle_hint {
 	u8 crtc_fuse;			/* 0: okay, or +1 by others(multi crtc, DP, ...) */
 	u8 tui_fuse;			/* 0: okay, or +1 by enter tui */
 	u8 hsidle_fuse;			/* 0: okay, or +1 by enter hs idle */
-#ifdef OPLUS_FEATURE_DISPLAY
-	u8 close_vidle;			/* 0: open vidle, 1: close vidle */
-#endif /* OPLUS_FEATURE_DISPLAY */
 };
 
 struct mtk_disp_dpc_data {
@@ -117,8 +110,7 @@ u32 mtk_vidle_hint_update(enum mtk_vidle_hint_type type);
 int mtk_vidle_hint_decision(const char *caller);
 void mtk_vidle_mminfra_on_off(bool en);
 void mtk_vidle_pre_cg_ctrl(bool en);
-void mtk_vidle_user_power_clean_up_by_gce(void);
-void mtk_vidle_user_apsrc_enable(bool en, enum mtk_vidle_voter_user user);
+void mtk_vidle_user_power_clean_up_by_gce(struct cmdq_pkt *pkt);
 
 void mtk_vdisp_register(const struct mtk_vdisp_funcs *fp, enum mtk_vdisp_version version);
 void mtk_vidle_wait_init(void *_drm_priv);

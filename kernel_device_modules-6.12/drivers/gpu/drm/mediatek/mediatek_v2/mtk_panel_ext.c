@@ -20,7 +20,6 @@ struct _panel_rst_ctx {
 };
 
 static DEFINE_MUTEX(panel_ext_lock);
-static DEFINE_MUTEX(panel_boot_lock);
 static LIST_HEAD(panel_ext_list);
 static struct _panel_rst_ctx panel_rst_ctx;
 static enum mtk_lcm_version g_lcm_version;
@@ -29,19 +28,6 @@ void mtk_panel_init(struct mtk_panel_ctx *ctx)
 {
 	INIT_LIST_HEAD(&ctx->list);
 }
-#ifdef OPLUS_FEATURE_DISPLAY
-void mtk_panel_lock(void)
-{
-	mutex_lock(&panel_boot_lock);
-}
-EXPORT_SYMBOL(mtk_panel_lock);
-
-void mtk_panel_unlock(void)
-{
-	mutex_unlock(&panel_boot_lock);
-}
-EXPORT_SYMBOL(mtk_panel_unlock);
-#endif
 
 void mtk_panel_add(struct mtk_panel_ctx *ctx)
 {

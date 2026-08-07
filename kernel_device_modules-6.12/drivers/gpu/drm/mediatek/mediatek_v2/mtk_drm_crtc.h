@@ -193,10 +193,7 @@ enum EVENT_TRIGGER_PT {
 #define DISP_SLOT_PU_NEED_WAIT (DISP_SLOT_PU_STATUS + 0x4)
 #define DISP_SLOT_TRIG_STARTED (DISP_SLOT_PU_NEED_WAIT + 0x4)
 #define DISP_SLOT_CONDITION (DISP_SLOT_TRIG_STARTED + 0x4)
-#define DISP_SLOT_MUTEX4_DEBUG (DISP_SLOT_CONDITION + 0x4)
-#define DISP_SLOT_MUTEX5_DEBUG (DISP_SLOT_MUTEX4_DEBUG + 0x4)
-#define DISP_SLOT_MUTEX6_DEBUG (DISP_SLOT_MUTEX5_DEBUG + 0x4)
-#define DISP_SLOT_UNDERRUNED (DISP_SLOT_MUTEX6_DEBUG + 0x4)
+#define DISP_SLOT_UNDERRUNED (DISP_SLOT_CONDITION + 0x4)
 
 #define TRIG_TICK_NR 13
 #define DISP_SLOT_TRIG_TICK(n) (DISP_SLOT_UNDERRUNED + 0x4 + (0x4 * (n)))
@@ -294,15 +291,10 @@ enum EVENT_TRIGGER_PT {
 	(DISP_SLOT_LAYER_PRE_PEAK_RATIO(MAX_LAYER_RATIO_NUMBER) + 0x4 + (0x8 * (n)))
 #define DISP_SLOT_EXT_LAYER_PRE_PEAK_RATIO(n)                                          \
 	(DISP_SLOT_EXT_LAYER_PRE_AVG_RATIO(n) + 0x4)
-#define DISP_SLOT_DSI_CHKSUM    \
-	(DISP_SLOT_EXT_LAYER_PRE_PEAK_RATIO(0x18) + 0x4)
-#define DISP_SLOT_DSC_CHKSUM0    \
-		(DISP_SLOT_DSI_CHKSUM + 0x4)
-#define DISP_SLOT_DSC_CHKSUM1    \
-		(DISP_SLOT_DSC_CHKSUM0 + 0x4)
+
 
 #define DISP_SLOT_SIZE            \
-	(DISP_SLOT_DSC_CHKSUM1 + 0x4)
+	(DISP_SLOT_EXT_LAYER_PRE_PEAK_RATIO(0x18) + 0x4)
 
 #if DISP_SLOT_SIZE > CMDQ_BUF_ALLOC_SIZE
 #error "DISP_SLOT_SIZE exceed CMDQ_BUF_ALLOC_SIZE"
@@ -592,14 +584,6 @@ enum MTK_CRTC_PROP {
 	CRTC_PROP_BL_SYNC_GAMMA_GAIN,
 	CRTC_PROP_DYNAMIC_WCG_OFF,
 	CRTC_PROP_WCG_BY_COLOR_MODE,
-#ifdef OPLUS_FEATURE_DISPLAY_ADFR
-	CRTC_PROP_AUTO_MODE,
-	CRTC_PROP_AUTO_FAKE_FRAME,
-	CRTC_PROP_AUTO_MIN_FPS,
-#endif /* OPLUS_FEATURE_DISPLAY_ADFR */
-/* #ifdef OPLUS_FEATURE_LOCAL_HDR  */
-	CRTC_PROP_HW_BRIGHTNESS,
-/* #endif */
 	/*DBI HW counting */
 	CRTC_PROP_DBI_COUNT_ENABLE,
 	CRTC_PROP_DBI_COUNT_SLICE_NUM,
@@ -853,6 +837,7 @@ struct mtk_cmdq_pkt_pool {
 	/* list_len change when request/release pkt from pool */
 	unsigned int list_len;
 	struct list_head list;
+	struct cmdq_pkt *reset_pkt;
 };
 
 struct mtk_cmdq_pkt_info {
@@ -1378,7 +1363,6 @@ struct mtk_drm_crtc {
 			bool is_mml_dl;
 			bool is_mml_submit;
 			bool is_mml_submit_success;
-			bool mml_disabled;
 			bool skip_check_trigger;
 			bool is_mml_dc;
 			bool is_force_mml_scen;
@@ -1400,9 +1384,6 @@ struct mtk_drm_crtc {
 
 	atomic_t force_high_step;
 	int force_high_enabled;
-#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
-	struct oplus_apollo_brightness *oplus_apollo_br;
-#endif /* OPLUS_FEATURE_DISPLAY_APOLLO */
 	struct total_tile_overhead tile_overhead;
 	struct total_tile_overhead_v tile_overhead_v;
 
@@ -1485,22 +1466,6 @@ struct mtk_drm_crtc {
 	 * mode (clear when AOD_CPU display a new frame).
 	 */
 	int scp_show_count;
-
-	int bg_bld_id;
-	unsigned int bg_code;
-};
-
-/* one exdma may have both compr and uncompr layers(because ext layer).
- * Use this enum to describe.
- */
-enum EXDMA_COMPR_TYPE {
-	COMPR_TYPE_IS_UNCOMPR,
-	COMPR_TYPE_IS_COMPR,
-	COMPR_TYPE_ALL_UNCOMPR,
-	COMPR_TYPE_ALL_COMPR,
-	COMPR_TYPE_HAS_UNCOMPR,
-	COMPR_TYPE_HAS_COMPR,
-	COMPR_TYPE_MAX,
 };
 
 enum BL_GAMMA_GAIN {
@@ -1898,12 +1863,6 @@ unsigned int mtk_get_cur_spr_type(struct drm_crtc *crtc);
 int mtk_drm_set_dbv_mode(struct drm_crtc *crtc, unsigned int dbv_mode);
 int mtk_drm_set_dmr_binset(struct drm_crtc *crtc, unsigned int binset);
 int mtk_drm_get_dmr_cus_own_data(struct drm_crtc *crtc, void *cus_data);
-
-#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
-extern int mtk_drm_setbacklight_without_lock(struct drm_crtc *crtc, unsigned int level,
-			unsigned int panel_ext_param, unsigned int cfg_flag);
-#endif /* OPLUS_FEATURE_DISPLAY_APOLLO */
-
 int mtk_drm_switch_spr(struct drm_crtc *crtc, unsigned int en,
 	unsigned int need_lock, unsigned int need_repaint, struct cmdq_pkt *handle);
 
@@ -1945,18 +1904,6 @@ void mtk_bwm_get_compress_ratio(struct drm_crtc *crtc,
 	struct mtk_drm_private *priv, struct cmdq_pkt *cmdq_handle);
 unsigned int mtk_bwm_get_layer_compress_ratio(struct mtk_drm_crtc *mtk_crtc,
 		unsigned int phy_id, bool peak);
-
-#ifdef OPLUS_FEATURE_DISPLAY
-void mtk_drm_send_lcm_cmd_prepare(struct drm_crtc *crtc,
-		struct cmdq_pkt **cmdq_handle);
-void mtk_drm_send_lcm_cmd_flush(struct drm_crtc *crtc,
-		struct cmdq_pkt **cmdq_handle, bool sync);
-bool mtk_crtc_is_event_loop_active(struct mtk_drm_crtc *mtk_crtc);
-#endif /* OPLUS_FEATURE_DISPLAY */
-#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
-void mtk_atomic_hbm_bypass_pq(struct drm_crtc *crtc,
-		struct cmdq_pkt *handle, int en);
-#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 
 #if IS_ENABLED(CONFIG_DRM_MEDIATEK_AUTO_YCT)
 struct mtk_ddp_comp *mtk_crtc_get_comp_with_index(struct mtk_drm_crtc *mtk_crtc,

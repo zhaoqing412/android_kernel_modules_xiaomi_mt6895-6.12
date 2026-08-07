@@ -10,11 +10,8 @@
 
 &mmc1 {
 	host-index = <1>;
-	/* #ifdef OPLUS_FEATRUE_SIM_DETECT add for dx5 ir */
-	/* status = "okay"; */
-	status = "disabled";
-	/* #endif OPLUS_FEATRUE_SIM_DETECT */
-	pinctrl-names = "default", "state_uhs", "pull_down";
+	status = "okay";
+	pinctrl-names = "default", "state_uhs";
 	pinctrl-0 = <&mmc1_pins_default>;
 	pinctrl-1 = <&mmc1_pins_uhs>;
 	bus-width = <4>;
@@ -31,12 +28,8 @@
 	cd-debounce-delay-ms = <0>;
 	cd-gpios = <&pio 50 GPIO_ACTIVE_LOW>;
 	cd-gpio-num = <50>;
-	/* #ifdef OPLUS_FEATURE_CAMERA_COMMON */
-	// vmmc-supply = <&mt6661_5_ldc0_4_eint_high>;
-	/* #endif OPLUS_FEATURE_CAMERA_COMMON */
-	/* #ifdef OPLUS_FEATURE_CONSUMERIR add for dx5 ir */
-	// vqmmc-supply = <&mt6661_5_ldc0_3>;
-	/* #endif OPLUS_FEATURE_CONSUMERIR */
+	vmmc-supply = <&mt6661_5_ldc0_4_eint_high>;
+	vqmmc-supply = <&mt6661_5_ldc0_3>;
 	no-mmc;
 	no-sdio;
 	mediatek,mmc-qos;
@@ -62,9 +55,7 @@
 	msdc-spm-hw-supp;
 	enable-dll;
 	eint-gpios = <&pio 215 GPIO_ACTIVE_LOW>;
-	/* #ifdef OPLUS_FEATURE_CAMERA_COMMON */
-	// vmmc-supply = <&mt6661_5_ldc0_4_eint_high>;
-	/* #endif OPLUS_FEATURE_CAMERA_COMMON */
+	vmmc-supply = <&mt6661_5_ldc0_4_eint_high>;
 	vqmmc-supply = <&mt6661_3_lnc0_10>;
 	no-mmc;
 	no-sd;

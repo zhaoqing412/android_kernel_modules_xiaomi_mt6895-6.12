@@ -1,21 +1,10 @@
 load("//build/bazel_mgk_rules:mgk_ddk_ko.bzl", "define_mgk_ddk_ko")
 load("@mgk_info//:kernel_version.bzl","kernel_version")
-load("//build/kernel/kleaf:kernel.bzl", "ddk_headers")
 
 package(
     default_visibility = [
         "//visibility:public",
     ],
-)
-
-ddk_headers(
-     name = "ddk_public_headers",
-     includes = [
-         "inc",
-     ],
-     hdrs = glob([
-         "inc/*.h",
-     ]),
 )
 
 define_mgk_ddk_ko(

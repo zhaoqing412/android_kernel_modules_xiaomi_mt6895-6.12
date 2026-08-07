@@ -15,18 +15,6 @@
 /* NOTE: user 0 to 7 is reserved for genpd notifier enum disp_pd_id { ... } */
 enum mtk_vidle_voter_user {
 	DISP_VIDLE_USER_DISP_VCORE = 0,
-
-	/* used by external user */
-	DISP_VIDLE_USER_EXT_CLIENT_CFG = 2,
-	DISP_VIDLE_USER_EXT_CLIENT_DSI = 3,
-
-	/* used by mtk_dsi_cmd_transfer */
-	DISP_VIDLE_USER_CMD_CLIENT_CFG = 4,
-	DISP_VIDLE_USER_CMD_CLIENT_TIRGLOOP = 5,
-	DISP_VIDLE_USER_CMD_CLIENT_SUB_CFG = 6,
-	DISP_VIDLE_USER_CMD_CLIENT_DSI = 7,
-
-	DISP_VIDLE_USER_DDIC = 8,
 	DISP_VIDLE_USER_NST_LOCK = 9,
 	DISP_VIDLE_USER_PQ2 = 10,
 	DISP_VIDLE_USER_MML_CLK_ISR = 11,
@@ -112,8 +100,9 @@ enum mtk_dpc_subsys_v3 {
 	DPC3_SUBSYS_DPTX,
 	DPC3_SUBSYS_PERI,
 	DPC3_SUBSYS_CNT,
-	DPC3_SUBSYS_DISP = DPC3_SUBSYS_DIS1A,
-	DPC3_SUBSYS_MML = DPC3_SUBSYS_MML2,
+	DPC3_SUBSYS_DISP_DDIC = 0xc,	/* disp1ab */
+	DPC3_SUBSYS_DISP_PQ = 0xf,	/* disp0ab disp1ab */
+	DPC3_SUBSYS_DISP = 0x7f,	/* disp0ab disp1ab ovl012 */
 };
 
 enum mtk_dpc_disp_vidle {
@@ -261,8 +250,7 @@ struct dpc_funcs {
 	int (*dpc_mminfra_on_off)(bool en, const enum mtk_vidle_voter_user user);
 	int (*dpc_buck_status)(int op);
 	void (*dpc_pre_cg_ctrl)(bool en, bool lock);
-	void (*dpc_power_clean_up_by_gce)(struct cmdq_client *client);
-	void (*dpc_apsrc_enable)(bool en, const enum mtk_vidle_voter_user user);
+	void (*dpc_power_clean_up_by_gce)(struct cmdq_pkt *pkt);
 
 	/* V1 ONLY */
 	void (*dpc_dc_force_enable)(const bool en);

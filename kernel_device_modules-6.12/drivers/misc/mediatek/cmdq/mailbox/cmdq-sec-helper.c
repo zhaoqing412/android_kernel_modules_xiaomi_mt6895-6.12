@@ -28,7 +28,7 @@ static s32 cmdq_sec_realloc_addr_list(struct cmdq_pkt *pkt, const u32 count)
 		return -ENOMEM;
 	if (count && sec_data->addrMetadatas)
 		memcpy(curr, prev,
-			sizeof(struct cmdq_sec_addr_meta) * sec_data->addrMetadataMaxCount);
+			sizeof(*sec_data) * sec_data->addrMetadataMaxCount);
 	kfree(prev);
 
 	sec_data->addrMetadatas = (u64)curr;
@@ -341,8 +341,7 @@ int cmdq_sec_pkt_wait_complete(struct cmdq_pkt *pkt)
 	do {
 		if (timeout_ms == CMDQ_NO_TIMEOUT) {
 			cmdq_msg("%s: timeout:%u", __func__, timeout_ms);
-			if(wait_for_completion_interruptible(&pkt->cmplt) < 0)
-				continue;
+			wait_for_completion(&pkt->cmplt);
 			break;
 		}
 

@@ -30,7 +30,6 @@
 #ifdef MTK_VIDEO_GO_SUPPORT
 #include "videogo_public.h"
 #endif
-#include "sugov/cpufreq.h"
 
 #define LOG_PARAM_INFO_SIZE 64
 #define MAX_SUPPORTED_LOG_PARAMS_COUNT 12
@@ -636,10 +635,6 @@ void mtk_vcodec_set_cpu_hint(struct mtk_vcodec_dev *dev, bool enable,
 			if (dev->cpu_hint_ref_cnt == 0) {
 #ifdef MTK_SCHED_SUPPORT
 				set_top_grp_aware(1, 0);
-				dev->grp_awr_min_op_margin0 = get_grp_awr_min_opp_margin(0, 0);
-				dev->grp_awr_min_op_margin1 = get_grp_awr_min_opp_margin(1, 0);
-				dev->grp_awr_thr0 = get_grp_awr_thr(0, 0);
-				dev->grp_awr_thr1 = get_grp_awr_thr(1, 0);
 				set_grp_awr_min_opp_margin(0, 0, 2560);
 				set_grp_awr_thr(0, 0, 1680000);
 				set_grp_awr_min_opp_margin(1, 0, 2560);
@@ -659,11 +654,6 @@ void mtk_vcodec_set_cpu_hint(struct mtk_vcodec_dev *dev, bool enable,
 		if (dev->cpu_hint_mode & (1 << MTK_GRP_AWARE_MODE)) {
 			if (dev->cpu_hint_ref_cnt == 0) {
 #ifdef MTK_SCHED_SUPPORT
-				set_grp_dvfs_ctrl(0);
-				set_grp_awr_min_opp_margin(0, 0, dev->grp_awr_min_op_margin0);
-				set_grp_awr_thr(0, 0, dev->grp_awr_thr0);
-				set_grp_awr_min_opp_margin(1, 0, dev->grp_awr_min_op_margin1);
-				set_grp_awr_thr(1, 0, dev->grp_awr_thr1);
 				set_top_grp_aware(0, 0);
 #endif
 			}

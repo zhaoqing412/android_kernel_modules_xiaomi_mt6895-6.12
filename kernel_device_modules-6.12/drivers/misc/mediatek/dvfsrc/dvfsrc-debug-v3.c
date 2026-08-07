@@ -617,26 +617,6 @@ static char *dvfsrc_dump_record(struct mtk_dvfsrc *dvfsrc,
 	return p;
 }
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SLC)
-enum {
-	APU_SW_BW,
-	CPU_SW_BW,
-	GPU_SW_BW,
-	MM_SW_BW,
-	MD_SW_BW,
-	MAX_SW_BW_SIZE,
-};
-
-static u32 dvfsrc_sw_bw_offset[MAX_SW_BW_SIZE] = {
-	0x0, 0x4, 0x8, 0xC, 0x10,
-};
-
-u32 get_dvfsrc_sw_bw(struct mtk_dvfsrc *dvfsrc, int idx)
-{
-	return dvfsrc_read(dvfsrc, DVFSRC_SW_BW_0, dvfsrc_sw_bw_offset[idx]);
-}
-#endif /* CONFIG_OPLUS_FEATURE_SLC */
-
 static char *dvfsrc_dump_reg_mt6993(struct mtk_dvfsrc *dvfsrc, char *p, u32 size)
 {
 	char *buff_end = p + size;

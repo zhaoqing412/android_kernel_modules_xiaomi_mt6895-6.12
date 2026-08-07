@@ -101,10 +101,9 @@ struct flashlight_device_id {
 	int channel;                     /* device channel */
 	int decouple;                    /* device decouple */
 };
-/*
 extern const struct flashlight_device_id flashlight_id[];
 extern const int flashlight_device_num;
-*/
+
 struct flashlight_dev {
 	struct list_head node;
 	struct flashlight_operations *ops;

@@ -161,7 +161,6 @@ const struct mtk_dsi_driver_data mt6789_dsi_driver_data = {
 	.esd_eint_compat = "mediatek, DSI_TE-eint",
 	.support_shadow = false,
 	.need_bypass_shadow = true,
-	.dsi_shadow_dbg = 0x190,
 	.need_wait_fifo = true,
 	.dsi_buffer = false,
 //	.dsi_new_trail = false,

@@ -226,21 +226,6 @@ bool cmdq_thread_ddr_module(const s32 thread)
 	}
 }
 
-bool cmdq_mbox_hw_trace_thread(void *chan)
-{
-	return true;
-}
-
-void cmdq_error_irq_debug(void *chan)
-{
-}
-
-bool cmdq_check_tf(struct device *dev,
-	u32 sid, u32 tbu, u32 *axids)
-{
-	return false;
-}
-
 uint cmdq_get_mdp_min_thread(void)
 {
 	return MDP_THRD_MIN;
@@ -254,9 +239,6 @@ struct cmdq_util_platform_fp platform_fp = {
 	.test_set_ostd = cmdq_test_set_ostd,
 	.util_hw_name = cmdq_util_hw_name,
 	.thread_ddr_module = cmdq_thread_ddr_module,
-	.hw_trace_thread = cmdq_mbox_hw_trace_thread,
-	.dump_error_irq_debug = cmdq_error_irq_debug,
-	.check_tf = cmdq_check_tf,
 	.get_mdp_min_thread = cmdq_get_mdp_min_thread,
 };
 

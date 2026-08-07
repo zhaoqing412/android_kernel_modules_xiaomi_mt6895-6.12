@@ -327,9 +327,6 @@ static int opfunc_scp_state_change(struct msg_op_data *op)
 	if (drv_type > STATE_CHG_DRV_SCP)
 		return -1;
 
-	if ((g_core_ctx.state == 1 && cur_state == 1) ||
-		(g_core_ctx.state == 0 && cur_state == 0))
-		return 0;
 
 	pr_info("[%s] type=[%d] state=[%d] conn=[%d] scp ready=[%d]", __func__,
 				drv_type, cur_state, g_core_ctx.enable,
@@ -570,7 +567,11 @@ static void conap_scp_ipi_ctrl_notify(unsigned int state)
 {
 	int ret;
 
-	pr_info("[%s] notify state=[%d]->[%d]", __func__, g_core_ctx.state, state);
+	if ((g_core_ctx.state == 1 && state == 1) ||
+		(g_core_ctx.state == 0 && state == 0))
+		return;
+
+	pr_info("[%s] state=[%d]->[%d]", __func__, g_core_ctx.state, state);
 
 	ret = msg_thread_send_2(&g_core_ctx.tx_msg_thread,
 			CONAP_SCP_OPID_STATE_CHANGE, STATE_CHG_DRV_SCP, (size_t)state);
@@ -647,8 +648,6 @@ int conap_scp_send_message(enum conap_scp_drv_type type,
 
 	if (_conap_scp_is_scp_ready() != 1)
 		return CONN_NOT_READY;
-
-	pr_info("[%s] >>>> type=[%d] id=[%d] sz=[%d]", __func__, type, msg_id, size);
 
 	ret = msg_thread_send_wait_4(&g_core_ctx.tx_msg_thread,
 					CONAP_SCP_OPID_SEND_MSG, MSG_OP_TIMEOUT,

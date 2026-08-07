@@ -294,113 +294,75 @@ EXPORT_SYMBOL_GPL(slbc_read_invalidate);
 
 int slbc_force_cache(enum slc_ach_uid uid, unsigned int size)
 {
-	if (common_ops && common_ops->slbc_force_cache) {
-		if (common_ops->slbc_set_api_lvl)
-			common_ops->slbc_set_api_lvl(API_ID_FORCE_CMD, API_LVL_SDK);
+	if (common_ops && common_ops->slbc_force_cache)
 		return common_ops->slbc_force_cache(uid, size);
-	} else {
+	else
 		return -ENODEV;
-	}
 }
 EXPORT_SYMBOL_GPL(slbc_force_cache);
 
 int slbc_force_dynamic_cache(enum slc_ach_uid uid, unsigned int size)
 {
-	if (common_ops && common_ops->slbc_force_dynamic_cache) {
-		if (common_ops->slbc_set_api_lvl)
-			common_ops->slbc_set_api_lvl(API_ID_FORCE_CMD, API_LVL_SDK);
+	if (common_ops && common_ops->slbc_force_dynamic_cache)
 		return common_ops->slbc_force_dynamic_cache(uid, size);
-	} else {
+	else
 		return -ENODEV;
-	}
 }
 EXPORT_SYMBOL_GPL(slbc_force_dynamic_cache);
 
 int slbc_force_cache_ratio(enum slc_ach_uid uid, unsigned int ratio)
 {
-	if (common_ops && common_ops->slbc_force_cache_ratio) {
-		if (common_ops->slbc_set_api_lvl)
-			common_ops->slbc_set_api_lvl(API_ID_FORCE_CMD, API_LVL_SDK);
+	if (common_ops && common_ops->slbc_force_cache_ratio)
 		return common_ops->slbc_force_cache_ratio(uid, ratio);
-	} else {
+	else
 		return -ENODEV;
-	}
 }
 EXPORT_SYMBOL_GPL(slbc_force_cache_ratio);
 
 int slbc_ceil(enum slc_ach_uid uid, unsigned int ceil)
 {
-	if (common_ops && common_ops->slbc_ceil) {
-		if (common_ops->slbc_set_api_lvl)
-			common_ops->slbc_set_api_lvl(API_ID_CEIL, API_LVL_SDK);
+	if (common_ops && common_ops->slbc_ceil)
 		return common_ops->slbc_ceil(uid, ceil);
-	} else {
+	else
 		return -ENODEV;
-	}
 }
 EXPORT_SYMBOL_GPL(slbc_ceil);
 
 int slbc_total_ceil(unsigned int ceil)
 {
-	if (common_ops && common_ops->slbc_total_ceil) {
-		if (common_ops->slbc_set_api_lvl)
-			common_ops->slbc_set_api_lvl(API_ID_TOTAL_CEIL, API_LVL_SDK);
+	if (common_ops && common_ops->slbc_total_ceil)
 		return common_ops->slbc_total_ceil(ceil);
-	} else {
+	else
 		return -ENODEV;
-	}
 }
 EXPORT_SYMBOL_GPL(slbc_total_ceil);
 
 int slbc_window(unsigned int window)
 {
-	if (common_ops && common_ops->slbc_window) {
-		if (common_ops->slbc_set_api_lvl)
-			common_ops->slbc_set_api_lvl(API_ID_WINDOW, API_LVL_SDK);
+	if (common_ops && common_ops->slbc_window)
 		return common_ops->slbc_window(window);
-	} else {
+	else
 		return -ENODEV;
-	}
 }
 EXPORT_SYMBOL_GPL(slbc_window);
 
 int slbc_cg_priority(bool gpu_first)
 {
-	if (common_ops && common_ops->slbc_cg_priority) {
-		if (common_ops->slbc_set_api_lvl)
-			common_ops->slbc_set_api_lvl(API_ID_CG_PRIORITY, API_LVL_SDK);
+	if (common_ops && common_ops->slbc_cg_priority)
 		return common_ops->slbc_cg_priority(gpu_first);
-	} else {
+	else
 		return -ENODEV;
-	}
 }
 EXPORT_SYMBOL_GPL(slbc_cg_priority);
 
 int slbc_enable_gpu_dynamic_cache(uint32_t type)
 {
-	if (common_ops && common_ops->slbc_enable_gpu_dynamic_cache) {
-		/* This API is intended to be called by the GPU kernel driver, not by the OEM. */
-		/* Therefore, the API level should be set to 'normal'. */
-		if (common_ops->slbc_set_api_lvl)
-			common_ops->slbc_set_api_lvl(API_ID_ENABLE_GPU_DC, API_LVL_NORMAL);
+	if (common_ops && common_ops->slbc_enable_gpu_dynamic_cache)
 		return common_ops->slbc_enable_gpu_dynamic_cache(type);
-	} else {
+	else
 		return -ENODEV;
-	}
 }
 EXPORT_SYMBOL_GPL(slbc_enable_gpu_dynamic_cache);
-
-int slbc_enable_gpu_dynamic_cache_h(uint32_t type)
-{
-	if (common_ops && common_ops->slbc_enable_gpu_dynamic_cache) {
-		if (common_ops->slbc_set_api_lvl)
-			common_ops->slbc_set_api_lvl(API_ID_ENABLE_GPU_DC, API_LVL_SDK);
-		return common_ops->slbc_enable_gpu_dynamic_cache(type);
-	} else {
-		return -ENODEV;
-	}
-}
-EXPORT_SYMBOL_GPL(slbc_enable_gpu_dynamic_cache_h);
 
 int slbc_disable_dcc(bool disable)
 {
@@ -410,15 +372,6 @@ int slbc_disable_dcc(bool disable)
 		return -ENODEV;
 }
 EXPORT_SYMBOL_GPL(slbc_disable_dcc);
-
-int slbc_disable_sf(uint32_t disable)
-{
-	if (common_ops && common_ops->slbc_disable_sf)
-		return common_ops->slbc_disable_sf(disable);
-	else
-		return -ENODEV;
-}
-EXPORT_SYMBOL_GPL(slbc_disable_sf);
 
 int slbc_disable_slc(bool disable)
 {

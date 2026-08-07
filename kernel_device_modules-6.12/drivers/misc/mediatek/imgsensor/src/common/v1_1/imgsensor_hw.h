@@ -86,9 +86,6 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 enum IMGSENSOR_RETURN imgsensor_hw_dump(struct IMGSENSOR_HW *phw);
 
 extern struct IMGSENSOR_HW_CFG imgsensor_mt8781_config[];
-extern struct IMGSENSOR_HW_CFG imgsensor_24267_config[];
-extern struct IMGSENSOR_HW_CFG imgsensor_cruiserl4_config[];
-extern struct IMGSENSOR_HW_CFG imgsensor_fiji_config[];
 extern struct IMGSENSOR_HW_CFG imgsensor_custom_config[];
 extern struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[];
 extern struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence_for_mipi_switch[];

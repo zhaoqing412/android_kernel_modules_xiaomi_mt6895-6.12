@@ -49,6 +49,5 @@ int vmm_enable_cvfs(enum VMM_CVFS_USR_ID user_id, enum VMM_CVFS_SEL_ID vmm_cvfs_
 int vmm_disable_cvfs(enum VMM_CVFS_USR_ID user_id, enum VMM_CVFS_SEL_ID vmm_cvfs_sel_id);
 int vmm_cvfs_dump(void);
 int mtk_vmm_ctrl_dbg_use(bool enable);
-int mtk_vmm_wa_avs_hint(int retry);
 
 #endif

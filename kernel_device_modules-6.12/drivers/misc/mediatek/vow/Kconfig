@@ -66,13 +66,3 @@ config MTK_VOW_DSP_VERSION
 	  For VOW kernel driver config. This config can
 	  indicate DSP version. This feature need to work
 	  with MTK_VOW_SUPPORT.
-
-# (removed oplus vow monitor source: oplus dir stripped from the xaga port tree)
-
-# Add for oplus vow custom payload
-config OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD
-	tristate "Oplus VOW Custom Payload"
-	default n
-	help
-	  Select y to enable CONFIG_OPLUS_FEATURE_VOW_CUSTOM_PAYLOAD
-	  for oplus vow custom payload feature.

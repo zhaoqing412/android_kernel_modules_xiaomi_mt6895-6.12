@@ -27,48 +27,6 @@
 	"load_aware_pwroff_time=%llu,enter_mpriv_release_time=%llu,"\
 	"mpriv_release_time=%llu,sc_rets=0x%llx,ret=0x%llx"\
 
-TRACE_EVENT(mdw_dma_alloc,
-        TP_PROTO(size_t len, unsigned long ino, const char *name
-                ),
-        TP_ARGS(len, ino, name
-                ),
-        TP_STRUCT__entry(
-                __field(size_t, len)
-                __field(unsigned long, ino)
-                __string(name, name)
-        ),
-        TP_fast_assign(
-                __entry->len = len;
-                __entry->ino = ino;
-                __assign_str(name);
-        ),
-        TP_printk(
-                "len=%zu, inode=%lu, name=%s",
-                __entry->len, __entry->ino, __get_str(name)
-        )
-);
-
-TRACE_EVENT(mdw_dma_free,
-        TP_PROTO(size_t len, unsigned long ino, const char *name
-                ),
-        TP_ARGS(len, ino, name
-                ),
-        TP_STRUCT__entry(
-                __field(size_t, len)
-                __field(unsigned long, ino)
-                __string(name, name)
-        ),
-        TP_fast_assign(
-                __entry->len = len;
-                __entry->ino = ino;
-                __assign_str(name);
-        ),
-        TP_printk(
-                "len=%zu, inode=%lu, name=%s",
-                __entry->len, __entry->ino, __get_str(name)
-        )
-);
-
 TRACE_EVENT(mdw_rv_cmd,
 	TP_PROTO(uint32_t status,
 		pid_t pid,

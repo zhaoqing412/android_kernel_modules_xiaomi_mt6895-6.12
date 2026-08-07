@@ -53,10 +53,6 @@
 #define MME_AAL_BUFFER_SIZE (240 * 1024)
 #endif
 
-#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
-extern bool oplus_apollo_unsupported(void);
-#endif
-
 #undef pr_fmt
 #define pr_fmt(fmt) "[disp_aal]" fmt
 
@@ -478,12 +474,22 @@ void disp_aal_notify_backlight_changed(struct mtk_ddp_comp *comp,
 	AALAPI_LOG("%s output_comp[%s]\n", __func__, mtk_dump_comp_str(output_comp));
 
 	if (mtk_ddp_comp_get_type(output_comp->id) == MTK_DSI) {
+
+		struct mtk_connector_state *mtk_conn_state = NULL;
+		unsigned int conn_index = 0;
+
 		dsi = container_of(output_comp, struct mtk_dsi, ddp_comp);
-		if (dsi && dsi->led_type == LED_TYPE_ATOMIC)
+		if (dsi) {
+			mtk_conn_state = to_mtk_connector_state(dsi->conn.state);
+			conn_index = dsi->conn.index;
+		}
+
+		if (mtk_conn_state &&
+				mtk_conn_state->prop_val[conn_index][CONNECTOR_PROP_LED_TYPE] ==
+					LED_TYPE_ATOMIC)
 			hwc_control = true;
 
-		AALAPI_LOG("%s: hwc_control[%d] led_type[%d]\n", __func__, hwc_control,
-			dsi->led_type);
+		AALAPI_LOG("%s: hwc_control[%d]\n", __func__, hwc_control);
 	}
 
 	mtk_ddp_comp_io_cmd(output_comp, NULL, GET_CONNECTOR_ID, &connector_id);
@@ -503,13 +509,9 @@ void disp_aal_notify_backlight_changed(struct mtk_ddp_comp *comp,
 
 	if (trans_backlight == 0) {
 		aal_data->primary_data->backlight_set = trans_backlight;
-#ifndef OPLUS_FEATURE_DISPLAY_APOLLO
+
 		if (aal_data->primary_data->led_type != TYPE_ATOMIC && !hwc_control)
 			mtk_leds_brightness_set(connector_id, 0, 0, (0X1<<SET_BACKLIGHT_LEVEL));
-#else
-		if ((aal_data->primary_data->led_type != TYPE_ATOMIC) && !hwc_control && oplus_apollo_unsupported())
-			mtk_leds_brightness_set(connector_id, 0, 0, (0X1<<SET_BACKLIGHT_LEVEL));
-#endif
 		/* set backlight = 0 may be not from AAL, */
 		/* we have to let AALService can turn on backlight */
 		/* on phone resumption */
@@ -518,15 +520,10 @@ void disp_aal_notify_backlight_changed(struct mtk_ddp_comp *comp,
 		((aal_data->primary_data->relay_state != 0) &&
 		!pq_data->new_persist_property[DISP_PQ_CCORR_SILKY_BRIGHTNESS])) {
 		/* AAL Service is not running */
-#ifndef OPLUS_FEATURE_DISPLAY_APOLLO
+
 		if (aal_data->primary_data->led_type != TYPE_ATOMIC && !hwc_control)
 			mtk_leds_brightness_set(connector_id, trans_backlight,
 						0, (0X1<<SET_BACKLIGHT_LEVEL));
-#else
-		if ((aal_data->primary_data->led_type != TYPE_ATOMIC) && !hwc_control && oplus_apollo_unsupported())
-			mtk_leds_brightness_set(connector_id, trans_backlight,
-						0, (0X1<<SET_BACKLIGHT_LEVEL));
-#endif
 	}
 
 	spin_lock_irqsave(&aal_data->primary_data->hist_lock, flags);
@@ -3194,20 +3191,13 @@ static void disp_aal_config_overhead(struct mtk_ddp_comp *comp,
 	struct mtk_ddp_config *cfg)
 {
 	struct mtk_disp_aal *aal_data = comp_to_aal(comp);
-	struct mtk_drm_crtc *mtk_crtc = comp->mtk_crtc;
-	struct drm_crtc *crtc = &mtk_crtc->base;
-	struct mtk_drm_private *priv = crtc->dev->dev_private;
 
 	DDPINFO("line: %d\n", __LINE__);
 
 	if (cfg->tile_overhead.is_support) {
 		/*set component overhead*/
 		if (!aal_data->is_right_pipe) {
-			if (priv->data->mmsys_id == MMSYS_MT6991 ||
-			    priv->data->mmsys_id == MMSYS_MT6993)
-				aal_data->overhead.comp_overhead = 0;
-			else
-				aal_data->overhead.comp_overhead = 8;
+			aal_data->overhead.comp_overhead = 8;
 			/*add component overhead on total overhead*/
 			cfg->tile_overhead.left_overhead += aal_data->overhead.comp_overhead;
 			cfg->tile_overhead.left_in_width += aal_data->overhead.comp_overhead;
@@ -3215,11 +3205,7 @@ static void disp_aal_config_overhead(struct mtk_ddp_comp *comp,
 			aal_data->overhead.in_width = cfg->tile_overhead.left_in_width;
 			aal_data->overhead.total_overhead = cfg->tile_overhead.left_overhead;
 		} else {
-			if (priv->data->mmsys_id == MMSYS_MT6991 ||
-			    priv->data->mmsys_id == MMSYS_MT6993)
-				aal_data->overhead.comp_overhead = 0;
-			else
-				aal_data->overhead.comp_overhead = 8;
+			aal_data->overhead.comp_overhead = 8;
 			/*add component overhead on total overhead*/
 			cfg->tile_overhead.right_overhead += aal_data->overhead.comp_overhead;
 			cfg->tile_overhead.right_in_width += aal_data->overhead.comp_overhead;
@@ -3320,7 +3306,6 @@ static void disp_aal_config(struct mtk_ddp_comp *comp,
 			disp_aal_write_dre3_curve_full(comp);
 			mutex_unlock(&aal_data->primary_data->config_lock);
 		} else {
-#if defined(ENABLE_AAL_SW_ASYNC_FLOW)
 			ret = mtk_drm_sw_async_trigger(crtc, USER_SW_ASYNC_AAL,
 						disp_aal_write_dre3_curve_full_async, (void *)comp);
 			if (ret < 0) {
@@ -3330,11 +3315,6 @@ static void disp_aal_config(struct mtk_ddp_comp *comp,
 				disp_aal_write_dre3_curve_full(comp);
 				mutex_unlock(&aal_data->primary_data->config_lock);
 			}
-#else
-			mutex_lock(&aal_data->primary_data->config_lock);
-			disp_aal_write_dre3_curve_full(comp);
-			mutex_unlock(&aal_data->primary_data->config_lock);
-#endif
 		}
 	}
 

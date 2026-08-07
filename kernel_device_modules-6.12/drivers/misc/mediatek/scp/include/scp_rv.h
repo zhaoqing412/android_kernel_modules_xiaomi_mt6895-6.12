@@ -143,7 +143,7 @@ enum scp_ipi_status {
 enum SCP_NOTIFY_EVENT {
 	SCP_EVENT_READY = 0,
 	SCP_EVENT_STOP,
-	SCP_INIT_STA,
+	SCP_EVENT_NOTIFYING,
 };
 /* the order of ipi_id should be consistent with IPI_LEGACY_GROUP */
 enum ipi_id {
@@ -211,16 +211,6 @@ enum scp_reserve_mem_id_t {
 	SCP_LOW_PWR_DBG_MEM_ID,
 	SCP_DBI_MEM_ID = 20,
 	SCP_TMON_DBG_MEM_ID,
-/* #ifdef OPLUS_FEATURE_SENSOR_SMEM */
-	SCP_TMP_22 = 22,
-	SCP_TMP_23 = 23,
-	SCP_TMP_24 = 24,
-	SCP_TMP_25 = 25,
-	SCP_TMP_26 = 26,
-	SCP_SENSOR_SHARE_MEM_ID = 27,
-	SENS_FB_MEM_ID = 28,
-	SENS_PSEUDO_SENSOR_MEM_ID = 29,
-/* #endif OPLUS_FEATURE_SENSOR_SMEM */
 	NUMS_MEM_ID,
 };
 

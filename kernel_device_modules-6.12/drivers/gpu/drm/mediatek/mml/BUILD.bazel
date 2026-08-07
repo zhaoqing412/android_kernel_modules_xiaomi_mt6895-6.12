@@ -97,12 +97,12 @@ define_mgk_ddk_ko(
 
     local_defines = select({
             "@mgk_internal//:mgk_internal_setting" : [
-                "MML_IR_SUPPORT=1"
+                "MML_DL_SUPPORT=1",
+                "MML_IR_SUPPORT=1",
             ],
             "//conditions:default": [],
     }) + [
-        "MML_STASH_SUPPORT=1",
-        "MML_DL_SUPPORT=1",
+        "MML_STASH_SUPPORT=1"
     ],
 
     copts = [
@@ -179,12 +179,12 @@ platforms = [
 
     local_defines = select({
             "@mgk_internal//:mgk_internal_setting" : [
-                "MML_IR_SUPPORT=1"
+                "MML_DL_SUPPORT=1",
+                "MML_IR_SUPPORT=1",
             ],
             "//conditions:default": [],
     }) + [
-        "MML_STASH_SUPPORT=1",
-        "MML_DL_SUPPORT=1",
+        "MML_STASH_SUPPORT=1"
     ],
 
     copts = [

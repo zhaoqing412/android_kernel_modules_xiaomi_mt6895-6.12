@@ -146,45 +146,32 @@ static ssize_t store_pwr_ctrl(int id, const char *buf, size_t count, void *priv)
 {
 	u32 val;
 	char cmd[64];
-	int i, ret;
+	int i;
 	char **pwr_ctrl_str = NULL;
 	int pwr_ctrl_cnt = 0;
 	char *token;
-	char *str = NULL;
-	char *parse_str;
+	char *str = kcalloc(count, sizeof(char), GFP_KERNEL);
 	const char *delim = " ";
 
-	if ( (!buf) || (!priv) )
+	if ( (!buf) || (!str) )
 		return -EINVAL;
-
-	str = kcalloc(count, sizeof(char), GFP_KERNEL);
-	if (!str)
-		return -ENOMEM;
 
 	pwr_ctrl_str = ((struct spm_node *)priv)->pwr_ctrl_str;
 	pwr_ctrl_cnt = ((struct spm_node *)priv)->pwr_ctrl_cnt;
 
-	parse_str = str;
-	strscpy(parse_str, buf, count);
+	strscpy(str, buf, count);
 
-	token = strsep(&parse_str, delim);
-	if (!token) {
-		ret = -EINVAL;
-		goto out;
-	}
+	token = strsep(&str, delim);
+	if (!token)
+		return -EINVAL;
 
 	strscpy(cmd, token, sizeof(cmd));
 
-	token = strsep(&parse_str, delim);
-	if (!token) {
-		ret = -EINVAL;
-		goto out;
-	}
-
-	if (kstrtouint(token, 16, &val)) {
-		ret = -EINVAL;
-		goto out;
-	}
+	token = strsep(&str, delim);
+	if (!token)
+		return -EINVAL;
+	if (kstrtouint(token, 16, &val))
+		return -EINVAL;
 
 	pr_info("[SPM] pwr_ctrl: cmd = %s, val = 0x%x\n", cmd, val);
 
@@ -195,12 +182,9 @@ static ssize_t store_pwr_ctrl(int id, const char *buf, size_t count, void *priv)
 		}
 	}
 
-	ret = count;
-
-out:
 	kfree(str);
 
-	return ret;
+	return count;
 }
 
 static ssize_t

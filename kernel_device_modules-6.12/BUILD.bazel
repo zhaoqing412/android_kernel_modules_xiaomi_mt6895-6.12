@@ -47,28 +47,6 @@ filegroup(
     srcs = ack_headers,
 )
 
-load(
-    "//build/kernel/kleaf:kernel.bzl",
-    "ddk_headers",
-)
-
-ddk_headers(
-    name = "all_mgk_headers",
-    hdrs = glob(["**/*.h"]),
-    linux_includes = ["include",
-        "drivers/gpu/drm/mediatek/mediatek_v2",
-        "drivers/misc/mediatek/include/mt-plat",
-        "drivers/misc/mediatek/include",
-        "drivers/misc/mediatek/sensor/2.0/mtk_nanohub",
-        "drivers/misc/mediatek/sensor/2.0/mtk_nanohub/nanohub",
-        "drivers/misc/mediatek/sensor/2.0/core",
-        "drivers/misc/mediatek/sensor/2.0/sensorhub",
-        "drivers/misc/mediatek/scp/include",
-        "drivers/misc/mediatek/flashlight",
-    ],
-    visibility = ["//visibility:public"],
-)
-
 # mgk_64_k612
 load("//kernel_device_modules-6.12:kernel/kleaf/mgk_64.bzl",
      "mgk_64_defconfig",
@@ -99,8 +77,6 @@ load("//kernel_device_modules-6.12:kernel/kleaf/mgk_64.bzl",
      "mgk_64_device_user_modules",
      "mgk_64_platform_device_user_modules"
 )
-
-common_oplus_modules_list = oplus_ddk_get_oplus_modules_list()
 
 define_mgk(
     name = "mgk_64_k612",

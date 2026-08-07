@@ -111,13 +111,6 @@ config MTK_MMDVFS_VCP
 	  , such as display, camera, mdp and video codec. Say no if your device
 	  does not need to do DVFS for Multimedia hardwares.
 
-config OPLUS_DDK_MTK
-	bool "oplus ddk platform Support"
-	default n
-	help
-	  this config is for platform, if this is set, it's MTK ddk,
-	  if this is not set , this QCOM platform.
-
 config MTK_MMDVFS_LEGACY
 	tristate "MediaTek MMDVFS legacy Support"
 	help

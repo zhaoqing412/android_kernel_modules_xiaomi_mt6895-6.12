@@ -519,7 +519,7 @@ static void dump_subsys_reg(unsigned int id)
 unsigned int pd_list[] = {
 	MT6895_POWER_DOMAIN_MD,
 	MT6895_POWER_DOMAIN_CONN,
-	//MT6895_POWER_DOMAIN_UFS0_SHUTDOWN,
+	MT6895_POWER_DOMAIN_UFS0_SHUTDOWN,
 	MT6895_POWER_DOMAIN_AUDIO,
 	MT6895_POWER_DOMAIN_ADSP_TOP_DORMANT,
 	MT6895_POWER_DOMAIN_ADSP_INFRA,
@@ -589,14 +589,14 @@ static void debug_dump(unsigned int id, unsigned int pwr_sta)
 	print_subsys_reg_mt6895(apu1_ao);
 	print_subsys_reg_mt6895(vlpcfg);
 	print_subsys_reg_mt6895(vlp_ck);
-	print_subsys_reg_mt6895(hwv);
 
 	if (id >= MT6895_POWER_DOMAIN_NR)
 		return;
 
-	for (i = 0; i < ARRAY_SIZE(mtk_subsys_check); i++) {
-		if (mtk_subsys_check[i].pd_id == id) {
-			print_subsys_reg_mt6895(mtk_subsys_check[i].chk_id);
+	if (pwr_sta == PD_PWR_ON) {
+		for (i = 0; i < ARRAY_SIZE(mtk_subsys_check); i++) {
+			if (mtk_subsys_check[i].pd_id == id)
+				print_subsys_reg_mt6895(mtk_subsys_check[i].chk_id);
 		}
 	}
 

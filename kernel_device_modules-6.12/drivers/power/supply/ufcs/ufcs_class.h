@@ -191,7 +191,7 @@ enum ufcs_notify {
 	UFCS_NOTIFY_ATTACH_PASS,
 };
 
-#if 0//IS_ENABLED(CONFIG_UFCS_CLASS)
+#if IS_ENABLED(CONFIG_UFCS_CLASS)
 extern void ufcs_tx_complete(struct ufcs_port *port, enum ufcs_transmit_status status);
 extern void ufcs_rx_receive(struct ufcs_port *port, const struct ufcs_message *msg);
 extern void ufcs_attach_change(struct ufcs_port *port, bool dcp_attached);
@@ -233,7 +233,7 @@ static inline struct ufcs_port *devm_ufcs_register_port(struct device *dev, stru
 }
 #endif
 
-#if 0//IS_ENABLED (CONFIG_OF) && IS_ENABLED(CONFIG_UFCS_CLASS)
+#if IS_ENABLED (CONFIG_OF) && IS_ENABLED(CONFIG_UFCS_CLASS)
 extern struct ufcs_port *ufcs_port_get_by_phandle(struct device_node *np, const char *property);
 extern struct ufcs_port *devm_ufcs_port_get_by_phandle(struct device *dev, const char *property);
 #else /* !IS_ENABLED (CONFIG_OF) || !IS_ENABLED(CONFIG_UFCS_CLASS) */

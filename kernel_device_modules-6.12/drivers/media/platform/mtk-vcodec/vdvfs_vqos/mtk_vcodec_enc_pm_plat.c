@@ -50,27 +50,21 @@ module_param(venc_max_mon_frm, int, 0644);
 #ifdef MTK_THERMAL_THROTTLE
 int mtk_enc_thermal_hint_callback(struct notifier_block *nb, unsigned long event, void *data)
 {
-	struct mtk_vcodec_dev *dev = NULL;
+	struct mtk_vcodec_dev *dev = container_of(nb, struct mtk_vcodec_dev, thermal_notify);
 	struct mtk_vcodec_ctx *ctx = NULL;
-
-	if (!nb)
-		return NOTIFY_BAD;
-	dev = container_of(nb, struct mtk_vcodec_dev, thermal_notify);
 
 	if (!dev->thermal_hint_mode)
 		return NOTIFY_OK;
 
-	mutex_lock(&dev->ctx_mutex);
-	mtk_vcodec_dvfs_qos_log(true,
-		"[VENC][VDVFS] thermal_hint enable event %lu", event);
 	list_for_each_entry(ctx, &dev->ctx_list, list) {
-		if (ctx != NULL && ctx != &dev->dev_ctx) {
+		if (ctx != NULL) {
 			ctx->thermal_hint = event;
 			if (ctx->thermal_hint != ctx->last_thermal_hint)
 				ctx->param_change |= MTK_ENCODE_PARAM_THERMAL_THROTTLE;
 		}
 	}
-	mutex_unlock(&dev->ctx_mutex);
+	mtk_vcodec_dvfs_qos_log(true,
+		"[VENC][VDVFS] thermal_hint enable event %lu", event);
 
 	return NOTIFY_OK;
 }
@@ -520,7 +514,6 @@ void mtk_venc_prepare_vcp_dvfs_data(struct mtk_vcodec_ctx *ctx, struct venc_enc_
 {
 	param->venc_dvfs_state = MTK_INST_START;
 	ctx->last_monitor_op = -1; // for monitor op rate
-	ctx->filtered_monitor_op = -1; // for filter monitor op rate
 	ctx->op_rate_adaptive = ctx->enc_params.operationrate; // for monitor op rate
 }
 
@@ -918,8 +911,8 @@ bool mtk_venc_dvfs_monitor_op_rate(struct mtk_vcodec_ctx *ctx, int buf_type)
 {
 #if ENC_DVFS
 	unsigned int cur_in_timestamp, time_diff, threshold = 20;
-	unsigned int cur_op; /* current usaged op rate = previous update op rate */
-	int prev_op; /* previous monitor op rate*/
+	unsigned int cur_op, tmp_op; /* monitored op in the prev interval */
+	int prev_op;
 	bool update_op = false;
 	struct vcodec_inst *inst = 0;
 	struct mtk_vcodec_dev *dev = ctx->dev;
@@ -929,6 +922,7 @@ bool mtk_venc_dvfs_monitor_op_rate(struct mtk_vcodec_ctx *ctx, int buf_type)
 		!dev->venc_dvfs_params.mmdvfs_in_adaptive)
 		return false;
 
+	prev_op = ctx->last_monitor_op;
 	cur_in_timestamp = jiffies_to_msecs(jiffies);
 	if (ctx->prev_inbuf_time == 0) {
 		ctx->prev_inbuf_time = cur_in_timestamp;
@@ -939,38 +933,36 @@ bool mtk_venc_dvfs_monitor_op_rate(struct mtk_vcodec_ctx *ctx, int buf_type)
 	ctx->input_buf_cnt++;
 
 	if (time_diff > VENC_ADAPTIVE_OPRATE_INTERVAL) {
-		prev_op = ctx->filtered_monitor_op;
 		ctx->last_monitor_op =
 			ctx->input_buf_cnt * 1000 / time_diff;
 		ctx->prev_inbuf_time = cur_in_timestamp;
 		ctx->input_buf_cnt = 0;
 		cur_op = ctx->op_rate_adaptive;
 
-		mtk_vcodec_dvfs_qos_log(false, "[VDVFS][VENC][ADAPTIVE][%d] prev_op: %d, moni_op: %d, filter op: %d, cur_adp_op: %d",
-			ctx->id, prev_op, ctx->last_monitor_op, ctx->filtered_monitor_op, cur_op);
+		mtk_vcodec_dvfs_qos_log(false, "[VDVFS][VENC][ADAPTIVE][%d] prev_op: %d, moni_op: %d, cur_adp_op: %d",
+			ctx->id, prev_op, ctx->last_monitor_op, cur_op);
 
 		if (prev_op < 0) {
-			// first interval, bypass due to unstable
-			ctx->filtered_monitor_op = 0;
+			// first interval, bypass
+			ctx->last_monitor_op = 0;
 			return false;
 		} else if (prev_op == 0) {
-			// second interval as initial value
-			ctx->filtered_monitor_op = ctx->last_monitor_op;
+			// second interval, need compare to 3rd interval value
 			return false;
 		}
 
-		ctx->filtered_monitor_op = (ctx->last_monitor_op + prev_op) / 2; // 0.5 * x[n] + 0.5*y[n-1]
+		tmp_op = MAX(ctx->last_monitor_op, prev_op);
 
-		update_op = mtk_dvfs_check_op_diff(prev_op, ctx->filtered_monitor_op, threshold, 1) &&
-			mtk_dvfs_check_op_diff(cur_op, ctx->filtered_monitor_op, threshold, -1);
+		update_op = mtk_dvfs_check_op_diff(prev_op, ctx->last_monitor_op, threshold, 1) &&
+			mtk_dvfs_check_op_diff(cur_op, tmp_op, threshold, -1);
 
-		update_op |= (dev->venc_dvfs_params.init_boost == 1) && (prev_op > 0) && (ctx->filtered_monitor_op > 0);
+		update_op |= (dev->venc_dvfs_params.init_boost == 1) && (prev_op > 0) && (ctx->last_monitor_op > 0);
 
 		if (update_op) {
 			mutex_lock(&dev->enc_dvfs_mutex);
-			ctx->op_rate_adaptive = ctx->filtered_monitor_op;
+			ctx->op_rate_adaptive = tmp_op;
 			mtk_vcodec_dvfs_qos_log(true, "[VDVFS][VENC][ADAPTIVE][%d] op: user:%d, adaptive:%d->%d",
-				ctx->id, ctx->enc_params.operationrate, cur_op, ctx->filtered_monitor_op);
+				ctx->id, ctx->enc_params.operationrate, cur_op, tmp_op);
 
 			ctx->enc_params.operationrate_adaptive = ctx->op_rate_adaptive;
 			// update venc freq in kernel

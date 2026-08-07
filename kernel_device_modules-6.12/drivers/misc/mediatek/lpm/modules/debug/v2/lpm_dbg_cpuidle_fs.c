@@ -123,73 +123,6 @@ static ssize_t cpuidle_enable_write(char *FromUserBuf, size_t sz, void *priv)
 	return -EINVAL;
 }
 
-#define MT_PREFETCH_SMC_ACT_SET		(1<<0UL)
-#define MT_PREFETCH_SMC_ACT_CLR		(1<<1UL)
-#define MT_PREFETCH_SMC_ACT_GET		(1<<2UL)
-#define MT_PREFETCH_SMC_MAGIC		(0xDA000000)
-#define CPUECTLR_EL1_PREFETCH_MASK	(0x1U << 21)
-static ssize_t cpuidle_cpu_pf_en_read(char *ToUserBuf, size_t sz, void *priv)
-{
-	struct arm_smccc_res res;
-	char *p = ToUserBuf;
-	long en;
-
-	if (!p)
-		return -EINVAL;
-	arm_smccc_smc(MTK_SIP_CACHE_CONTROL,
-		MT_PREFETCH_SMC_MAGIC | MT_PREFETCH_SMC_ACT_GET, 0, 0, 0, 0, 0, 0, &res);
-	en = res.a0 & CPUECTLR_EL1_PREFETCH_MASK;
-	if (en)
-		mtk_dbg_cpuidle_log("CPU pf: disabled (echo 1: disable, 0: enable)\n");
-	else
-		mtk_dbg_cpuidle_log("CPU pf: enabled (echo 1: disable, 0: enable)\n");
-
-	return p - ToUserBuf;
-}
-
-static long cpuidle_cpu_pf_en_smc(void *pData)
-{
-	struct arm_smccc_res res;
-	unsigned int *enabled = (unsigned int *)pData;
-
-	if (*enabled == 1)
-		arm_smccc_smc(MTK_SIP_CACHE_CONTROL,
-			MT_PREFETCH_SMC_MAGIC | MT_PREFETCH_SMC_ACT_SET, 0, 0, 0, 0, 0, 0, &res);
-	else if (*enabled == 0)
-		arm_smccc_smc(MTK_SIP_CACHE_CONTROL,
-			MT_PREFETCH_SMC_MAGIC | MT_PREFETCH_SMC_ACT_CLR, 0, 0, 0, 0, 0, 0, &res);
-
-	return 0;
-}
-
-#define SLC_MASK (1<<3)
-static int cpuidle_cpu_pf_slc_debug;
-module_param_named(slc_debug, cpuidle_cpu_pf_slc_debug, int, 0644);
-
-static ssize_t cpuidle_cpu_pf_en_write(char *FromUserBuf, size_t sz, void *priv)
-{
-	int cpu;
-	unsigned int enabled = 0;
-
-	if (!FromUserBuf)
-		return -EINVAL;
-
-	if (!kstrtouint(FromUserBuf, 10, &enabled)) {
-		if (enabled & SLC_MASK) {
-			if (cpuidle_cpu_pf_slc_debug)
-				pr_info("%s: enabled %u by slc\n",__func__, enabled);
-
-			enabled = enabled & 0x1;
-		}
-		for_each_online_cpu(cpu) {
-			work_on_cpu(cpu, cpuidle_cpu_pf_en_smc, &enabled);
-		}
-		return sz;
-	}
-
-	return -EINVAL;
-}
-
 static const struct mtk_lp_sysfs_op cpuidle_info_fops = {
 	.fs_read = cpuidle_info_read,
 	.fs_write = cpuidle_info_write,
@@ -200,18 +133,6 @@ static const struct mtk_lp_sysfs_op cpuidle_enable_fops = {
 	.fs_write = cpuidle_enable_write,
 };
 
-static const struct mtk_lp_sysfs_op cpuidle_cpu_pf_en_fops = {
-	.fs_read = cpuidle_cpu_pf_en_read,
-	.fs_write = cpuidle_cpu_pf_en_write,
-};
-
-int lpm_cpuidle_pf_init(void)
-{
-	mtk_cpuidle_sysfs_entry_node_add("cpu_pf_en", MTK_CPUIDLE_SYS_FS_MODE,
-			&cpuidle_cpu_pf_en_fops, NULL);
-	return 0;
-}
-
 int lpm_cpuidle_fs_init(void)
 {
 	mtk_cpuidle_sysfs_root_entry_create();
@@ -221,8 +142,6 @@ int lpm_cpuidle_fs_init(void)
 
 	mtk_cpuidle_sysfs_entry_node_add("enable", MTK_CPUIDLE_SYS_FS_MODE
 			, &cpuidle_enable_fops, NULL);
-
-	lpm_cpuidle_pf_init();
 
 	lpm_cpuidle_control_init();
 

@@ -25,11 +25,6 @@
 #include "mt6358-accdet.h"
 #endif
 
-//#if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
-#include "audio/mtk/oplus_speaker_manager/oplus_speaker_manager_platform.h"
-#include "audio/mtk/oplus_speaker_manager/oplus_speaker_manager_codec.h"
-//#endif /* CONFIG_SND_SOC_OPLUS_PA_MANAGER */
-
 #define MAX_DEBUG_WRITE_INPUT 256
 #define CODEC_SYS_DEBUG_SIZE (1024 * 32)
 
@@ -1357,12 +1352,6 @@ static int mtk_hp_disable(struct mt6358_priv *priv)
 		hp_pull_down(priv, false);
 	}
 
-	/*Fix the headphone noise caused by low codec impedance*/
-	if (priv->pull_high_impedance) {
-		pr_info("Pull high impedance, %s\n", __func__);
-		regmap_write(priv->regmap, MT6358_AUDDEC_ANA_CON2,0x33);
-		regmap_write(priv->regmap, MT6358_AUDDEC_ANA_CON4,0x0);
-	}
 	return 0;
 }
 
@@ -1672,13 +1661,6 @@ static int mtk_hp_spk_disable(struct mt6358_priv *priv)
 	if (!priv->pull_down_stay_enable) {
 		/* disable Pull-down HPL/R to AVSS28_AUD */
 		hp_pull_down(priv, false);
-	}
-
-	/*Fix the headphone noise caused by low codec impedance*/
-	if (priv->pull_high_impedance) {
-		pr_info("Pull high impedance, %s\n", __func__);
-		regmap_write(priv->regmap, MT6358_AUDDEC_ANA_CON2,0x33);
-		regmap_write(priv->regmap, MT6358_AUDDEC_ANA_CON4,0x0);
 	}
 	return 0;
 }
@@ -2002,12 +1984,6 @@ static int mtk_hp_dual_spk_disable(struct mt6358_priv *priv)
 		hp_pull_down(priv, false);
 	}
 
-	/*Fix the headphone noise caused by low codec impedance*/
-	if (priv->pull_high_impedance) {
-		pr_info("Pull high impedance, %s\n", __func__);
-		regmap_write(priv->regmap, MT6358_AUDDEC_ANA_CON2,0x33);
-		regmap_write(priv->regmap, MT6358_AUDDEC_ANA_CON4,0x0);
-	}
 	return 0;
 }
 
@@ -2129,20 +2105,14 @@ static int mtk_hp_impedance_disable(struct mt6358_priv *priv)
 	/* Set HPP/N STB enhance circuits */
 	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON2, 0xff, 0x33);
 
-	/*Fix the headphone noise caused by low codec impedance*/
-	if (priv->pull_high_impedance) {
-		pr_info("Pull high impedance, %s\n", __func__);
-		regmap_write(priv->regmap, MT6358_AUDDEC_ANA_CON2,0x33);
-		regmap_write(priv->regmap, MT6358_AUDDEC_ANA_CON4,0x0);
-	} else {
-		/* Increase ESD resistance of AU_REFN */
-		regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON2,
-				0x1 << 14, 0x0);
+	/* Increase ESD resistance of AU_REFN */
+	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON2,
+			   0x1 << 14, 0x0);
 
-		/* Set HP CMFB gate rstb */
-		regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON4,
-				0x1 << 6, 0x0);
-	}
+	/* Set HP CMFB gate rstb */
+	regmap_update_bits(priv->regmap, MT6358_AUDDEC_ANA_CON4,
+			   0x1 << 6, 0x0);
+
 	return 0;
 }
 
@@ -6763,16 +6733,6 @@ static int mt6358_codec_probe(struct snd_soc_component *cmpnt)
 	snd_soc_add_component_controls(cmpnt,
 				       mt6358_snd_vow_controls,
 				       ARRAY_SIZE(mt6358_snd_vow_controls));
-//#if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
-	if (!priv->is_smartpa) {
-		ret = oplus_add_pa_manager_snd_controls(cmpnt);
-		if (ret < 0) {
-			pr_err("%s(), add oplus pa manager snd controls failed:\n",
-				__func__);
-			return -EINVAL;
-		}
-	}
-//#endif /*CONFIG_SND_SOC_OPLUS_PA_MANAGER*/
 	mt6358_codec_init_reg(priv);
 
 #if !defined(SKIP_SB) && !defined(CONFIG_FPGA_EARLY_PORTING)
@@ -7846,13 +7806,6 @@ static int mt6358_parse_dt(struct mt6358_priv *priv)
 		dev_info(dev,
 			"%s(), get pull_down_stay_enable fail, default 0\n",
 			__func__);
-	}
-	/*Fix the headphone noise caused by low codec impedance*/
-	ret = of_property_read_u32(dev->of_node,
-			"pull-high-impedance", &priv->pull_high_impedance);
-	if (ret) {
-		pr_info("%s: read pull-high-impedance fail\n", __func__);
-		priv->pull_high_impedance = 0;
 	}
 
 	return 0;

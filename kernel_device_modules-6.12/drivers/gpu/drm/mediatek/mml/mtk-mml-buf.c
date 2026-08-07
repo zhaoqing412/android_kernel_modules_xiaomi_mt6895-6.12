@@ -60,9 +60,12 @@ static inline int dmabuf_to_iova(struct device *dev, struct mml_dma_buf *dma)
 {
 	int err;
 
+#if IS_ENABLED(CONFIG_MTK_MML_DEBUG)
 	u64 cost = sched_clock();
 
 	mml_trace_begin("mml_buf %s", __func__);
+#endif
+
 
 	dma->attach = dma_buf_attach(dma->dmabuf, dev);
 	if (IS_ERR_OR_NULL(dma->attach)) {
@@ -88,12 +91,14 @@ static inline int dmabuf_to_iova(struct device *dev, struct mml_dma_buf *dma)
 		goto err_detach;
 	}
 
+#if IS_ENABLED(CONFIG_MTK_MML_DEBUG)
 	mml_trace_end();
 	cost = (u64)div_u64(sched_clock() - cost, 1000000);
 	if (cost > 100)
 		mml_err("%s cost %llums iova %#llx size %u",
 		__func__, cost, dma->iova,
 		dma->dmabuf ? (u32)dma->dmabuf->size : 0);
+#endif
 
 	return 0;
 
@@ -190,12 +195,9 @@ void mml_buf_flush(struct mml_file_buf *buf)
 				__func__, i);
 			continue;
 		}
-
-		mml_trace_begin("%s_%zu", __func__, buf->dma[i].dmabuf->size);
 		buf->dma[i].attach->dma_map_attrs &= ~DMA_ATTR_SKIP_CPU_SYNC;
 		dma_buf_end_cpu_access(buf->dma[i].dmabuf, DMA_TO_DEVICE);
 		buf->dma[i].attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
-		mml_trace_end();
 	}
 }
 

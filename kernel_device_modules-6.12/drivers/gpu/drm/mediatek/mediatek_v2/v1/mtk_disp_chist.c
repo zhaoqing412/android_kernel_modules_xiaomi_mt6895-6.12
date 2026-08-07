@@ -1019,7 +1019,6 @@ static void disp_chist_get_hist(struct mtk_ddp_comp *comp)
 	unsigned int cur_present_fence = 0;
 	static unsigned int last_present_fence;
 	struct mtk_disp_chist *data = comp_to_chist(comp);
-	struct mtk_ddp_comp *dual_comp = data->companion;
 	struct mtk_disp_chist_primary *prim_data = data->primary_data;
 	unsigned int data_zero = 0;
 	unsigned int fence_NULL = 0;
@@ -1051,8 +1050,6 @@ static void disp_chist_get_hist(struct mtk_ddp_comp *comp)
 	}
 	mutex_lock(&prim_data->data_lock);
 	cfg_ch_en = readl(comp->regs + DISP_CHIST_HIST_CH_CFG1) & 0x7f;
-	if (comp->mtk_crtc->is_dual_pipe && (dual_comp != NULL))
-		cfg_ch_en |= readl(dual_comp->regs + DISP_CHIST_HIST_CH_CFG1) & 0x7f;
 	DRM_MMP_MARK(chist0, (comp->id << 16) | 2, cfg_ch_en);
 	for (; i < DISP_CHIST_CHANNEL_COUNT; i++) {
 		unsigned int ch_data_zero = 1;
@@ -1072,12 +1069,8 @@ static void disp_chist_get_hist(struct mtk_ddp_comp *comp)
 
 			// select channel id
 			writel(0x30 | i, comp->regs + DISP_CHIST_APB_READ);
-			if (mtk_crtc->is_dual_pipe) {
-				DDPINFO("is dual pipe\n");
+			if (mtk_crtc->is_dual_pipe)
 				disp_chist_get_hist_dual_pipe(comp, i, max_bins);
-				prim_data->frame_cnt[i]++;
-				channel_en = 1;
-			}
 			else {
 				int j = 0;
 				for (; j < prim_data->disp_hist[i].bin_count; j++) {

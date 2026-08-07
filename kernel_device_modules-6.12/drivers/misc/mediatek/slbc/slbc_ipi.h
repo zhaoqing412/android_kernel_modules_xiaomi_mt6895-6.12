@@ -76,7 +76,6 @@ enum {
 	IPI_SLBC_GPU_DYNAMIC_CACHE,
 	IPI_SLBC_SET_POLICY,
 	IPI_SLBC_GET_GPU_WB,
-	IPI_SLBC_DIS_SF,
 	NR_IPI_SLBC,
 };
 
@@ -115,7 +114,6 @@ extern int slbc_inner_cmd(unsigned int inner);
 extern int slbc_outer_cmd(unsigned int outer);
 extern int slbc_ctrl_scmi_info(unsigned int cmd, unsigned int arg1,
 		unsigned int arg2, unsigned int arg3, unsigned int arg4, void *ptr);
-extern int slbc_dis_sf_cmd(unsigned int dis_sf);
 extern int _slbc_request_cache_scmi(void *ptr);
 extern int _slbc_release_cache_scmi(void *ptr);
 extern int _slbc_buffer_status_scmi(void *ptr);
@@ -161,7 +159,6 @@ __weak int slbc_ctrl_scmi_info(unsigned int cmd, unsigned int arg1,
 {
 	return 0;
 }
-__weak int slbc_dis_sf_cmd(unsigned int dis_sf) {}
 __weak int slbc_get_cache_user_pmu(int uid, void *ptr) { return 0; }
 __weak int slbc_get_cache_user_status(int uid, void *ptr) { return 0; }
 __weak int _slbc_request_cache_scmi(void *ptr) { return 0; }

@@ -1199,14 +1199,7 @@ static irqreturn_t mtk_disp_ovl_irq_handler(int irq, void *dev_id)
 				  mtk_dump_comp_str(ovl), smi_cnt, priv->underflow_cnt);
 		}
 		priv->underflow_cnt++;
-		if (drv_priv && drv_priv->data && drv_priv->data->mmsys_id == MMSYS_MT6895){
-			if (mtk_crtc && (mtk_crtc->last_aee_trigger_ts == 0 ||
-				(aee_now_ts - mtk_crtc->last_aee_trigger_ts > TIGGER_INTERVAL_S(50)))){
-				mtk_ovl_dump(ovl);
-				mtk_ovl_analysis(ovl);
-				mtk_crtc->last_aee_trigger_ts = aee_now_ts;
-			}
-		} else if (mtk_crtc && (mtk_crtc->last_aee_trigger_ts == 0 ||
+		if (mtk_crtc && (mtk_crtc->last_aee_trigger_ts == 0 ||
 			(aee_now_ts - mtk_crtc->last_aee_trigger_ts > TIGGER_INTERVAL_S(10)))) {
 			mtk_ovl_dump(ovl);
 			mtk_ovl_analysis(ovl);
@@ -3024,7 +3017,6 @@ static void mtk_ovl_layer_config(struct mtk_ddp_comp *comp, unsigned int idx,
 		output_comp = mtk_ddp_comp_request_output(mtk_crtc);
 
 		if (mtk_crtc->panel_ext && mtk_crtc->panel_ext->params &&
-			mtk_crtc->panel_ext->params->dyn_fps.switch_en == 1 &&
 			mtk_crtc->panel_ext->params->dyn_fps.vact_timing_fps != 0)
 			vrefresh =
 				mtk_crtc->panel_ext->params->dyn_fps.vact_timing_fps;

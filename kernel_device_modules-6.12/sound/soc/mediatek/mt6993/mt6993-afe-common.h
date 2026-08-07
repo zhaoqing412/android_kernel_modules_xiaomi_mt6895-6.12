@@ -21,10 +21,6 @@
 #include <mt-plat/aee.h>
 #endif
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-#include "../feedback/oplus_audio_kernel_fb.h"
-#endif
-
 //#define SKIP_SB
 /* define SKIP_SB to skip all feature */
 #ifdef SKIP_SB
@@ -48,34 +44,13 @@
 #endif
 
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE) && !defined(IS_FPGA_EARLY_PORTING)
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-#ifndef AUDIO_AEE
-#define AUDIO_AEE(message) \
-	do { \
-		ratelimited_fb_fatal("payload@@AUDIO_AEE:"message); \
-		(aee_kernel_exception_api(__FILE__, \
-					  __LINE__, \
-					  DB_OPT_FTRACE, message, \
-					  "audio assert")); \
-	} while (0)
-#endif
-#else /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 #define AUDIO_AEE(message) \
 	(aee_kernel_exception_api(__FILE__, \
 				  __LINE__, \
 				  DB_OPT_FTRACE, message, \
 				  "audio assert"))
-#endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
 #else
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-#define AUDIO_AEE(message) \
-	do { \
-		ratelimited_fb_fatal("payload@@AUDIO_AEE:"message); \
-		WARN_ON(true); \
-	} while (0)
-#else /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 #define AUDIO_AEE(message) WARN_ON(true)
-#endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
 #endif
 
 enum {

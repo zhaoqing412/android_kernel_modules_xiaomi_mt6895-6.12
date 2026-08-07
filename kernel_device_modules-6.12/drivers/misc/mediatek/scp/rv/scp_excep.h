@@ -10,10 +10,6 @@
 #include "scp_helper.h"
 #include "scp_ipi_pin.h"
 
-/* force reset status */
-#define	FORCE_RST_STA_DONE	0
-#define	FORCE_RST_STA_RETRY	1
-
 #define AED_LOG_PRINT_SIZE	SZ_16K
 #define SCP_LOCK_OFS	0xE0
 #define SCP_TCM_LOCK_BIT	(1 << 20)
@@ -40,7 +36,6 @@ extern void scp_dump_last_regs(void);
 extern void scp_dump_bus_tracker_status(void);
 extern void scp_show_last_regs(void);
 extern void scp_show_bus_tracker_status(void);
-extern void scp_show_bus_tracker_status_v2(void);
 extern void scp_aed(enum SCP_RESET_TYPE type, enum scp_core_id id);
 extern void scp_aed_reset(enum scp_excep_id type, enum scp_core_id id);
 extern void scp_aed_reset_inplace(enum scp_excep_id type,

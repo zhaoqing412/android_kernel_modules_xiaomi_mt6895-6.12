@@ -40,14 +40,6 @@ enum mml_sys_id {
 	mml_max_sys
 };
 
-enum mml_kt {
-	mml_kt_hwdone,
-	mml_kt_taskdone,
-	mml_kt_config0,
-	mml_kt_config1,
-	mml_kt_total
-};
-
 struct platform_device *mml_get_plat_device(struct platform_device *pdev);
 
 static inline int of_mml_count_comps(const struct device_node *np)
@@ -318,7 +310,7 @@ void mml_dev_put_dle_ctx(struct mml_dev *mml,
 	void (*ctx_release)(struct mml_dle_ctx *ctx));
 struct mml_m2m_ctx *mml_dev_create_m2m_ctx(struct mml_dev *mml,
 	struct mml_m2m_ctx *(*ctx_create)(struct mml_dev *mml));
-struct kthread_worker *mml_dev_get_kt_worker(struct mml_dev *mml, enum mml_kt kt_id);
+struct kthread_worker *mml_dev_get_config_worker(struct mml_dev *mml);
 
 struct mml_v4l2_dev *mml_get_v4l2_dev(struct mml_dev *mml);
 
@@ -539,14 +531,6 @@ bool mml_isr_alive(struct mml_dev *mml, struct mml_comp *comp, struct list_head 
 void mml_isr_notify(struct mml_dev *mml, struct mml_comp *comp, struct list_head *isr_nodes);
 
 void mml_isr_wait(struct mml_dev *mml, struct mml_task *task);
-
-void mml_drv_sys_comp_set(struct mml_dev *mml, u32 sys_comp_id, u32 index);
-
-s32 mml_drv_sys_pw_enable(struct mml_dev *mml, enum mml_mode mode, bool by_mminfra,
-	s32 (*pw_enable)(struct mml_comp *comp, const s8 mode, bool pw_by_mminfra));
-
-s32 mml_drv_sys_pw_disable(struct mml_dev *mml, enum mml_mode mode, bool by_mminfra,
-	s32 (*pw_enable)(struct mml_comp *comp, const s8 mode, bool pw_by_mminfra));
 
 extern struct platform_driver mml_sys_driver;
 extern struct platform_driver mml_aal_driver;

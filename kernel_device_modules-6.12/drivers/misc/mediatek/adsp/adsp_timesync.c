@@ -49,15 +49,6 @@ static u64 adsp_ts_tick_read(const struct cyclecounter *cc)
 	return arch_timer_read_counter();
 }
 
-static bool can_update_timesync(void)
-{
-	if (get_adsp_core_total() > 1)
-		return (get_adsp_state(get_adsp_core_by_id(ADSP_A_ID)) == ADSP_RUNNING &&
-			get_adsp_state(get_adsp_core_by_id(ADSP_B_ID)) != ADSP_RESET);
-	else
-		return (get_adsp_state(get_adsp_core_by_id(ADSP_A_ID)) == ADSP_RUNNING);
-}
-
 static void adsp_timesync_update(u32 fz)
 {
 	u64 tick, ts;
@@ -74,7 +65,7 @@ static void adsp_timesync_update(u32 fz)
 	infos->freeze = fz;
 	infos->version++;
 
-	if (can_update_timesync()) {
+	if (is_adsp_system_running()) {
 		ret = adsp_copy_to_sharedmem(get_adsp_core_by_id(ADSP_A_ID),
 					ADSP_SHAREDMEM_TIMESYNC,
 					infos, sizeof(*infos));

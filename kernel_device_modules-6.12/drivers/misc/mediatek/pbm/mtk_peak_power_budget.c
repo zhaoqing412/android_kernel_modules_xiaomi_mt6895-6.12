@@ -19,7 +19,6 @@
 #include "mtk_low_battery_throttling.h"
 #include "mtk_bp_thl.h"
 #include "mtk_peak_power_budget_mbrain.h"
-#include "pmic_lbat_service.h"
 #include <linux/soc/mediatek/mtk_tinysys_ipi.h>
 #include <mcupm_ipi_id.h>
 #if !IS_ENABLED(CONFIG_MTK_GPU_LEGACY)
@@ -54,15 +53,9 @@
 #define PPB3_LOG_DURATION msecs_to_jiffies(10000)
 #define HPT_INIT_SETTING    7
 #define DEFAULT_COMBO0_UISOC MAX_VALUE
-#define HPT_MAX_TABLE 5
 
 
 static bool mt_ppb_debug;
-static bool switch_hpt_tb;
-static DEFINE_MUTEX(hpt_tb_mutex);
-static unsigned int hpt_tb_idx;
-static unsigned int soc_hpt_tb_num;
-static unsigned int *hpt_table;
 static spinlock_t ppb_lock;
 void __iomem *ppb_sram_base;
 void __iomem *ppb3_dbg_base;
@@ -1242,7 +1235,7 @@ static void __used ppb3_print_dbg_log(struct timer_list *timer)
 			offset = offset + ret;
 
 
-		pr_info_ratelimited("%s\n", str);
+		pr_info("%s\n", str);
 
 		mod_timer(&ppb_dbg_timer, jiffies + PPB3_LOG_DURATION);
 
@@ -2156,32 +2149,6 @@ static int __used read_mtk_ppb_bat_dts(struct platform_device *pdev, struct devi
 	return 0;
 }
 
-static bool __used parse_switch_hpt_table(struct platform_device *pdev, int *hpt_table)
-{
-	int i, j, ret;
-	char buf[32];
-
-	for (i = 0; i < soc_hpt_tb_num; i++) {
-		for (j = 0; j <= pb.hpt_max_lv; j++) {
-			ret = snprintf(buf, sizeof(buf), "soc-hpt-volt-tb%d-lv%d", i, j);
-			if (ret < 0){
-				pr_notice("can't merge soc-hpt-volt-tb%d-lv%d\n", i, j);
-				kfree(hpt_table);
-				soc_hpt_tb_num = 1;
-				return false;
-			}
-			ret = of_property_read_u32(pdev->dev.of_node, buf, &hpt_table[i * (pb.hpt_max_lv + 1) + j]);
-			if (ret < 0){
-				pr_notice("%s: get soc-hpt-volt-tb%d-lv%d failed", __func__, i, j);
-				kfree(hpt_table);
-				soc_hpt_tb_num = 1;
-				return false;
-			}
-		}
-	}
-	return true;
-}
-
 static int __used read_power_budget_dts(struct platform_device *pdev)
 {
 	int i, ret;
@@ -2253,48 +2220,16 @@ static int __used read_power_budget_dts(struct platform_device *pdev)
 
 		if (pb.hpt_max_lv >= BATTERY_PERCENT_LEVEL_NUM)
 			pb.hpt_max_lv = BATTERY_PERCENT_LEVEL_NUM - 1;
-		if (pb.version == 2) {
-			pb.hpt_lv_t[0] = HPT_INIT_SETTING;
-			for (i = 1; i <= pb.hpt_max_lv; i++) {
-				ret = snprintf(str, STR_SIZE, "%s%d", "soc-hpt-ctrl-lv", i);
-				if (ret < 0) {
-					pr_info("%s:%d: snprintf error %d\n", __func__, __LINE__, ret);
-					break;
-				}
-				if (read_dts_val(np, str, &pb.hpt_lv_t[i], 1))
-					pb.hpt_lv_t[i] = HPT_INIT_SETTING;
-				}
-			}
-		if (pb.version == 3) {
-			ret = of_property_read_u32(pdev->dev.of_node, "soc-max-tb-num", &soc_hpt_tb_num);
-			if (ret || soc_hpt_tb_num > HPT_MAX_TABLE) {
-				soc_hpt_tb_num = 1;
-				switch_hpt_tb = false;
-				pr_notice("%s: get soc-max-tb-num fail set to default %d\n", __func__, soc_hpt_tb_num);
-			}
-			for (i = 0; i <= pb.hpt_max_lv; i++) {
-				if (soc_hpt_tb_num == 1)
-					ret = snprintf(str, STR_SIZE, "%s%d", "soc-hpt-volt-lv", i);
-				else if  (soc_hpt_tb_num > 1)
-					ret = snprintf(str, STR_SIZE, "%s%d", "soc-hpt-volt-tb0-lv", i);
-				if (ret < 0) {
-					pr_info("%s:%d: snprintf error %d\n", __func__, __LINE__, ret);
-					break;
-				}
-				if (read_dts_val(np, str, &pb.hpt_lv_t[i], 1))
-					pb.hpt_lv_t[i] = 0;
-			}
-			if (soc_hpt_tb_num > 1) {
-				hpt_table = kcalloc((pb.hpt_max_lv + 1) * soc_hpt_tb_num, sizeof(int), GFP_KERNEL);
-				if (!hpt_table) {
-					soc_hpt_tb_num = 1;
-					switch_hpt_tb = false;
-					pr_info("%s: failed to allocate memory\n", __func__);
-				} else {
-					switch_hpt_tb = parse_switch_hpt_table(pdev, hpt_table);
-				}
-			}
 
+		pb.hpt_lv_t[0] = HPT_INIT_SETTING;
+		for (i = 1; i <= pb.hpt_max_lv; i++) {
+			ret = snprintf(str, STR_SIZE, "%s%d", "soc-hpt-ctrl-lv", i);
+			if (ret < 0) {
+				pr_info("%s:%d: snprintf error %d\n", __func__, __LINE__, ret);
+				break;
+			}
+			if (read_dts_val(np, str, &pb.hpt_lv_t[i], 1))
+				pb.hpt_lv_t[i] = HPT_INIT_SETTING;
 		}
 	} else {
 		for (i = 0; i <= pb.temp_max_stage; i++) {
@@ -3098,103 +3033,6 @@ static ssize_t mt_hpt_freq_setting_proc_write
 	return count;
 }
 
-static int mt_hpt_volt_setting_proc_show(struct seq_file *m, void *v)
-{
-
-	u8 lvl = 0;
-
-	if (lbat_get_preuv_lvl(&lvl) == 0)
-		seq_printf(m, "preuv_lv: %u\n", lvl);
-	else
-		seq_puts(m, "get preuv lv1 fail\n");
-	return 0;
-}
-
-static ssize_t mt_hpt_volt_setting_proc_write
-(struct file *file, const char __user *buffer, size_t count, loff_t *data)
-{
-	char desc[64], cmd[21];
-	unsigned int len = 0, val = 0;
-	int ret = 0;
-
-	len = (count < (sizeof(desc) - 1)) ? count : (sizeof(desc) - 1);
-	if (copy_from_user(desc, buffer, len))
-		return 0;
-	desc[len] = '\0';
-
-	if (sscanf(desc, "%20s %d", cmd, &val) != 2) {
-		pr_notice("parameter number not correct\n");
-		return -EPERM;
-	}
-
-	if (strncmp(cmd, "hpt_volt", 8))
-		return -EINVAL;
-
-	if (val <= 5) {
-		ret = lbat_set_preuv_lvl(val);
-		pr_notice("hpt set volt lv ret %d\n", ret);
-	} else
-		pr_notice("hpt volt lv should be 0 ~ 5\n");
-
-	return count;
-}
-
-static int mt_hpt_preuv_table_proc_show(struct seq_file *m, void *v)
-{
-	if (switch_hpt_tb == false || soc_hpt_tb_num == 1) {
-		seq_puts(m, "Not support preuv table switching\n");
-		return -EINVAL;
-	}
-
-	seq_printf(m, "hpt_tb_idx = %u\n", hpt_tb_idx);
-	return 0;
-}
-
-static ssize_t mt_hpt_preuv_table_proc_write
-(struct file *file, const char __user *buffer, size_t count, loff_t *data)
-{
-	char desc[64], cmd[21];
-	unsigned int len = 0, val = 0;
-	int j, ret = 0;
-
-	len = (count < (sizeof(desc) - 1)) ? count : (sizeof(desc) - 1);
-	if (copy_from_user(desc, buffer, len))
-		return 0;
-	desc[len] = '\0';
-
-	if (sscanf(desc, "%9s %u", cmd, &val) != 2) {
-		pr_notice("parameter number not correct\n");
-		return -EPERM;
-	}
-
-	if (strncmp(cmd, "table_idx", 9))
-		return -EINVAL;
-
-	if (switch_hpt_tb == false || soc_hpt_tb_num == 1) {
-		pr_info("Not support preuv table switching\n");
-		return -EINVAL;
-	}
-
-	if (val >= soc_hpt_tb_num) {
-		pr_info("Invalid voltage table index.\n");
-		return -EINVAL;
-	}
-
-	mutex_lock(&hpt_tb_mutex);
-	for (j = 0; j <= pb.hpt_max_lv ; j++) {
-		pb.hpt_lv_t[j] = hpt_table[val * (pb.hpt_max_lv + 1) + j];
-		pr_notice("%s: preuv_lv=%d, preuv_table_idx=%d\n", __func__,
-			pb.hpt_lv_t[j], val);
-	}
-	mutex_unlock(&hpt_tb_mutex);
-	hpt_tb_idx = val;
-
-
-	ret = lbat_set_preuv_lvl(pb.hpt_lv_t[pb.hpt_cur_lv]);
-
-	return count;
-}
-
 static int mt_xpu_dbg_dump_proc_show(struct seq_file *m, void *v)
 {
 	struct xpu_dbg_t dbg_data;
@@ -3297,9 +3135,6 @@ PROC_FOPS_RO(xpu_dbg_dump);
 PROC_FOPS_RW(combo0_uisoc);
 PROC_FOPS_RO(hpt_debug_info);
 PROC_FOPS_RW(hpt_freq_setting);
-PROC_FOPS_RW(hpt_volt_setting);
-PROC_FOPS_RW(hpt_preuv_table);
-
 
 static int mt_ppb_create_procfs(void)
 {
@@ -3330,8 +3165,6 @@ static int mt_ppb_create_procfs(void)
 		PROC_ENTRY(combo0_uisoc),
 		PROC_ENTRY(hpt_debug_info),
 		PROC_ENTRY(hpt_freq_setting),
-		PROC_ENTRY(hpt_volt_setting),
-		PROC_ENTRY(hpt_preuv_table),
 	};
 
 	dir = proc_mkdir("ppb", NULL);
@@ -3375,42 +3208,26 @@ static void __used get_md_dbm_info(void)
 
 static void hpt_bp_cb(enum BATTERY_PERCENT_LEVEL_TAG level)
 {
-	int hpt_reg, hpt_volt_lv, hpt_enable = 0;
-	int ret;
+	int hpt_reg, hpt_enable = 0;
 
-	if (pb.version == 3) {
-		if (level != pb.hpt_cur_lv && level <= pb.hpt_max_lv) {
-			mutex_lock(&hpt_tb_mutex);
-			hpt_volt_lv = pb.hpt_lv_t[level];
-			mutex_unlock(&hpt_tb_mutex);
-			ret = lbat_set_preuv_lvl(hpt_volt_lv);
+	if (level != pb.hpt_cur_lv && level < BATTERY_PERCENT_LEVEL_NUM) {
+		hpt_reg = pb.hpt_lv_t[level];
+		if (hpt_reg)
+			hpt_enable = 1;
 
-			pb.hpt_cur_lv = level;
-			pr_info("%s: hpt_volt_lv=%d pb.hpt_cur_lv=%d ret=%d\n",
-				__func__, pb.hpt_lv_t[level], pb.hpt_cur_lv, ret);
-		}
-	} else if (pb.version == 2) {
-		if (level != pb.hpt_cur_lv && level < BATTERY_PERCENT_LEVEL_NUM) {
-			hpt_reg = pb.hpt_lv_t[level];
-			if (hpt_reg)
-				hpt_enable = 1;
+		if (!hpt_enable && pb.hpt_exclude_lbat_cg_thl)
+			lbat_set_hpt_mode(hpt_enable);
 
-			if (!hpt_enable && pb.hpt_exclude_lbat_cg_thl)
-				lbat_set_hpt_mode(hpt_enable);
+		hpt_ctrl_write(hpt_reg, HPT_CTRL_SET);
+		hpt_reg = ~hpt_reg & 0x7;
+		hpt_ctrl_write(hpt_reg, HPT_CTRL_CLR);
 
-			hpt_ctrl_write(hpt_reg, HPT_CTRL_SET);
-			hpt_reg = ~hpt_reg & 0x7;
-			hpt_ctrl_write(hpt_reg, HPT_CTRL_CLR);
+		if (hpt_enable && pb.hpt_exclude_lbat_cg_thl)
+			lbat_set_hpt_mode(hpt_enable);
 
-			if (hpt_enable && pb.hpt_exclude_lbat_cg_thl)
-				lbat_set_hpt_mode(hpt_enable);
-
-			pb.hpt_cur_lv = level;
-			pr_info("%s: hpt_reg=%d pb.hpt_cur_lv=%d\n",
-				__func__, pb.hpt_lv_t[level], pb.hpt_cur_lv);
-		}
-	} else
-		pr_info("skip %s\n", __func__);
+		pb.hpt_cur_lv = level;
+		pr_info("%s: hpt_reg=%d pb.hpt_cur_lv=%d\n", __func__, pb.hpt_lv_t[level], pb.hpt_cur_lv);
+	}
 }
 
 static int peak_power_budget_probe(struct platform_device *pdev)

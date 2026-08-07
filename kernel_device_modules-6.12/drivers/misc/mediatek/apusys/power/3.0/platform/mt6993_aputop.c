@@ -38,12 +38,11 @@
 #define NEED_CHK	(0)
 #define RPC_ALIVE_DBG	(0)
 #define SMC_APUSYS_PWR_DUMP	(0)
-#define TIMER_RDY	(1)
+#define TIMER_RDY	(0)
 #define CLIENT_NUM	(6)
 #define SW_THROTTLE_PT_THERMAL	(0)
 #define SW_THROTTLE_SYSFS	(1)
 #define SW_THROTTLE_LIMIT_HAL	(2)
-#define INIT_SRAM_TYPE	(1)
 static uint32_t mbox_data;
 
 unsigned int mt6993_user_max_opp;
@@ -58,7 +57,7 @@ static struct mutex lock;
 static int sys_request_id = 5; // for sysfs input
 static int limit_debug_request_id = 4; // for Limit_HAL cmd input
 static int first_dump;
-static int sw_throttle_sync_mode;
+
 struct client_work {
 	int lower_limit;
 	int upper_limit;
@@ -156,7 +155,6 @@ static uint32_t apusys_pwr_smc_call(struct device *dev, uint32_t smc_id,
 static void plat_get_up_drv_data(struct aputop_func_param *aputop)
 {
 	int sub_func = 0;
-	struct arm_smccc_res res;
 
 	sub_func = aputop->param1;
 
@@ -169,11 +167,6 @@ static void plat_get_up_drv_data(struct aputop_func_param *aputop)
 	} else if (sub_func == 2) {
 		mbox_data = apu_readl(
 				apupw.regs[apu_md32_mbox] + MBRAIN_DATA_SYNC_1_REG);
-	} else if (sub_func == 3) {
-		arm_smccc_smc(MTK_SIP_APUSYS_CONTROL,
-			      MTK_APUSYS_KERNEL_OP_APUSYS_QOS_SETTING,
-			      aputop->param2, aputop->param3,
-			      aputop->param4, 0, 0, 0, &res);
 	} else {
 		pr_info("%s#%d invalid sub_func : %d\n",
 				__func__, __LINE__, sub_func);
@@ -376,79 +369,25 @@ static int mt6993_apu_top_off(struct device *dev)
 }
 
 #if TIMER_RDY
-static struct workqueue_struct *limit_wq;
-static struct work_struct limit_work;
 static struct timer_list limit_timer;
-static atomic_t limit_timer_active = ATOMIC_INIT(0);
+static int limit_timer_active;
+static int last_upper_limit = -1;
+static int last_lower_limit = -1;
 static int last_upper_request_id = -1;
 static int last_lower_request_id = -1;
 
-static void mt6993_limit_work_func(struct work_struct *work)
+static void limit_timer_callback(struct timer_list *t)
 {
-	int upper, lower, upper_id, lower_id;
-
-	/* Read values under lock */
-	mutex_lock(&lock);
-	upper = global_upper_limit;
-	lower = global_lower_limit;
-	upper_id = last_upper_request_id;
-	lower_id = last_lower_request_id;
-	mutex_unlock(&lock);
-
-	/* Only print info when there's a real user request */
-	if (upper_id != -1 || lower_id != -1) {
-		apu_pr_info_ratelimited(
-			"%s: upper_limit=%d (user %d), lower_limit=%d (user %d)\n", __func__,
-			upper, upper_id, lower, lower_id);
+	if (global_upper_limit == last_upper_limit &&
+	    global_lower_limit == last_lower_limit) {
+		pr_info("Frequency limit has been active for more than 100ms:\n"
+			"\t\tupper_limit=%d (from user %d), lower_limit=%d (from user %d)\n",
+			global_upper_limit, last_upper_request_id,
+			global_lower_limit, last_lower_request_id);
+		mod_timer(&limit_timer, jiffies + msecs_to_jiffies(100));
+	} else {
+		limit_timer_active = 0;
 	}
-
-	/* Do first OPP table dump */
-	if (!first_dump) {
-		mt6993_request_opp_table();
-		first_dump = 1;
-	}
-
-	/* Stop timer if freq tables are ready and no real user request */
-	if (mt6993_mdla_pll_freq[OPP_TABLE_SIZE - 1] != 0 &&
-		mt6993_mvpu_pll_freq[OPP_TABLE_SIZE - 1] != 0 &&
-		upper_id == -1 && lower_id == -1) {
-		atomic_set(&limit_timer_active, 0);
-		apu_pr_info_ratelimited(
-			"%s: dump_opp_table success, min_freq = %d\n",
-			__func__, mt6993_mdla_pll_freq[OPP_TABLE_SIZE - 1]);
-	}
-}
-
-static void mt6993_limit_timer_callback(struct timer_list *t)
-{
-	if (atomic_read(&limit_timer_active)) {
-		queue_work(limit_wq, &limit_work);
-		mod_timer(&limit_timer, jiffies + msecs_to_jiffies(5000));
-	}
-}
-
-static int mt6993_timer_init(void)
-{
-	limit_wq = create_singlethread_workqueue("apu_limit_wq");
-	if (!limit_wq)
-		return -ENOMEM;
-
-	INIT_WORK(&limit_work, mt6993_limit_work_func);
-	timer_setup(&limit_timer, mt6993_limit_timer_callback, 0);
-
-	/* Start timer to ensure OPP table dump */
-	atomic_set(&limit_timer_active, 1);
-	mod_timer(&limit_timer, jiffies + msecs_to_jiffies(2000));
-
-	return 0;
-}
-
-static void mt6993_timer_cleanup(void)
-{
-	atomic_set(&limit_timer_active, 0);
-	del_timer_sync(&limit_timer);
-	cancel_work_sync(&limit_work);
-	destroy_workqueue(limit_wq);
 }
 #endif
 
@@ -460,18 +399,13 @@ static int mt6993_update_bounds(void)
 	int irregular_limits[CLIENT_NUM];
 	int irregular_count = 0;
 	int skip = 0;
-	int upper_id = -1, lower_id = -1;
 	struct client_work *cw;
 
 	list_for_each_entry(cw, &client_list, list) {
-		if (cw->upper_limit > new_upper_limit) {
+		if (cw->upper_limit > new_upper_limit)
 			new_upper_limit = cw->upper_limit;
-			upper_id = cw->request_id;
-		}
-		if (cw->lower_limit < new_lower_limit) {
+		if (cw->lower_limit < new_lower_limit)
 			new_lower_limit = cw->lower_limit;
-			lower_id = cw->request_id;
-		}
 	}
 
 	/* Skip irregular lower_limit and reset new lower_limits */
@@ -516,17 +450,22 @@ static int mt6993_update_bounds(void)
 	}
 
 #if TIMER_RDY
-	/* Update request IDs for logging */
-	last_upper_request_id = upper_id;
-	last_lower_request_id = lower_id;
+	// Reset the timer
+	if (limit_timer_active)
+		del_timer(&limit_timer);
 
-	/* Start/restart timer if limits are not at default values */
-	if (new_upper_limit != mt6993_user_max_opp || new_lower_limit != USER_MIN_OPP_VAL) {
-		atomic_set(&limit_timer_active, 1);
-		mod_timer(&limit_timer, jiffies + msecs_to_jiffies(5000));
-	} else {
-		atomic_set(&limit_timer_active, 0);
+	if (new_upper_limit > global_lower_limit) {
+		last_upper_limit = new_upper_limit;
+		last_upper_request_id = cw->request_id;
 	}
+
+	if (new_lower_limit < global_upper_limit) {
+		last_lower_limit = new_lower_limit;
+		last_lower_request_id = cw->request_id;
+	}
+
+	limit_timer_active = 1;
+	mod_timer(&limit_timer, jiffies + msecs_to_jiffies(100));
 #endif
 
 	global_upper_limit = new_upper_limit;
@@ -594,7 +533,6 @@ int mt6993_set_freq_limit(int upper_limit, int lower_limit, int *request_id, int
 	bool found = false;
 	int ret;
 	int type = calltype;
-	uint32_t currnet_opp = 0, target_opp = 0, tmp, upper0 = 0, lower0 = 0;
 
 	// mapping user opp to real opp
 	if (type == SW_THROTTLE_SYSFS) { // sysfs node
@@ -663,42 +601,15 @@ int mt6993_set_freq_limit(int upper_limit, int lower_limit, int *request_id, int
 	}
 
 	ret = mt6993_update_bounds();
-	/* case1: throttle info from apu_sw_throttle */
 	if (ret == 0 && type == SW_THROTTLE_PT_THERMAL) {
-		apu_pr_info_ratelimited("%s: upper_limit=%d (user %d), lower_limit=%d (user %d)\n", __func__,
-		global_upper_limit, last_upper_request_id, global_lower_limit, last_lower_request_id);
+#if LOCAL_DBG
+		pr_info("%s: input from apu_sw_throttle, detected bounds changed, sending to apu\n", __func__);
+#endif
 		mt6993_aputop_opp_limit(global_upper_limit, global_lower_limit, 1);
-		if (sw_throttle_sync_mode == 1) { // if sync mode is on, polling opp level
-			unsigned long timeout = jiffies + msecs_to_jiffies(1000); // 1 second timeout
-
-			do {
-				udelay(1000);
-				tmp = apu_readl(
-					(apupw.regs[apu_md32_mbox] + ENGINE_ONOFF_OPP_SYNC_REG));
-				currnet_opp = (tmp >> 16) & 0xF;
-				target_opp = (tmp >> 20) & 0xF;
-				upper0 = (tmp >> 24) & 0xF;
-				lower0 = (tmp >> 28) & 0xF;
-				if ((currnet_opp != 0) && (target_opp != 0) &&
-				    (upper0 == 1) && (lower0 == USER_MIN_OPP_VAL))
-					break;
-				if (time_after(jiffies, timeout)) {
-					apu_pr_info_ratelimited("%s: timeout waiting for OPP sync\n", __func__);
-					ret = -ETIMEDOUT;
-					break;
-				}
-				//udelay(50);
-			} while (1);
-			#if LOCAL_DBG
-			apu_pr_info_ratelimited("%s, currnet_opp = %08x", __func__, currnet_opp);
-			#endif
-			sw_throttle_sync_mode = 0; // clr sync mode after done.
-		}
 	} else if (ret == 0 && type == SW_THROTTLE_SYSFS) {
-		apu_pr_info_ratelimited("%s: input from sysfs, detected bounds changed, sending to apu\n", __func__);
-		apu_pr_info_ratelimited(
-		"%s: upper_limit=%d (user %d), lower_limit=%d (user %d)\n", __func__,
-		global_upper_limit, last_upper_request_id, global_lower_limit, last_lower_request_id);
+#if LOCAL_DBG
+		pr_info("%s: input from sysfs, detected bounds changed, sending to apu\n", __func__);
+#endif
 		mt6993_aputop_opp_limit(global_upper_limit, global_lower_limit, 2);
 	} else if (ret == 0 && type == SW_THROTTLE_LIMIT_HAL) {
 #if LOCAL_DBG
@@ -747,16 +658,6 @@ static int mt6993_client_input_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-static inline int freq_over_range_check(int freq)
-{
-	if (freq > mt6993_mdla_pll_freq[mt6993_user_max_opp])
-		return mt6993_mdla_pll_freq[mt6993_user_max_opp];
-	else if (freq < mt6993_mdla_pll_freq[USER_MIN_OPP_VAL])
-		return mt6993_mdla_pll_freq[USER_MIN_OPP_VAL];
-	else
-		return freq;
-}
-
 static void mt6993_prepare_freq_input(int upper_limit, int lower_limit, int *opp_max, int *opp_min)
 {
 	int tmp_opp_min = -1;
@@ -767,9 +668,6 @@ static void mt6993_prepare_freq_input(int upper_limit, int lower_limit, int *opp
 		mt6993_request_opp_table();
 		first_dump = 1;
 	}
-
-	upper_limit = freq_over_range_check(upper_limit);
-	lower_limit = freq_over_range_check(lower_limit);
 
 	for (int i = OPP_TABLE_SIZE-1; i >= 0; i--) {
 		int freq = mt6993_mdla_pll_freq[i];
@@ -783,18 +681,10 @@ static void mt6993_prepare_freq_input(int upper_limit, int lower_limit, int *opp
 	for (int i = 0; i < OPP_TABLE_SIZE; i++) {
 		int freq = mt6993_mdla_pll_freq[i];
 
-		// Skip 0 frequency entries
-		if (freq == 0)
-			continue;
-
 		if (freq <= upper_limit) {
 			tmp_opp_max = i;
 			break;
 		}
-	}
-	if (mt6993_user_max_opp == 3) {
-		tmp_opp_max = tmp_opp_max - mt6993_user_max_opp;
-		tmp_opp_min = tmp_opp_min - mt6993_user_max_opp;
 	}
 
 	if (upper_limit == lower_limit)
@@ -803,8 +693,8 @@ static void mt6993_prepare_freq_input(int upper_limit, int lower_limit, int *opp
 	if (lower_limit < mt6993_mdla_pll_freq[OPP_TABLE_SIZE-1])
 		tmp_opp_min = 15 - mt6993_user_max_opp; // set to opp15
 
-	if (upper_limit > mt6993_mdla_pll_freq[mt6993_user_max_opp])
-		tmp_opp_max = 0; // set to opp0
+	if (upper_limit > mt6993_mdla_pll_freq[0])
+		tmp_opp_max = mt6993_user_max_opp; // set to opp0
 
 	if (tmp_opp_min < tmp_opp_max) {
 		pr_info("%s: opp_max=%d, opp_min=%d\n , lower limit cannot be greater than upper limit!\n",
@@ -917,11 +807,7 @@ static int mt6993_opp_proc_show(struct seq_file *m, void *v)
 {
 	int i;
 
-	if (!first_dump) {
-		mt6993_request_opp_table();
-		first_dump = 1;
-	}
-
+	mt6993_request_opp_table();
 	seq_puts(m, "APU Support Frequency points (Unit is KHZ), (MDLA, MVPU)\n");
 	for (i = 0; i < ARRAY_SIZE(mt6993_mdla_pll_freq); i++) {
 		if (mt6993_mdla_pll_freq[i] == 0)
@@ -967,15 +853,18 @@ static int mt6993_engine_freq_proc_show(struct seq_file *m, void *v)
 	mbox_status = mbox_status & 0xFFFF;
 	mbox_status = mbox_status >> 2;
 
+	if (!mbox_status) {
+		seq_puts(m, "0\n");
+		goto out;
+	}
+
 	if (!first_dump) {
 		mt6993_request_opp_table();
 		first_dump = 1;
 	}
 
-	if (!mbox_status) {
-		seq_puts(m, "0\n");
-		goto out;
-	}
+	if (opp > 2)
+		opp = opp - 1;// since opp 2 is only for thermal throttle usage
 
 	if (((mbox_status >> 0) & 0x1) != 0x1)
 		mdla_ret += 1;
@@ -1104,144 +993,50 @@ static const char * const engine_names[] = {
 	"mvputop", "mvpu0", "mvpu1", "mdla0", "mdla1", "mdla2", "mdla3", "all_engines"
 };
 
-static struct npupw_stts npupw_stts_data;
-
 /* --- Show functions --- */
 static int npupw_stts_all_seq_show(struct seq_file *m, void *v)
 {
-	int ret = 0;
-
-	ret = mt6993_request_npu_pwr_stats(NPU_STTS_ALL, REQUEST_ONLY, &npupw_stts_data);
-
-	if (ret) {
-		seq_puts(m, "request failed!\n");
-		ret = -EINVAL;
-		goto out;
-	}
-
-	seq_puts(m, "<-- NPU on -->\n");
-	seq_printf(m, "%lld us\n", npupw_stts_data.npu_on_time_us);
-
-	seq_puts(m, "<-- OPP time in stats -->\n");
-	for (int i_opp = 0; i_opp < OPP_TABLE_SIZE; ++i_opp)
-		seq_printf(m, "opp%-2d %lld us\n", i_opp, npupw_stts_data.time_in_states_us[i_opp]);
-
-	seq_puts(m, "<-- Engine on -->\n");
-	for (int e_id = 0; e_id < TIME_ALL_ENGINES; ++e_id)
-		seq_printf(m, "%-7s %lld us\n", engine_names[e_id], npupw_stts_data.engine_on_time_us[e_id]);
-
-out:
+	seq_puts(m, "npu_pwr_stats/all stub\n");
 	return 0;
 }
 
 static int npupw_stts_npu_on_seq_show(struct seq_file *m, void *v)
 {
-	int ret = 0;
-	uint32_t type = (uint32_t)(uintptr_t)m->private;
+	int type = (int)(uintptr_t)m->private;
 
-	npupw_stts_data.npu_on_time_us = 0;
-
-	if (type == TIME_NPU) {
-		ret = mt6993_request_npu_pwr_stats(NPU_STTS_NPU_ON, REQUEST_ONLY, &npupw_stts_data);
-		if (ret != 0) {
-			seq_puts(m, "request failed!\n");
-			ret = -EINVAL;
-			goto out;
-		}
-	} else if (type == RESET_NPU) {
-		ret = mt6993_request_npu_pwr_stats(NPU_STTS_NPU_ON, RESET_ONLY, &npupw_stts_data);
-		if (ret != 0) {
-			seq_puts(m, "reset failed!\n");
-			ret = -EINVAL;
-		}
-		goto out;
-	} else {
-		pr_info("unknown argument!\n");
-		ret = -EINVAL;
-		goto out;
-	}
-
-	seq_printf(m, "%lld us\n", npupw_stts_data.npu_on_time_us);
-
-out:
-	return ret;
+	if (type == TIME_NPU)
+		seq_puts(m, "npu/power_on/time stub\n");
+	else if (type == RESET_NPU)
+		seq_puts(m, "npu/power_on/reset stub\n");
+	else
+		seq_puts(m, "npu/power_on/unknown stub\n");
+	return 0;
 }
 
 static int npupw_stts_npufreq_seq_show(struct seq_file *m, void *v)
 {
-	int ret = 0;
-	uint32_t type = (uint32_t)(uintptr_t)m->private;
+	int type = (int)(uintptr_t)m->private;
 
-	memset(npupw_stts_data.time_in_states_us, 0, sizeof(npupw_stts_data.time_in_states_us));
+	if (type == TIME_IN_STATES)
+		seq_puts(m, "npu/npufreq/time_in_states stub\n");
+	else if (type == RESET_NPUFREQ)
+		seq_puts(m, "npu/npufreq/reset stub\n");
+	else
+		seq_puts(m, "npu/npufreq/unknown stub\n");
 
-	if (type == TIME_IN_STATES) {
-		ret = mt6993_request_npu_pwr_stats(NPU_STTS_NPUFREQ, REQUEST_ONLY, &npupw_stts_data);
-		if (ret != 0) {
-			seq_puts(m, "request failed!\n");
-			ret = -EINVAL;
-			goto out;
-		}
-	} else if (type == RESET_NPUFREQ) {
-		ret = mt6993_request_npu_pwr_stats(NPU_STTS_NPUFREQ, RESET_ONLY, &npupw_stts_data);
-		if (ret != 0) {
-			seq_puts(m, "reset failed!\n");
-			ret = -EINVAL;
-		}
-		goto out;
-	} else {
-		pr_info("unknown argument!\n");
-		ret = -EINVAL;
-		goto out;
-	}
-
-	for (int i_opp = 0; i_opp < OPP_TABLE_SIZE; ++i_opp)
-		seq_printf(m, "opp%-2d %lld us\n", i_opp, npupw_stts_data.time_in_states_us[i_opp]);
-
-out:
 	return 0;
 }
 
 static int npupw_stts_engine_on_seq_show(struct seq_file *m, void *v)
 {
-	int ret = 0;
 	enum npu_pwr_stats_entry_id id = (enum npu_pwr_stats_entry_id)(uintptr_t)m->private;
-	enum NPU_ENGINE eng_id = (id & 0x7);
-	enum NPUPW_STTS_REQ_MODE req_mode = REQUEST_ONLY;
+	const char *name = engine_names[(id & 0x7)];
 	const char *type = "time";
 
-	if ((id & BIT(RST_HINT_BIT))) {
+	if ((id & BIT(RST_HINT_BIT)))
 		type = "reset";
-		req_mode = RESET_ONLY;
-	}
 
-	memset(npupw_stts_data.engine_on_time_us, 0, sizeof(npupw_stts_data.engine_on_time_us));
-
-	if (req_mode == REQUEST_ONLY) {
-		ret = mt6993_request_npu_pwr_stats(NPU_STTS_ENGINE_ON, req_mode, &npupw_stts_data);
-		if (ret != 0) {
-			seq_puts(m, "request failed!\n");
-			ret = -EINVAL;
-			goto out;
-		}
-	} else if (req_mode == RESET_ONLY) {
-		ret = mt6993_request_npu_pwr_stats(NPU_STTS_ENGINE_ON, req_mode, &npupw_stts_data);
-		if (ret != 0) {
-			seq_puts(m, "reset failed!\n");
-			ret = -EINVAL;
-		}
-		goto out;
-	} else {
-		pr_info("unknown argument!\n");
-		ret = -EINVAL;
-	}
-
-	if (id == TIME_ALL_ENGINES) {
-		for (int e_id = 0; e_id < TIME_ALL_ENGINES; ++e_id)
-			seq_printf(m, "%-7s %lld us\n", engine_names[e_id], npupw_stts_data.engine_on_time_us[e_id]);
-	} else
-		seq_printf(m, "%-7s %lld us\n", engine_names[eng_id], npupw_stts_data.engine_on_time_us[eng_id]);
-
-out:
+	seq_printf(m, "%s/power_on/%s stub\n", name, type);
 	return 0;
 }
 
@@ -1378,14 +1173,12 @@ int mt6993_apu_top_procfs_init(void)
 		ret = IS_ERR_OR_NULL(engine_dirs[i]);
 		if (ret) {
 			pr_info("failed to create %s dir\n", engine_names[i]);
-			ret = -ENOMEM;
 			goto out;
 		}
 		engine_power_on_dirs[i] = proc_mkdir("power_on", engine_dirs[i]);
 		ret = IS_ERR_OR_NULL(engine_power_on_dirs[i]);
 		if (ret) {
 			pr_info("failed to create %s/power_on dir\n", engine_names[i]);
-			ret = -ENOMEM;
 			goto out;
 		}
 		if (IS_ERR_OR_NULL(
@@ -1457,9 +1250,6 @@ void mt6993_apu_top_procfs_exit(void)
 static int mt6993_apu_top_pb(struct platform_device *pdev)
 {
 	int ret = 0, val = 0;
-	unsigned int reg_data;
-	struct arm_smccc_res res;
-	int init_max, init_min;
 
 	/* Initialize max_user_opp first */
 	ret = mt6993_init_user_max_opp(pdev);
@@ -1491,26 +1281,7 @@ static int mt6993_apu_top_pb(struct platform_device *pdev)
 
 	mt6993_activate_apu_cooling_device(pdev);
 
-	//init vapu are sram
-	init_max = mt6993_user_max_opp;
-	init_min = USER_MIN_OPP_VAL;
-	reg_data = (
-			((init_max & 0x3f) << 0) |	// [5:0]
-			((init_min & 0x3f) << 6) |	// [11:6]
-			((init_max & 0x3f) << 12) |	// [17:12]
-			((init_min & 0x3f) << 18) |	// [2m3:18]
-			((INIT_SRAM_TYPE & 0xff) << 24));	// dedicate 1 byte
-	arm_smccc_smc(MTK_SIP_APUSYS_CONTROL, MTK_APUSYS_KERNEL_OP_APUSYS_PWR_WRITE_OPP_LIMIT,
-			reg_data, 0, 0, 0, 0, 0, &res);
-	if (((int) res.a0) < 0)
-		pr_info("%s: init sram, smc id: %d,return error(%lu)\n",
-			__func__,
-			MTK_APUSYS_KERNEL_OP_APUSYS_PWR_WRITE_OPP_LIMIT, res.a0);
-
-	pr_info("%s: init sram as %d/%d/%d/%d\n", __func__,
-			init_max, init_min, init_max, init_min);
-
-	mt6993_init_remote_data_sync(apupw.regs[apu_md32_mbox], apupw.regs[apu_are]);
+	mt6993_init_remote_data_sync(apupw.regs[apu_md32_mbox]);
 	// init lock
 	mutex_init(&lock);
 	// init apudvfs proc
@@ -1543,9 +1314,7 @@ static int mt6993_apu_top_pb(struct platform_device *pdev)
 	ret = mt6993_apu_top_procfs_init();
 
 #if TIMER_RDY
-	ret = mt6993_timer_init();
-	if (ret)
-		pr_info("%s: init timer failed\n", __func__);
+	timer_setup(&limit_timer, limit_timer_callback, 0);
 #endif
 
 	return ret;
@@ -1580,7 +1349,7 @@ static int mt6993_apu_top_rm(struct platform_device *pdev)
 	mt6993_apu_top_procfs_exit();
 
 #if TIMER_RDY
-	mt6993_timer_cleanup();
+	del_timer(&limit_timer);
 #endif
 
 	return 0;
@@ -1615,8 +1384,7 @@ static int mt6993_apu_top_func(struct platform_device *pdev,
 	int dla_max, dla_min;
 	int request_id = -1;
 
-	if (aputop->func_id != APUTOP_FUNC_APU_THROTTLE)
-		apu_pr_info_ratelimited("%s func_id : %d\n", __func__, aputop->func_id);
+	pr_info("%s func_id : %d\n", __func__, aputop->func_id);
 
 	switch (aputop->func_id) {
 #if APMCU_REQ_RPC_SLEEP
@@ -1662,12 +1430,11 @@ static int mt6993_apu_top_func(struct platform_device *pdev,
 		dla_max = aputop->param1;
 		dla_min = USER_MIN_OPP_VAL;
 		request_id = aputop->param3;
-		sw_throttle_sync_mode = aputop->param4;
 		mt6993_set_freq_limit(dla_max, dla_min, &request_id, SW_THROTTLE_PT_THERMAL);
 		aputop->param3 = request_id;
 		break;
 	default:
-		apu_pr_info_ratelimited("%s invalid func_id : %d\n", __func__, aputop->func_id);
+		pr_info("%s invalid func_id : %d\n", __func__, aputop->func_id);
 		return -EINVAL;
 	}
 
@@ -1697,4 +1464,3 @@ const struct apupwr_plat_data mt6993_plat_data = {
 	.bypass_pwr_on = 0,
 	.bypass_pwr_off = 0,
 };
-

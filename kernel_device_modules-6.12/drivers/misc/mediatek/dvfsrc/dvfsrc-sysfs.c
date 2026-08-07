@@ -349,7 +349,6 @@ static ssize_t dvfsrc_md_floor_table_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(dvfsrc_md_floor_table);
 
-
 static inline ssize_t dvfsrc_ceiling_opp_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -541,7 +540,6 @@ int dvfsrc_register_sysfs(struct device *dev)
 
 	ret = sysfs_create_link(kernel_kobj, &dev->kobj,
 		"helio-dvfsrc");
-
 	return ret;
 }
 
