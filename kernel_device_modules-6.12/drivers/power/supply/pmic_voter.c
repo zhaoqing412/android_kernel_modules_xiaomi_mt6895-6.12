@@ -827,6 +827,7 @@ struct votable *create_votable(const char *name,
 				  &effective_client_ops);
 	return votable;
 }
+EXPORT_SYMBOL(create_votable);
 
 void destroy_votable(struct votable *votable)
 {
