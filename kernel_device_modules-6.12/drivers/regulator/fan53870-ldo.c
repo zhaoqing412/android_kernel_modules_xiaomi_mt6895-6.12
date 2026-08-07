@@ -354,9 +354,18 @@ static const struct i2c_device_id fan53870_i2c_id[] = {
 
 MODULE_DEVICE_TABLE(i2c, fan53870_i2c_id);
 
+static const struct of_device_id fan53870_dt_ids[] = {
+	{
+		.compatible = "onsemi,fan53870",
+	},
+	{ }
+};
+MODULE_DEVICE_TABLE(of, fan53870_dt_ids);
+
 static struct i2c_driver fan53870_regulator_driver = {
 	.driver = {
 		.name = "fan53870",
+		.of_match_table = fan53870_dt_ids,
 	},
 	.probe = fan53870_i2c_probe,
 	.remove = fan53870_i2c_remove,
