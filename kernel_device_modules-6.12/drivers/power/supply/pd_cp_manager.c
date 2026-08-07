@@ -1450,6 +1450,10 @@ static int pdm_probe(struct platform_device *pdev)
 	}
 #endif
 	of_id = of_match_device(pdm_of_match, &pdev->dev);
+	if (!of_id || !of_id->data) {
+		pdm_err("%s: no matching of_id\n", __func__);
+		return -ENODEV;
+	}
 	pdev->id_entry = of_id->data;
 #if defined(CONFIG_TARGET_PRODUCT_XAGA)
 	if (pdev->id_entry->driver_data == project_no) {
