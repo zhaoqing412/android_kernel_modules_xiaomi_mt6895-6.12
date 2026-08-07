@@ -3,8 +3,8 @@
  * Copyright (c) 2021 MediaTek Inc.
  */
 
-#ifndef __MTK_PANEL_EXT_H__
-#define __MTK_PANEL_EXT_H__
+#ifndef __MTK_PANEL_EXT_DUMMY_DRM_H__
+#define __MTK_PANEL_EXT_DUMMY_DRM_H__
 
 #include <drm/drm_panel.h>
 #include <drm/drm_modes.h>

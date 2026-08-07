@@ -14,7 +14,6 @@ obj-y += drivers/iommu/
 obj-y += drivers/input/keyboard/
 obj-y += drivers/spi/
 obj-y += drivers/reset/
-obj-y += drivers/memory/mediatek/
 
 obj-y += drivers/edac/
 
@@ -83,6 +82,7 @@ obj-y += drivers/net/phy/
 
 obj-y += drivers/devfreq/
 
+obj-y += drivers/misc/mediatek/dcm/
 obj-y += drivers/misc/
 
 obj-y += sound/soc/codecs/

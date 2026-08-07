@@ -13,4 +13,4 @@ ccflags-y += -I$(srctree)/kernel/
 # obj-$(CONFIG_SCSI_UFS_MEDIATEK_DBG) += ufs-mediatek-dbg.o
 
 # xaga: platform module wiring
-# obj-m += ufs-mediatek-dbg.o  # xaga: include-dep, skipped
+obj-m += ufs-mediatek-dbg.o

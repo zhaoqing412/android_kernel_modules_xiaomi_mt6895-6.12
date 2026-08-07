@@ -22,7 +22,7 @@ obj-m += mt6363-regulator.o
 obj-m += mt6368-regulator.o
 
 # xaga: platform module wiring
-# obj-m += mtk-dvfsrc-regulator.o  # xaga: include-dep, skipped
+obj-m += mtk-dvfsrc-regulator.o
 
 # xaga: platform module wiring
 obj-m += rt5133-regulator.o

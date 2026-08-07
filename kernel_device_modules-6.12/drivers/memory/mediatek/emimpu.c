@@ -728,7 +728,7 @@ static void emimpu_dump_msg(struct work_struct *work)
 		curr_dbg_cb->func();
 
 	pr_info("%s: call aee\n", __func__);
-	aee_kernel_exception("EMIMPU", emimpu_dev_ptr->violation_msg);
+	aee_kernel_exception("EMIMPU", "%s", emimpu_dev_ptr->violation_msg);
 	emimpu_dev_ptr->in_msg_dump = 0;
 }
 static DECLARE_WORK(emimpu_dump_msg_wq, emimpu_dump_msg);
@@ -863,9 +863,8 @@ ignore_violation:
 	return IRQ_HANDLED;
 }
 
-static int emimpu_remove(struct platform_device *dev)
+static void emimpu_remove(struct platform_device *dev)
 {
-	return 0;
 }
 
 static const struct of_device_id emimpu_of_ids[] = {

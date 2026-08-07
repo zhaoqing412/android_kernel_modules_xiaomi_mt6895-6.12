@@ -2,3 +2,6 @@
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/memory/mediatek/
 
+
+# xaga: platform module wiring
+obj-m += emimpu.o

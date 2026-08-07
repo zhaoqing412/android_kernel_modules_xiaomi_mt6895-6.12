@@ -93,7 +93,8 @@ typedef irqreturn_t (*emimpu_pre_handler)(
 typedef irqreturn_t (*emimpu_tmem_handler) (
 	unsigned int emi_id, struct reg_info_t *dump, unsigned int len);
 typedef void (*emimpu_post_clear)(unsigned int emi_id);
-typedef void (*emimpu_md_handler)(const char *vio_msg);
+typedef void (*emimpu_md_handler)(
+	unsigned int emi_id, struct reg_info_t *dump, unsigned int leng);
 typedef void (*emimpu_iommu_handler)(
 	unsigned int emi_id, struct reg_info_t *dump, unsigned int leng);
 typedef void (*emimpu_debug_dump)(void);
