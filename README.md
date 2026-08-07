@@ -1,6 +1,6 @@
 # kernel_xiaomi_mt6895-6.12
 
-xaga（Redmi Note 11T Pro / POCO X5 Pro，Dimensity 8100 / MT6895）的 **Android 6.12 内核模块移植树**。
+xaga（Redmi Note 11T Pro / POCO X4 GT / Redmi K50i，Dimensity 8100 / MT6895）的 **Android 6.12 内核模块移植树**。
 
 - 基座：OPPO 6.12 MTK 模块树（`kernel_device_modules-6.12`，kleaf/mgk 构建模型）
 - 移植来源：小米 5.10 ESK 内核（`kernel_xiaomi_mt6895`，16.2-rebase）与官方 5.10 内核（xaga-s-oss）

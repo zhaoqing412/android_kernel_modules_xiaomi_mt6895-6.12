@@ -1,6 +1,6 @@
 # xaga 6.12 Bring-up Guide (以开机为目标)
 
-> Redmi Note 11T Pro / POCO X5 Pro (xaga, MT6895 / Dimensity 8100)
+> Redmi Note 11T Pro / POCO X4 GT / Redmi K50i (xaga, MT6895 / Dimensity 8100)
 > 6.12 MTK kernel_device_modules 移植树。目标:编译出可开机的内核 + DTBO + 模块,
 > 在真机上完成从"亮屏进系统"到"充电功能"的 bring-up。
 > 状态基准:commit e214b6e(工作树干净)。
