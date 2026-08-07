@@ -51,6 +51,7 @@ source "$(KCONFIG_EXT_PREFIX)drivers/remoteproc/Kconfig"
 source "$(KCONFIG_EXT_PREFIX)drivers/rpmsg/Kconfig"
 
 source "$(KCONFIG_EXT_PREFIX)drivers/input/keyboard/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)drivers/input/misc/Kconfig"
 
 source "$(KCONFIG_EXT_PREFIX)drivers/phy/mediatek/Kconfig"
 
@@ -100,7 +101,7 @@ source "$(KCONFIG_EXT_PREFIX)drivers/net/phy/Kconfig"
 
 source "$(KCONFIG_EXT_PREFIX)drivers/devfreq/Kconfig"
 
-source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)drivers/misc/Kconfig"
 
 source "$(KCONFIG_EXT_PREFIX)sound/soc/codecs/Kconfig"
 

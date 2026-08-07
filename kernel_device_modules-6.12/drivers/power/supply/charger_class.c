@@ -50,6 +50,108 @@ int charger_dev_is_enabled(struct charger_device *chg_dev, bool *en)
 }
 EXPORT_SYMBOL(charger_dev_is_enabled);
 
+int charger_dev_is_bypass_enabled(struct charger_device *chg_dev, bool *en)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL && chg_dev->ops->is_bypass_enabled)
+		return chg_dev->ops->is_bypass_enabled(chg_dev, en);
+
+	return -EOPNOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_is_bypass_enabled);
+
+int charger_dev_cp_get_bypass_support(struct charger_device *chg_dev, bool *en)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL && chg_dev->ops->cp_get_bypass_support)
+		return chg_dev->ops->cp_get_bypass_support(chg_dev, en);
+
+	return -EOPNOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_cp_get_bypass_support);
+
+int charger_dev_cp_reset_check(struct charger_device *chg_dev)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL && chg_dev->ops->cp_reset_check)
+		return chg_dev->ops->cp_reset_check(chg_dev);
+
+	return -EOPNOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_cp_reset_check);
+
+int charger_dev_cp_init_check(struct charger_device *chg_dev)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL && chg_dev->ops->cp_init_check)
+		return chg_dev->ops->cp_init_check(chg_dev);
+
+	return -EOPNOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_cp_init_check);
+
+int charger_dev_cp_set_mode(struct charger_device *charger_dev, int value)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->cp_set_mode)
+		return charger_dev->ops->cp_set_mode(charger_dev, value);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_cp_set_mode);
+
+int charger_dev_cp_device_init(struct charger_device *charger_dev, int value)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL &&
+				    charger_dev->ops->cp_device_init)
+		return charger_dev->ops->cp_device_init(charger_dev, value);
+
+	return -EOPNOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_cp_device_init);
+
+int charger_dev_cp_get_vbatt(struct charger_device *charger_dev, u32 *vbatt)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->cp_get_vbatt)
+		return charger_dev->ops->cp_get_vbatt(charger_dev, vbatt);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_cp_get_vbatt);
+
+int charger_dev_cp_get_ibatt(struct charger_device *charger_dev, u32 *ibatt)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL &&
+				    charger_dev->ops->cp_get_ibatt)
+		return charger_dev->ops->cp_get_ibatt(charger_dev, ibatt);
+
+	return -EOPNOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_cp_get_ibatt);
+
+int charger_dev_cp_enable_adc(struct charger_device *charger_dev, bool en)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL &&
+				    charger_dev->ops->cp_enable_adc)
+		return charger_dev->ops->cp_enable_adc(charger_dev, en);
+
+	return -EOPNOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_cp_enable_adc);
+
+int charger_dev_qc3_dpdm_pulse(struct charger_device *charger_dev, int type, int count)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->qc3_dpdm_pulse)
+		return charger_dev->ops->qc3_dpdm_pulse(charger_dev, type, count);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_qc3_dpdm_pulse);
+
+int charger_dev_select_qc_mode(struct charger_device *charger_dev, int type)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->select_qc_mode)
+		return charger_dev->ops->select_qc_mode(charger_dev, type);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_select_qc_mode);
+
 int charger_dev_plug_in(struct charger_device *chg_dev)
 {
 	if (chg_dev != NULL && chg_dev->ops != NULL && chg_dev->ops->plug_in)
@@ -855,6 +957,30 @@ int charger_dev_set_usbid_src_ton(struct charger_device *charger_dev,
 }
 EXPORT_SYMBOL(charger_dev_set_usbid_src_ton);
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+int charger_dev_set_usbid_period(struct charger_device *charger_dev,
+				  u32 period)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL &&
+	    charger_dev->ops->set_usbid_period)
+		return charger_dev->ops->set_usbid_period(charger_dev,
+							   period);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_set_usbid_period);
+
+int charger_dev_get_usbid_stat(struct charger_device *charger_dev, u8 *status)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL &&
+	    charger_dev->ops->get_usbid_stat)
+		return charger_dev->ops->get_usbid_stat(charger_dev, status);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_get_usbid_stat);
+#endif
+
 int charger_dev_enable_usbid_floating(struct charger_device *charger_dev,
 				      bool en)
 {
@@ -899,6 +1025,28 @@ int charger_dev_enable_hidden_mode(struct charger_device *charger_dev, bool en)
 	return -EOPNOTSUPP;
 }
 EXPORT_SYMBOL(charger_dev_enable_hidden_mode);
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+int charger_dev_enable_ship_mode(struct charger_device *charger_dev)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL &&
+					   charger_dev->ops->enable_ship_mode)
+		return charger_dev->ops->enable_ship_mode(charger_dev);
+
+	return -EOPNOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_enable_ship_mode);
+
+int charger_dev_set_boost_voltage_limit(struct charger_device *chg_dev, u32 uv)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->set_boost_voltage_limit)
+		return chg_dev->ops->set_boost_voltage_limit(chg_dev, uv);
+
+	return -EOPNOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_set_boost_voltage_limit);
+#endif
 
 int charger_dev_set_property(struct charger_device *charger_dev,
 			     enum charger_property prop,
