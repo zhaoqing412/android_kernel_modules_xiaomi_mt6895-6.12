@@ -170,6 +170,7 @@ drivers/power/supply/mtk_pd_adapter.c    (pd_authentication 成功路径, ~:568)
 - [ ] 触控 fw(nt36672e fw 文件)放入 vendor 分区对应路径
 - [ ] xaga_global 变体开机验证(若 CN 版 TEE/svp 有问题时用)
 - [ ] mtk-master-charger 名字的 kABI/模块加载顺序核对(若有 modprobe 依赖)
+- [ ] **指纹驱动(goodix_cap)**: DTS 有 `goodix,goodix-fp` 节点(cust_mt6895_fingerprint.dtsi), 5.10 用 drivers/input/fingerprint/goodix_cap/(GF3626ZS9 TEE), 6.12 未移植 —— 依赖 5.10 内核私有 mtk_spi.h(用户环境), 移植步骤见 README.md 已知缺口 §1
 
 ## 6. 相机 sensor 移植(2026-08-07, 已提交 9c6a13e)
 xaga 的 6 颗 camera sensor 驱动已从 5.10 ESK 移植到本树:
