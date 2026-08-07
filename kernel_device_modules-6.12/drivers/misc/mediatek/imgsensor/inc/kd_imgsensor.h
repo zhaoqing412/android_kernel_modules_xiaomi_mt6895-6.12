@@ -733,6 +733,23 @@ static const struct i3c_device_id mtk_i3c_id_table[] = {
 };
 
 
+/************************************
+ * XAGA SENSOR PID (xaga / Redmi Note 11T Pro)
+ ************************************/
+#define XAGAS5KHM2_SENSOR_ID                        0xFAD2
+#define SENSOR_DRVNAME_XAGAS5KHM2_MIPI_RAW          "xagas5khm2_mipi_raw"
+#define XAGAGC02M1_SENSOR_ID                        0x2E0
+#define SENSOR_DRVNAME_XAGAGC02M1_MIPI_RAW          "xagagc02m1_mipi_raw"
+#define XAGAS5K4H7_SENSOR_ID                        0x487B
+#define SENSOR_DRVNAME_XAGAS5K4H7_MIPI_RAW          "xagas5k4h7_mipi_raw"
+#define XAGAOV16A1_SENSOR_ID                        0x1641
+#define SENSOR_DRVNAME_XAGAOV16A1_MIPI_RAW          "xagaov16a1_mipi_raw"
+#define XAGAS5KGW1_SENSOR_ID                        0xF971
+#define SENSOR_DRVNAME_XAGAS5KGW1_MIPI_RAW          "xagas5kgw1_mipi_raw"
+#define XAGAOV02B10_SENSOR_ID                        0x002B
+#define SENSOR_DRVNAME_XAGAOV02B10_MIPI_RAW         "xagaov02b10_mipi_raw"
+
+
 /******************************************************************************
  *
  ******************************************************************************/
