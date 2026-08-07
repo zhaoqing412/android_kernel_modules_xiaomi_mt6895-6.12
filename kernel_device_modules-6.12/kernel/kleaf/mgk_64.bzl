@@ -1098,6 +1098,12 @@ mgk_64_kleaf_device_modules = [
     "//kernel_device_modules-{}/drivers/power/supply:mtk_chg_type_det".format(kernel_version),
     "//kernel_device_modules-{}/drivers/power/supply:mtk_hvbpc".format(kernel_version),
     "//kernel_device_modules-{}/drivers/power/supply:mtk_pd_adapter".format(kernel_version),
+    "//kernel_device_modules-{}/drivers/power/supply:pmic_voter".format(kernel_version),
+    "//kernel_device_modules-{}/drivers/power/supply:ln8000_charger".format(kernel_version),
+    "//kernel_device_modules-{}/drivers/power/supply:sc8551".format(kernel_version),
+    "//kernel_device_modules-{}/drivers/power/supply:sc8561".format(kernel_version),
+    "//kernel_device_modules-{}/drivers/power/supply:bq28z610".format(kernel_version),
+    "//kernel_device_modules-{}/drivers/power/supply:pd_cp_manager".format(kernel_version),
     "//kernel_device_modules-{}/drivers/power/supply:mtk_pd_charging".format(kernel_version),
     "//kernel_device_modules-{}/drivers/power/supply:mtk_pep".format(kernel_version),
     "//kernel_device_modules-{}/drivers/power/supply:mtk_pep20".format(kernel_version),
@@ -1267,6 +1273,15 @@ mgk_64_kleaf_device_modules = [
     "//kernel_device_modules-{}/drivers/misc/mediatek/performance/game:mtk_game".format(kernel_version),
     "//kernel_device_modules-{}/drivers/misc/mediatek/task_turbo:vip_engine".format(kernel_version),
     "//kernel_device_modules-{}/drivers/misc/mediatek/performance:frs".format(kernel_version),
+    "//kernel_device_modules-{}/drivers/misc:simtray".format(kernel_version),
+    "//kernel_device_modules-{}/drivers/misc:hwid".format(kernel_version),
+    "//kernel_device_modules-{}/drivers/input/touchscreen:double_click".format(kernel_version),
+    "//kernel_device_modules-{}/drivers/input/touchscreen:xiaomi_touch".format(kernel_version),
+    "//kernel_device_modules-{}/drivers/input/touchscreen/NVT36672C:nt36672c".format(kernel_version),
+    "//kernel_device_modules-{}/drivers/input/misc/aw8697_haptic:haptic".format(kernel_version),
+    "//kernel_device_modules-{}/drivers/gpu/drm/panel:leds-ktz8863a".format(kernel_version),
+    "//kernel_device_modules-{}/drivers/gpu/drm/panel:panel-l16-42-02-0a-dsc-vdo".format(kernel_version),
+    "//kernel_device_modules-{}/drivers/gpu/drm/panel:panel-l16-36-02-0b-dsc-vdo".format(kernel_version),
 ]
 
 mgk_64_kleaf_platform_modules = {

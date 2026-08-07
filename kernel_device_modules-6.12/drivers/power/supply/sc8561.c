@@ -2401,8 +2401,8 @@ static int sc8561_probe(struct i2c_client *client)
 #if defined(CONFIG_TARGET_PRODUCT_XAGA)
 	const char * buf = get_hw_sku();
 	char *xaga = NULL;
-	char *xagapro = strnstr(buf, "xagapro", strlen(buf));
-	if(!xagapro)
+	char *xagapro = buf ? strnstr(buf, "xagapro", strlen(buf)) : NULL;
+	if(!xagapro && buf)
 		xaga = strnstr(buf, "xaga", strlen(buf));
 	if(xagapro)
 		bq_err("%s ++\n", __func__);
@@ -2437,6 +2437,8 @@ static int sc8561_probe(struct i2c_client *client)
 		return ret;
 	}
 
+	INIT_DELAYED_WORK(&bq->irq_handle_work, sc8561_irq_handler);
+
 	ret = sc8561_init_irq(bq);
 	if (ret) {
 		bq_err("%s failed to int irq\n", bq->log_tag);
@@ -2467,9 +2469,6 @@ static int sc8561_probe(struct i2c_client *client)
 		return ret;
 	}
 
-	INIT_DELAYED_WORK(&bq->irq_handle_work, sc8561_irq_handler);
-	bq->chip_ok = true;
-	//ret = sc8561_dump_important_regs(bq);
 	bq_err("%s %d probe success\n", bq->log_tag, ret);
 
 	return 0;
@@ -2514,7 +2513,8 @@ static void sc8561_remove(struct i2c_client *client)
 	if (ret)
 		bq_err("%s failed to disable ADC\n", bq->log_tag);
 
-	power_supply_unregister(bq->cp_psy);
+	if (bq->irq)
+		free_irq(bq->irq, bq);
 }
 
 static void sc8561_shutdown(struct i2c_client *client)

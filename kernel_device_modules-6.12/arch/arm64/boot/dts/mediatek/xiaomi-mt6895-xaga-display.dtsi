@@ -117,6 +117,7 @@
 		cam-gpios = <&pio 158 0>;
 		leden-gpios = <&pio 215 0>;
 		vrf18-supply = <&mt6368_vrf18_aif>;
+		mi,esd-err-irq-gpio = <&pio 1 0x2002>;
 		pinctrl-names = "default";
 		port {
 			panel_in1: endpoint {
@@ -132,6 +133,7 @@
 		cam-gpios = <&pio 158 0>;
 		leden-gpios = <&pio 215 0>;
 		vrf18-supply = <&mt6368_vrf18_aif>;
+		mi,esd-err-irq-gpio = <&pio 1 0x2002>;
 		pinctrl-names = "default";
 		port {
 			panel_in2: endpoint {

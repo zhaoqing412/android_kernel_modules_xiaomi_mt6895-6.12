@@ -1069,8 +1069,8 @@ static int sc8551_probe(struct i2c_client *client)
 #if defined(CONFIG_TARGET_PRODUCT_XAGA)
 	const char * buf = get_hw_sku();
 	char *xaga = NULL;
-	char *xagapro = strnstr(buf, "xagapro", strlen(buf));
-	if(!xagapro)
+	char *xagapro = buf ? strnstr(buf, "xagapro", strlen(buf)) : NULL;
+	if(!xagapro && buf)
 		xaga = strnstr(buf, "xaga", strlen(buf));
 	if(xaga)
 		sc_err("%s ++\n", __func__);
@@ -1221,8 +1221,9 @@ static void sc8551_remove(struct i2c_client *client)
 	ret = sc8551_enable_adc(chip, false);
 	if (ret)
 		sc_err("%s failed to disable ADC\n", chip->log_tag);
-	power_supply_unregister(chip->cp_psy);
 
+	if (chip->irq)
+		free_irq(chip->irq, chip);
 }
 
 static void sc8551_shutdown(struct i2c_client *client)

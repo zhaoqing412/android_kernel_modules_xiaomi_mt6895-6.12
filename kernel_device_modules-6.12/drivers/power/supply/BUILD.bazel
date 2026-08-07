@@ -626,3 +626,134 @@ define_mgk_ddk_ko(
         "-I$(DEVICE_MODULES_PATH)/drivers/power/supply/ufcs",
     ],
 )
+
+# ---- xaga ported charge drivers ----
+
+define_mgk_ddk_ko(
+    name = "pmic_voter",
+    srcs = [
+        "pmic_voter.c",
+    ],
+    hdrs = ["pmic_voter.h",],
+    includes = ["."],
+    ko_deps = [
+        ":charger_class",
+    ],
+    copts = [
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/tcpc/inc",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/usb/usb20/",
+        "-I$(DEVICE_MODULES_PATH)/drivers/power/supply/ufcs",
+    ],
+)
+
+define_mgk_ddk_ko(
+    name = "ln8000_charger",
+    srcs = [
+        "ln8000_charger.c",
+    ],
+    hdrs = ["ln8000_charger.h",],
+    includes = ["."],
+    ko_deps = [
+        ":adapter_class",
+        ":charger_class",
+        ":pmic_voter",
+        ":mtk_charger_framework",
+    ],
+    copts = [
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/tcpc/inc",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/usb/usb20/",
+        "-I$(DEVICE_MODULES_PATH)/drivers/power/supply/ufcs",
+    ],
+)
+
+define_mgk_ddk_ko(
+    name = "sc8551",
+    srcs = [
+        "sc8551.c",
+    ],
+    hdrs = ["sc8551.h",],
+    includes = ["."],
+    ko_deps = [
+        ":adapter_class",
+        ":charger_class",
+        ":pmic_voter",
+        ":mtk_charger_framework",
+    ],
+    copts = [
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/tcpc/inc",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/usb/usb20/",
+        "-I$(DEVICE_MODULES_PATH)/drivers/power/supply/ufcs",
+    ],
+)
+
+define_mgk_ddk_ko(
+    name = "sc8561",
+    srcs = [
+        "sc8561.c",
+    ],
+    includes = ["."],
+    ko_deps = [
+        ":adapter_class",
+        ":charger_class",
+        ":pmic_voter",
+        ":mtk_charger_framework",
+    ],
+    copts = [
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/tcpc/inc",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/usb/usb20/",
+        "-I$(DEVICE_MODULES_PATH)/drivers/power/supply/ufcs",
+    ],
+)
+
+define_mgk_ddk_ko(
+    name = "bq28z610",
+    srcs = [
+        "bq28z610.c",
+    ],
+    hdrs = ["bq28z610.h",],
+    includes = ["."],
+    ko_deps = [
+        ":charger_class",
+        ":pmic_voter",
+        ":mtk_charger_framework",
+    ],
+    copts = [
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/tcpc/inc",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/usb/usb20/",
+        "-I$(DEVICE_MODULES_PATH)/drivers/power/supply/ufcs",
+    ],
+)
+
+define_mgk_ddk_ko(
+    name = "pd_cp_manager",
+    srcs = [
+        "pd_cp_manager.c",
+    ],
+    hdrs = ["pd_cp_manager.h",],
+    includes = ["."],
+    ko_deps = [
+        ":adapter_class",
+        ":charger_class",
+        ":pmic_voter",
+        ":mtk_charger_framework",
+        ":mtk_chg_type_det",
+        "//kernel_device_modules-{}/drivers/misc/mediatek/typec/tcpc:tcpc_class".format(kernel_version),
+    ],
+    copts = [
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/typec/tcpc/inc",
+        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/usb/usb20/",
+        "-I$(DEVICE_MODULES_PATH)/drivers/power/supply/ufcs",
+    ],
+)

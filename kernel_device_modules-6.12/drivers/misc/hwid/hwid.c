@@ -163,6 +163,8 @@ static int __init hwid_module_init(void)
 		goto sys_fail;
 	}
 
+	return 0;
+
 sys_fail:
 	kobject_del(hwid_kobj);
 fail:

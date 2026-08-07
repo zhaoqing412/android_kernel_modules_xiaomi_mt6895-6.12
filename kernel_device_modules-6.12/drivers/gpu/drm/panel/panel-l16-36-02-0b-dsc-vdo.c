@@ -319,6 +319,7 @@ static void lcm_panel_init(struct lcm *ctx)
 	if (IS_ERR(ctx->reset_gpio)) {
 		dev_err(ctx->dev, "%s: cannot get reset_gpio %ld\n",
 			__func__, PTR_ERR(ctx->reset_gpio));
+		ctx->error = PTR_ERR(ctx->reset_gpio);
 		return;
 	}
 	gpiod_set_value(ctx->reset_gpio, 1);

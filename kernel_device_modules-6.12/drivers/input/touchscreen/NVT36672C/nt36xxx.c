@@ -2768,7 +2768,7 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	}
 
 	ts->client->irq = gpio_to_irq(ts->irq_gpio);
-	if (ts->client->irq) {
+	if (ts->client->irq > 0) {
 		NVT_LOG("int_trigger_type=%d\n", ts->int_trigger_type);
 		ts->irq_enabled = true;
 		ret = request_threaded_irq(ts->client->irq, NULL, nvt_ts_work_func,
@@ -2981,7 +2981,8 @@ err_extra_proc_init_failed:
 nvt_flash_proc_deinit();
 err_flash_proc_init_failed:
 #endif
-sysfs_remove_group(&client->dev.kobj,ts->attrs);
+if (ts->attrs)
+		sysfs_remove_group(&client->dev.kobj, ts->attrs);
 #if NVT_TOUCH_ESD_PROTECT
 	if (nvt_esd_check_wq) {
 		cancel_delayed_work_sync(&nvt_esd_check_work);
@@ -3077,7 +3078,8 @@ static void nvt_ts_remove(struct spi_device *client)
 #if NVT_TOUCH_PROC
 	nvt_flash_proc_deinit();
 #endif
-sysfs_remove_group(&client->dev.kobj,ts->attrs);
+if (ts->attrs)
+		sysfs_remove_group(&client->dev.kobj, ts->attrs);
 #if NVT_TOUCH_ESD_PROTECT
 	if (nvt_esd_check_wq) {
 		cancel_delayed_work_sync(&nvt_esd_check_work);
@@ -3118,6 +3120,12 @@ sysfs_remove_group(&client->dev.kobj,ts->attrs);
 		flush_workqueue(ts->selftest_wq);
 		destroy_workqueue(ts->selftest_wq);
 		ts->selftest_wq = NULL;
+	}
+	if (ts->event_wq)
+		destroy_workqueue(ts->event_wq);
+	if (nvt_lockdown_wq) {
+		destroy_workqueue(nvt_lockdown_wq);
+		nvt_lockdown_wq = NULL;
 	}
 	spi_set_drvdata(ts->client, NULL);
 

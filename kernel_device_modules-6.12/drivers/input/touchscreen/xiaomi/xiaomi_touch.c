@@ -1318,7 +1318,7 @@ static int xiaomi_touch_probe(struct platform_device *pdev)
 	}
 
 	xiaomi_touch_dev.dev = device_create(xiaomi_touch_dev.class, NULL, 'T', NULL, "touch_dev");
-	if (!xiaomi_touch_dev.dev) {
+	if (IS_ERR(xiaomi_touch_dev.dev)) {
 		pr_err("%s create device dev err\n", __func__);
 		goto device_create_err;
 	}

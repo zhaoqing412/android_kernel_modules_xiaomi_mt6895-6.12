@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0
+# xaga product config (ported from 5.10 ESK arch/arm64/Kconfig.xiaomi).
+# Needed so CONFIG_TARGET_PRODUCT_XAGA / CONFIG_BUILD_PRODUCT_NAME survive
+# kconfig processing; the xaga charge drivers gate on these symbols.
+
+config TARGET_PRODUCT_XAGA
+	bool "Product Name Xaga"
+	default n
+	help
+	  Product Name Xaga.
+
+config BUILD_PRODUCT_NAME
+	string "Product Name"
+	help
+	  Product Name.

@@ -1287,7 +1287,7 @@ static void fg_monitor_workfunc(struct work_struct *work)
 	fg_update_status(bq);
 
 	schedule_delayed_work(&bq->monitor_work, msecs_to_jiffies(bq->monitor_delay));
-	if (bq->bms_wakelock->active)
+	if (bq->bms_wakelock && bq->bms_wakelock->active)
 		__pm_relax(bq->bms_wakelock);
 }
 
@@ -2419,7 +2419,7 @@ static int fg_probe(struct i2c_client *client)
 
 #if defined(CONFIG_TARGET_PRODUCT_XAGA)
 	const char *sku = get_hw_sku();
-	if (!strncmp(sku, "xagapro", strlen("xagapro")))
+	if (sku && !strncmp(sku, "xagapro", strlen("xagapro")))
 		product_name = XAGAPRO;
 	else if (!strncmp(sku, "xaga", strlen("xaga")))
 		product_name = XAGA;
@@ -2516,7 +2516,7 @@ static int fg_resume(struct device *dev)
 	struct bq_fg_chip *bq = i2c_get_clientdata(client);
 	atomic_set(&bq->fg_in_sleep, 0);
 	fg_err("%s resume in sleep\n", __func__);
-	if (!bq->bms_wakelock->active)
+	if (bq->bms_wakelock && !bq->bms_wakelock->active)
 		__pm_stay_awake(bq->bms_wakelock);
 	schedule_delayed_work(&bq->monitor_work, 0);
 

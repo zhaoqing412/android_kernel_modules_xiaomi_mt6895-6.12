@@ -1278,7 +1278,7 @@ static int usbpdm_psy_notifier_cb(struct notifier_block *nb, unsigned long event
 		return NOTIFY_OK;
 
 	spin_lock_irqsave(&pdpm->psy_change_lock, flags);
-	if (strcmp(psy->desc->name, "usb") == 0 && !pdpm->psy_change_running) {
+	if (strcmp(psy->desc->name, "mtk-master-charger") == 0 && !pdpm->psy_change_running) {
 		pdpm->psy_change_running = true;
 		schedule_work(&pdpm->psy_change_work);
 	}
@@ -1436,8 +1436,8 @@ static int pdm_probe(struct platform_device *pdev)
 	const char * buf = get_hw_sku();
 	int project_no = 0;
 	char *xaga = NULL;
-	char *xagapro = strnstr(buf, "xagapro", strlen(buf));
-	if(!xagapro)
+	char *xagapro = buf ? strnstr(buf, "xagapro", strlen(buf)) : NULL;
+	if(!xagapro && buf)
 		xaga = strnstr(buf, "xaga", strlen(buf));
 	if(xagapro){
 		project_no = 1;

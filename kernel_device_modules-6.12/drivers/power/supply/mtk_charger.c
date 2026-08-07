@@ -143,7 +143,7 @@ void _wake_up_charger(struct mtk_charger *info)
 	if (info == NULL)
 		return;
 	spin_lock_irqsave(&info->slock, flags);
-	if (!info->charger_wakelock->active)
+	if (info->charger_wakelock && !info->charger_wakelock->active)
 		__pm_stay_awake(info->charger_wakelock);
 	spin_unlock_irqrestore(&info->slock, flags);
 	info->charger_thread_timeout = true;
@@ -3220,7 +3220,7 @@ static int charger_routine_thread(void *arg)
 
 		mutex_lock(&info->charger_lock);
 		spin_lock_irqsave(&info->slock, flags);
-		if (!info->charger_wakelock->active)
+		if (info->charger_wakelock && !info->charger_wakelock->active)
 			__pm_stay_awake(info->charger_wakelock);
 		spin_unlock_irqrestore(&info->slock, flags);
 		info->charger_thread_timeout = false;
@@ -4441,6 +4441,7 @@ int usb_get_property(enum usb_property bp, int *val)
 		return -ENODEV;
 
 	gm = (struct mtk_charger *)power_supply_get_drvdata(psy);
+	power_supply_put(psy);
 	return usb_property_get(gm, bp, val);
 }
 EXPORT_SYMBOL(usb_get_property);
@@ -4455,8 +4456,10 @@ int usb_set_property(enum usb_property bp, int val)
 		return -ENODEV;
 
 	gm = (struct mtk_charger *)power_supply_get_drvdata(psy);
-	if (!gm)
+	if (!gm) {
+		power_supply_put(psy);
 		return -EINVAL;
+	}
 
 	switch (bp) {
 	case USB_PROP_REAL_TYPE:
@@ -4514,9 +4517,11 @@ int usb_set_property(enum usb_property bp, int val)
 		gm->thermal_remove = val;
 		break;
 	default:
+		power_supply_put(psy);
 		return -ENOTSUPP;
 	}
 
+	power_supply_put(psy);
 	return 0;
 }
 EXPORT_SYMBOL(usb_set_property);

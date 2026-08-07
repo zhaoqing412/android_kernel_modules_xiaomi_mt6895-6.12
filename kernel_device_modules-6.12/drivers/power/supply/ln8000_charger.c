@@ -2232,8 +2232,8 @@ static int ln8000_probe(struct i2c_client *client)
 #if defined(CONFIG_TARGET_PRODUCT_XAGA)
 	const char * buf = get_hw_sku();
 	char *xaga = NULL;
-	char *xagapro = strnstr(buf, "xagapro", strlen(buf));
-	if(!xagapro)
+	char *xagapro = buf ? strnstr(buf, "xagapro", strlen(buf)) : NULL;
+	if(!xagapro && buf)
 		xaga = strnstr(buf, "xaga", strlen(buf));
 	if(xaga)
 		dev_err(&client->dev, "%s ++\n", __func__);
@@ -2267,14 +2267,11 @@ static int ln8000_probe(struct i2c_client *client)
 		return -ENOMEM;
 	}
 	info->dev_role = ln8000_get_dev_role(client);
-	if (IS_ERR_VALUE((unsigned long)info->dev_role)) {
-		kfree(info);
+	if (IS_ERR_VALUE((unsigned long)info->dev_role))
 		return -EINVAL;
-	}
 	info->pdata = devm_kzalloc(&client->dev, sizeof(struct ln8000_platform_data), GFP_KERNEL);
 	if (info->pdata == NULL) {
 		ln_err("fail to alloc devm for ln8000_platform_data\n");
-		kfree(info);
 		return -ENOMEM;
 	}
 	info->dev = &client->dev;
@@ -2352,7 +2349,6 @@ err_wakeup:
 		}
 	}
 err_psy:
-	power_supply_unregister(info->psy_chg);
 
 err_cleanup:
 	i2c_set_clientdata(client, NULL);
@@ -2360,9 +2356,6 @@ err_cleanup:
 	mutex_destroy(&info->i2c_lock);
 	mutex_destroy(&info->irq_lock);
 err_devmem:
-	kfree(info->pdata);
-	kfree(info);
-
 	return ret;
 }
 
@@ -2380,15 +2373,11 @@ static void ln8000_remove(struct i2c_client *client)
 		}
 	}
 
-	power_supply_unregister(info->psy_chg);
 	i2c_set_clientdata(info->client, NULL);
 
 	mutex_destroy(&info->data_lock);
 	mutex_destroy(&info->i2c_lock);
 	mutex_destroy(&info->irq_lock);
-
-	kfree(info->pdata);
-	kfree(info);
 
 }
 

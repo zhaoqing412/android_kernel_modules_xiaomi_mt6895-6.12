@@ -65,4 +65,10 @@ config TOUCHSCREEN_NVT36672C_DOUBLE_CLICK
 	tristate "double click for nvt36672c"
 	default n
 
+config MI_DISP_ESD_CHECK
+	bool "Enable display ESD check recovery"
+	default n
+	help
+	  Trigger panel dead flag on touch ESD detection to recover display.
+
 endif

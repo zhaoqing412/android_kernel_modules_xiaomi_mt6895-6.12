@@ -5,3 +5,5 @@ config MTK_DCACHE_INVAL
 	help
 	  MTK_DCACHE_INVAL is the kernel config of export API.
 	  Fix dma cache issue.
+
+source "$(KCONFIG_EXT_PREFIX)arch/arm64/Kconfig.xiaomi"
