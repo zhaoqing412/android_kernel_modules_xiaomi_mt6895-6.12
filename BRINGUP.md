@@ -170,3 +170,31 @@ drivers/power/supply/mtk_pd_adapter.c    (pd_authentication 成功路径, ~:568)
 - [ ] 触控 fw(nt36672e fw 文件)放入 vendor 分区对应路径
 - [ ] xaga_global 变体开机验证(若 CN 版 TEE/svp 有问题时用)
 - [ ] mtk-master-charger 名字的 kABI/模块加载顺序核对(若有 modprobe 依赖)
+
+## 6. 相机 sensor 移植(2026-08-07, 已提交 9c6a13e)
+xaga 的 6 颗 camera sensor 驱动已从 5.10 ESK 移植到本树:
+
+| sensor | 角色 | 目录 |
+|---|---|---|
+| s5khm2 | 主摄(108MP) | `vendor/mediatek/kernel_modules/mtkcam/imgsensor/src-v4l2/common/xagas5khm2_mipi_raw/` |
+| s5k4h7 | 主摄备份 | `.../xagas5k4h7_mipi_raw/` |
+| ov16a1 | 前摄 | `.../xagaov16a1_mipi_raw/` |
+| s5kgw1 | 超广角 | `.../xagas5kgw1_mipi_raw/` |
+| gc02m1 | 微距 | `.../xagagc02m1_mipi_raw/` |
+| ov02b10 | 前摄备份 | `.../xagaov02b10_mipi_raw/` |
+
+已做适配:
+- `subdrv.mk` → 6.12 `Makefile`(`imgsensor-objs += $(subdrv-rpath)/<name>mipiraw_Sensor.o`)
+- `kd_imgsensor.h`: 补 6 个 `XAGA*_SENSOR_ID` + `SENSOR_DRVNAME_XAGA*` 宏(从 5.10 原样搬入)
+- gc02m1/ov02b10(8-bit reg): `subdrv_i2c_{rd,wr}_u8_u8` → 6.12 `_u8_reg8`; 缺 `wr_regs_u8_u8`(2 字节表写), 在 sensor 内新增本地 `*_table_write()` 循环实现
+- 6 颗 sensor 均通过 -fsyntax-only 对 6.12 mtkcam v4l2 框架(subdrv_ctx/subdrv_ops/subdrv_entry)的编译验证
+
+**用户完整 MTK 环境合入步骤(bazel/kleaf 路径, 本树无法完成)**:
+1. 把本树 `vendor/mediatek/kernel_modules/mtkcam/imgsensor/src-v4l2/common/xaga*/` 6 个目录合入用户环境同路径(或直接使用本树 vendor/ 增量)
+2. 在用户环境 `mtkcam/imgsensor/src-v4l2/BUILD.bazel` 的 `config_cust_kernel_imgsensor` 字符串中追加:
+   `xagas5khm2_mipi_raw xagas5k4h7_mipi_raw xagaov16a1_mipi_raw xagas5kgw1_mipi_raw xagagc02m1_mipi_raw xagaov02b10_mipi_raw`
+   (bazel 路径按该硬编码列表 ∩ common/**/Makefile 收集; make/Kbuild 路径则自动读 CONFIG_CUSTOM_KERNEL_IMGSENSOR, xaga.config 已声明, 无需改)
+3. xaga.config 的 `CONFIG_CUSTOM_KERNEL_IMGSENSOR` 已含 6 颗(不必动)
+4. DTS 侧 `xaga_mt6895_camera_v4l2.dtsi` 的 imgsensor 节点 compatible 对应 sensor 名, 已由板级 DTS 提供
+
+注意: sensor 驱动只依赖 v4l2 框架(用户环境 mtkcam), 不在 mgk_64.bzl 的 device_modules 列表; 若构建报缺 `subdrv_i2c_wr_u8_u8` 之类符号, 说明用户环境 mtkcam 版本更老, 以本树 Makefile/本地表写为准即可。
