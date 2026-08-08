@@ -29,6 +29,7 @@
 #include <linux/atomic.h>
 #include <linux/mm.h>
 #include <linux/spinlock.h>
+#include <linux/workqueue.h>
 #include <linux/fs.h>
 
 #define XAGA_OOPS_MAGIC		0x41474158	/* "XAGA" little-endian */
@@ -200,31 +201,30 @@ out:
 	raw_spin_unlock_irqrestore(&oops_lock, flags);
 }
 
-static int __init xaga_oops_log_init(void)
+/*
+ * The oops partition node may not exist yet when this module loads (early
+ * vendor ramdisk). Retry the setup from a delayed work until it appears
+ * instead of failing once and silently losing all crash logs.
+ */
+#define XAGA_OOPS_RETRY_MS	2000
+#define XAGA_OOPS_RETRY_MAX	30
+
+static struct delayed_work xaga_oops_retry_work;
+static unsigned int xaga_oops_retry_cnt;
+
+static int xaga_oops_setup(void)
 {
-	size_t log_size = (size_t)log_size_kb * 1024;
 	struct inode *inode;
 	int ret;
 
-	if (log_size_kb < 4 || log_size > XAGA_OOPS_MAX_LOG) {
-		pr_err("xaga_oops_log: log_size_kb out of range\n");
-		return -EINVAL;
-	}
-
-	oops_payload_size = log_size;
-	/* extra SECTOR_SIZE-1 slack so the sector-aligned write never
-	 * reads past the allocation */
-	oops_buf = kzalloc(XAGA_OOPS_HEADER_SIZE + oops_payload_size +
-			   SECTOR_SIZE - 1, GFP_KERNEL);
-	if (!oops_buf)
-		return -ENOMEM;
+	if (oops_dumper.registered)
+		return 0;
 
 	oops_file = filp_open(blkdev, O_RDWR | O_DSYNC | O_NOATIME | O_EXCL, 0);
 	if (IS_ERR(oops_file)) {
 		ret = PTR_ERR(oops_file);
 		oops_file = NULL;
-		pr_err("xaga_oops_log: cannot open %s: %d\n", blkdev, ret);
-		goto free_buf;
+		return ret;
 	}
 
 	inode = oops_file->f_mapping->host;
@@ -247,10 +247,8 @@ static int __init xaga_oops_log_init(void)
 	oops_dumper.dump = xaga_oops_dump;
 	oops_dumper.max_reason = max_reason;
 	ret = kmsg_dump_register(&oops_dumper);
-	if (ret) {
-		pr_err("xaga_oops_log: kmsg_dump_register failed: %d\n", ret);
+	if (ret)
 		goto put_file;
-	}
 
 	pr_info("xaga_oops_log: crash log -> %s (payload %zu bytes, max_reason %d)\n",
 		blkdev, oops_payload_size, max_reason);
@@ -260,14 +258,54 @@ put_file:
 	filp_close(oops_file, NULL);
 	oops_file = NULL;
 	oops_bdev = NULL;
-free_buf:
-	kfree(oops_buf);
-	oops_buf = NULL;
 	return ret;
+}
+
+static void xaga_oops_retry_work_fn(struct work_struct *work)
+{
+	if (xaga_oops_setup() == 0)
+		return;
+
+	if (++xaga_oops_retry_cnt >= XAGA_OOPS_RETRY_MAX) {
+		pr_err("xaga_oops_log: giving up on %s after %u retries\n",
+		       blkdev, xaga_oops_retry_cnt);
+		return;
+	}
+	schedule_delayed_work(&xaga_oops_retry_work, XAGA_OOPS_RETRY_MS);
+}
+
+static int __init xaga_oops_log_init(void)
+{
+	size_t log_size = (size_t)log_size_kb * 1024;
+	int ret;
+
+	if (log_size_kb < 4 || log_size > XAGA_OOPS_MAX_LOG) {
+		pr_err("xaga_oops_log: log_size_kb out of range\n");
+		return -EINVAL;
+	}
+
+	oops_payload_size = log_size;
+	/* extra SECTOR_SIZE-1 slack so the sector-aligned write never
+	 * reads past the allocation */
+	oops_buf = kzalloc(XAGA_OOPS_HEADER_SIZE + oops_payload_size +
+			   SECTOR_SIZE - 1, GFP_KERNEL);
+	if (!oops_buf)
+		return -ENOMEM;
+
+	INIT_DELAYED_WORK(&xaga_oops_retry_work, xaga_oops_retry_work_fn);
+	ret = xaga_oops_setup();
+	if (ret) {
+		/* partition node may appear later (vendor ramdisk ordering) */
+		pr_warn("xaga_oops_log: %s not ready (%d), retrying in background\n",
+			blkdev, ret);
+		schedule_delayed_work(&xaga_oops_retry_work, XAGA_OOPS_RETRY_MS);
+	}
+	return 0;
 }
 
 static void __exit xaga_oops_log_exit(void)
 {
+	cancel_delayed_work_sync(&xaga_oops_retry_work);
 	kmsg_dump_unregister(&oops_dumper);
 	if (oops_file) {
 		filp_close(oops_file, NULL);
