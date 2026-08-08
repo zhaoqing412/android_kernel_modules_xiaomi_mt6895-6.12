@@ -26,25 +26,21 @@ gki_defconfig + merge_config.sh -m <mgk_64_k612_defconfig> <vendor/xaga.config>
 CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 ```
 
-### 一键构建：`./build.sh`
+### 一键构建模块：`./build.sh`
 
-在完整工作区（OPPO 6.12 内核 `oddo6_12/android_kernel_oppo_mt6896` + 官方镜像 `xaga/images/` + 打包工具齐全）内，`build.sh` 可从零完成全部编译：
+在完整工作区（OPPO 6.12 内核 `oddo6_12/android_kernel_oppo_mt6896`）内，`build.sh` 可从零完成**内核模块**的全部编译：
 
 ```
-./build.sh              # 默认：编译-only（clean → config → Image.gz → 133 模块 → DTS）
+./build.sh              # 默认：clean → 配置 → in-tree 模块 → 133 个 .ko
 ./build.sh --no-clean   # 增量编译（不清除已有产物）
-./build.sh --pack       # 编译 + 打包三镜像（boot/vendor_boot/dtbo）
-./build.sh --skip=BOOT  # --pack 时跳过某一步（BOOT|VENDOR|DTBO）
 ```
 
 产物：
 
-- `$OUT/arch/arm64/boot/Image.gz` — 内核（gz 压缩，xaga 打包要求）
-- `$OUT/Module.symvers` + 模块树内 **133 个 `.ko`**（`kernel_device_modules-6.12/` 原位）
-- `$OUT/scripts/dtc/` — dtc/fdtoverlay（DTS 编译用）
-- `--pack` 时追加 `xaga/images/out/{boot_new,vendor_boot_new,dtbo_new}.img`
+- 模块树内 **133 个 `.ko`**（`kernel_device_modules-6.12/` 原位）
+- `$OUT/Module.symvers` — 模块符号表（in-tree + OOT 链接用）
 
-关键路径均可用环境变量覆盖（`K`/`M`/`OUT`/`IMG_DIR`/`MAGISKBOOT`/`MKBOOTIMG`/`KERNELSU`/`PEM`/`JOBS`）。编译日志保留在 `/tmp/xaga_build.*/`。
+关键路径均可用环境变量覆盖（`K`/`M`/`OUT`/`PEM`/`JOBS`）。编译日志保留在 `/tmp/xaga_build.*/`。
 
 板级 defconfig 片段：`arch/arm64/configs/vendor/xaga.config`
 板级 DTS：`arch/arm64/boot/dts/mediatek/xaga.dts`（overlay 于 `mt6895.dts` SoC 基座）
@@ -94,7 +90,7 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 - `1409327` + `5829818` 全量平台模块构建（118 → 123 ko）/ `a377ba2` 审计修复
 - `7f75af8` + `f3e8e80` 6 颗 camera sensor / `e321232` + `1aadba1` KTD2687 闪光灯 / `4b2d268` Pump Express（2026-08-07）
 - `270467e` README + 设备名修正；完整新旧 hash 对照见 STATUS.md §9
-- `build.sh` 一键构建脚本（clean → 配置 → Image.gz → 133 模块 → DTS；`--pack` 追加三镜像打包）
+- `build.sh` 一键构建脚本（clean → 配置 → in-tree 模块 → 133 个 .ko）
 
 ## 许可
 
