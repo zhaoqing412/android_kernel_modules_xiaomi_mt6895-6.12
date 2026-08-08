@@ -10,13 +10,18 @@
 	};
 };
 
-/* 6.12 base mt6895.dts already defines gate_ic@11 on i2c6; override it here */
-&gate_ic {
-	compatible = "mediatek,MI_I2C_LCD_BIAS";
-	label = "lcd-backlight";
-	pwm_config = <0 1 0 0 0>;
-	status = "okay";
-};&mt6368_vrf18_aif {
+&i2c6 {
+	gate_ic: gate_ic@11 {
+		compatible = "mediatek,MI_I2C_LCD_BIAS";
+		label = "lcd-backlight";
+		pwm_config = <0 1 0 0 0>;
+		reg = <0x11>;
+		id = <6>;
+		status = "okay";
+	};
+};
+
+&mt6368_vrf18_aif {
 	regulator-min-microvolt = <1800000>;
 	regulator-max-microvolt = <1800000>;
 };
@@ -74,22 +79,13 @@
 			output-low;
 		};
 	};
-
-	mtkfb_pins_lcm_err_flag: lcm_err_flag {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO16__FUNC_GPIO16>;
-			slew-rate = <0>;
-			bias-pull-up = <11>;
-			input-enable;
-		};
-	};
 };
 
 &mtkfb {
 	pinctrl-names = "lcm_rst_out1_gpio", "lcm_rst_out0_gpio",
 		"mode_te_te", "lcm_dvdd_en1_gpio",
 		"lcm_dvdd_en0_gpio","lcm_cam_en1_gpio",
-		"lcm_cam_en0_gpio", "err_flag_init";
+		"lcm_cam_en0_gpio";
 	pinctrl-0 = <&mtkfb_pins_lcm_rst_out1_gpio>;
 	pinctrl-1 = <&mtkfb_pins_lcm_rst_out0_gpio>;
 	pinctrl-2 = <&mtkfb_pins_lcm_dsi_te>;
@@ -97,14 +93,13 @@
 	pinctrl-4 = <&mtkfb_pins_lcm_dvdd_en0>;
 	pinctrl-5 = <&mtkfb_pins_lcm_cam_en1>;
 	pinctrl-6 = <&mtkfb_pins_lcm_cam_en0>;
-	pinctrl-7 = <&mtkfb_pins_lcm_err_flag>;
 	status = "okay";
 };
 &dispsys_config {
 	pinctrl-names =
 		"lcm_rst_out1_gpio", "lcm_rst_out0_gpio",
 		"mode_te_te", "lcm_dvdd_en1_gpio",
-		"lcm_dvdd_en0_gpio", "err_flag_init";
+		"lcm_dvdd_en0_gpio";
 	pinctrl-0 = <&mtkfb_pins_lcm_rst_out1_gpio>;
 	pinctrl-1 = <&mtkfb_pins_lcm_rst_out0_gpio>;
 	pinctrl-2 = <&mtkfb_pins_lcm_dsi_te>;
@@ -112,7 +107,6 @@
 	pinctrl-4 = <&mtkfb_pins_lcm_dvdd_en0>;
 	pinctrl-5 = <&mtkfb_pins_lcm_cam_en1>;
 	pinctrl-6 = <&mtkfb_pins_lcm_cam_en0>;
-	pinctrl-7 = <&mtkfb_pins_lcm_err_flag>;
 	status = "okay";
 };
 
@@ -128,7 +122,6 @@
 		cam-gpios = <&pio 158 0>;
 		leden-gpios = <&pio 215 0>;
 		vrf18-supply = <&mt6368_vrf18_aif>;
-		mi,esd-err-irq-gpio = <&pio 1 0x2002>;
 		pinctrl-names = "default";
 		port {
 			panel_in1: endpoint {
@@ -144,7 +137,6 @@
 		cam-gpios = <&pio 158 0>;
 		leden-gpios = <&pio 215 0>;
 		vrf18-supply = <&mt6368_vrf18_aif>;
-		mi,esd-err-irq-gpio = <&pio 1 0x2002>;
 		pinctrl-names = "default";
 		port {
 			panel_in2: endpoint {

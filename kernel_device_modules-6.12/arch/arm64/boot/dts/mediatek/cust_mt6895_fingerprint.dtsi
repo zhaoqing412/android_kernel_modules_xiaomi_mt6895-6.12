@@ -22,7 +22,7 @@
 	};
 };
 
-&goodix_fp {
+&fingerprint {
 	pinctrl-names = "default", "reset_high", "reset_low", "eint_init", "spi_cs";
 	pinctrl-0 = <&fingerprint_default>;
 	pinctrl-1 = <&fingerprint_reset_high>;

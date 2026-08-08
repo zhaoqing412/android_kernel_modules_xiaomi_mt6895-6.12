@@ -661,7 +661,7 @@
 	sensor0: sensor0@10 {
 		compatible = "mediatek,imgsensor0";
 		reg = <0x10>;
-		sensor-names = "xagas5khm2_mipi_raw", "xagas5kgw1_mipi_raw";
+		sensor-names = "xagas5kgw1_mipi_raw";
 		#thermal-sensor-cells = <0>;
 
 		pinctrl-names = "mclk_off",

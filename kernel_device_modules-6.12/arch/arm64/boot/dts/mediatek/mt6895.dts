@@ -3773,7 +3773,7 @@
 			compatible = "mediatek,touch";
 		};
 
-		goodix_fp: fingerprint {
+		fingerprint: goodix_fp: fingerprint {
 			compatible = "mediatek,goodix-fp";
 		};
 

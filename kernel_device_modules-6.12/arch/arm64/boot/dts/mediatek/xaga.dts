@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2021-2022 XiaoMi, Inc.
- * xaga (Redmi Note 11T Pro / POCO X4 GT / Redmi K50i, MT6895) board entry.
- * Ported from the 5.10 ESK kernel (xaga.dts) to the 6.12 MTK tree.
  */
 
 #include "xaga-mt6895.dtsi"

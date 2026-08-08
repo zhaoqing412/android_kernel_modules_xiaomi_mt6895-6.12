@@ -324,7 +324,7 @@
 	status = "okay";
 };
 
-&goodix_fp {
+&fingerprint {
 	interrupt-parent = <&pio>;
 	interrupts = <136 IRQ_TYPE_EDGE_RISING>;
 	status = "okay";
