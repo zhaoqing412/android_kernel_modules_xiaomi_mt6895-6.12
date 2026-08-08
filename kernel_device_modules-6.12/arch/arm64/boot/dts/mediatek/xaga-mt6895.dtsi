@@ -240,7 +240,7 @@ xiaomi-mt6895-xaga-charger.dtsi / xiaomi-mt6895-xaga-thermal.dtsi.
 		jeita_forward_hyst = <5>;
 		xaga_product;
 		mt6368_moscon1_control;
-		jeita_fcc_cfg = <(-100)	0	4200	1000	747
+		jeita_fcc_cfg = <(-100)	0	4183	1000	747
 				1	50	4200	2390	2390
 				51	100	4200	3386	3386
 				101	150	4200	5826	5826
@@ -252,18 +252,24 @@ xiaomi-mt6895-xaga-charger.dtsi / xiaomi-mt6895-xaga-thermal.dtsi.
 				101	150	4450
 				151	480	4480
 				481	600	4100>;
-		step_chg_cfg_low_cycle = <3000	3595	12310
-					3596	4090	12310
-					4091	4190	12310
-					4191	4290	8875
-					4291	4390	7380
-					4391	4480	5786>;
-		step_chg_cfg_high_cycle = <3000	3595	12310
-					3596	3850	12310
-					3851	4150	12310
-					4151	4300	8875
-					4301	4400	7380
-					4401	4480	5786>;
+		step_chg_cfg_low_cycle = <3000	3593	12310
+					3594	4083	12310
+					4084	4183	12310
+					4184	4283	8875
+					4284	4383	7380
+					4384	4480	5786>;
+		step_chg_cfg_middle_cycle = <3000	3593	12310
+					3594	4083	12310
+					4084	4143	12310
+					4144	4283	8875
+					4284	4383	7380
+					4384	4480	5786>;
+		step_chg_cfg_high_cycle = <3000	3593	12310
+					3594	3843	12310
+					3844	4143	12310
+					4144	4283	8875
+					4284	4383	7380
+					4384	4480	5786>;
 		thermal_limit_dcp = <1800 1800 1800 1800 1800 1800 1800 1800 1800 1800 1800 1800 1700 1600 1400 1200>;
 		thermal_limit_qc2 = <2500 2500 2500 2500 2500 2500 2500 2500 2500 2500 2500 2000 1500 1500 1000 500>;
 		thermal_limit_qc3_18w = <2500 2500 2500 2500 2500 2500 2400 2300 2200 2100 1500 1000 800 700 600 500>;
@@ -274,11 +280,11 @@ xiaomi-mt6895-xaga-charger.dtsi / xiaomi-mt6895-xaga-thermal.dtsi.
 
 &xagapro_charger {
 		max_charger_voltage = <12000000>;
-		fv = <4445>;
-		fv_ffc = <4500>;
-		iterm = <200>;
-		iterm_ffc = <2160>;
-		iterm_ffc_warm = <3370>;
+		fv = <4415>;
+		fv_ffc = <4470>;
+		iterm = <250>;
+		iterm_ffc = <2376>;
+		iterm_ffc_warm = <3707>;
 		usb_charger_current = <500000>;
 		ac_charger_current = <1500000>;
 		ac_charger_input_current = <1500000>;
@@ -292,33 +298,45 @@ xiaomi-mt6895-xaga-charger.dtsi / xiaomi-mt6895-xaga-thermal.dtsi.
 		step_forward_hyst = <5>;
 		jeita_fallback_hyst = <5>;
 		jeita_forward_hyst = <5>;
-		max_fcc = <21500>;
+		max_fcc = <21400>;
 		xagapro_product;
 		mt6368_moscon1_control;
-		jeita_fcc_cfg = <(-100)	0	4150	2150	860
-				1	50	4150	3010	3010
-				51	100	4150	5160	5160
-				101	150	4150	8600	8600
-				151	480	4150    21500   21500
-				481	600	4150	2150	2150>;
-		jeita_fv_cfg = <(-100)	0	4440
-				1	50	4440
-				51	100	4446
-				101	150	4446
-				151	480	4500
-				481	600	4100>;
-		step_chg_cfg_low_cycle = <3000	3595	21430
-					3596	4090	21430
-					4091	4140	18910
-					4141	4240	15930
-					4241	4390	12360
-					4391	4500	8460>;
-		step_chg_cfg_high_cycle = <3000	3595	21430
-					3596	4080	21430
-					4081	4120	18910
-					4121	4250	15930
-					4251	4400	12360
-					4401	4500	8460>;
+		jeita_fcc_cfg = <(-100)	0	4133	2050	860
+				1	50	4150	2910	2910
+				51	100	4150	5060	5060
+				101	150	4150	8500	8500
+				151	480	4150    21400   21400
+				481	600	4150	2050	2050>;
+		jeita_fv_cfg = <(-100)	0	4416
+				1	50	4416
+				51	100	4416
+				101	150	4416
+				151	480	4470
+				481	600	4096>;
+		step_chg_cfg_low_cycle = <3000	3593	21350
+					3594	4083	21350
+					4084	4133	18900
+					4134	4233	15900
+					4234	4383	12300
+					4384	4470	8460>;
+		step_chg_cfg_middle_cycle = <3000	3593	17100
+					3594	4033	17100
+					4034	4133	15100
+					4134	4233	12700
+					4234	4383	9820
+					4384	4450	8460>;
+		step_chg_cfg_high_cycle = <3000	3593	17100
+					3594	4033	17100
+					4034	4133	15100
+					4134	4233	12700
+					4234	4303	9820
+					4304	4400	9820>;
+		step_chg_cfg_critical_cycle = <3000	3593	17100
+					3594	4033	17100
+					4034	4133	15100
+					4134	4233	12700
+					4234	4303	9820
+					4304	4350	9820>;
 		thermal_limit_dcp = <1800 1800 1800 1800 1800 1800 1800 1800 1800 1800 1800 1800 1700 1600 1400 1200>;
 		thermal_limit_qc2 = <2500 2500 2500 2500 2500 2500 2500 2500 2500 2500 2500 2000 1500 1500 1000 500>;
 		thermal_limit_qc3_18w = <2500 2500 2500 2500 2500 2500 2400 2300 2200 2100 1500 1000 800 700 600 500>;
@@ -377,26 +395,29 @@ xiaomi-mt6895-xaga-charger.dtsi / xiaomi-mt6895-xaga-thermal.dtsi.
 
 &xagapro_PCM {
 		compatible = "xagapro_PCM";
-		fv = <4450>;
-		fv_ffc = <4495>;
-		max_fcc = <21500>;
+		fv = <4420>;
+		fv_ffc = <4465>;
+		max_fcc = <21400>;
 		max_vbus = <21000>;
 		max_ibus = <6200>;
 		fcc_low_hyst = <120>;
 		fcc_high_hyst = <0>;
 		low_tbat = <100>;
+		medium_tbat = <350>;
 		high_tbat = <480>;
 		high_vbat = <4400>;
 		high_soc = <95>;
 		low_fcc = <2000>;
-		cv_vbat = <4440>;
-		cv_vbat_ffc = <4490>;
-		cv_ibat = <2500>;
+		cv_vbat = <4410>;
+		cv_vbat_ffc = <4460>;
+		cv_ibat = <2276>;
+		cv_ibat_warm = <3607>;
 		vbus_low_gap_div = <500>;
 		vbus_high_gap_div = <600>;
 		min_pdo_vbus = <8000>;
 		max_pdo_vbus = <21000>;
 		mt6375_control_gpio = <&pio 11 0x0>;
+		supported_4_1;
 };
 
 &mtee_svp {
@@ -406,13 +427,6 @@ xiaomi-mt6895-xaga-charger.dtsi / xiaomi-mt6895-xaga-thermal.dtsi.
 
 	svp: SecureVideoPath {
                    compatible = "mediatek,mtk_sec_video_path_support";
-	};
-};
-
-&pmic_adc {
-	vin3_open {
-		channel = <AUXADC_VIN3>;
-		pures = <ADC_PURES_100K>;
 	};
 };
 

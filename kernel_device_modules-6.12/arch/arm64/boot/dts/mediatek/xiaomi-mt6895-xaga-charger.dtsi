@@ -2,9 +2,9 @@
 /*
  * Copyright (c) 2022 XiaoMi Inc.
  * Ported from 5.10 xaga kernel (Xiaomi charge control nodes defined in the
- * 5.10 SoC base mt6895.dts). The matching drivers (mediatek,xagapro_charger /
- * pd_cp_manager / xagapro_PCM) are not present in the 6.12 tree; these nodes
- * keep the board DTS buildable and carry the original charge configuration.
+ * 5.10 SoC base mt6895.dts). Matching drivers are ported in-tree:
+ * mediatek,xagapro_charger (mtk_charger.c), pd_cp_manager / xagapro_PCM
+ * (pd_cp_manager.c).
  */
 
 / {
@@ -67,9 +67,6 @@
 	};
 
 	pd_cp_manager: pd_cp_manager {
-	};
-
-	xiaomi_charge: xiaomi_charge {
 	};
 
 	xagapro_PCM: xagapro_PCM {
