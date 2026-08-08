@@ -58,6 +58,14 @@ xaga/kernel_xiaomi_mt6895-6.12/
 
 **产物**（2026-08-07 本机）：`Image`（32MB）+ 22 个移植驱动 `.ko` + 123 个 MTK 平台模块 `.ko` + `xaga.dtbo` + `xaga_global.dtbo`。
 
+**模块覆盖（官方 5.10 ramdisk 198 个模块 → 6.12，2026-08-08 实解包对比）**：官方 198 个 5.10 版 .ko（vermagic 5.10.198）在 6.12 内核上无法加载，由 6.12 侧以四层方式完整覆盖，**无硬缺口**：
+- ① 同名直接替代（109 个）：123 打包模块中 109 个与官方同名（bq28z610/mtk_wdt/phy-mtk-ufs/pinctrl-mt6895 等）
+- ② 更名/合并替代：clk-chk→clkchk、pinctrl-mtk-v2→pinctrl-mtk-common-v2、mt6375-battery→mt6375-gauge、mtk_mm_heap→mtk_system_heap、fan53870→fan53870-ldo、wl2868c→wl2868c-regulator、emi 系列→memory/mediatek、mtk_pep*（= mtk_pe*.o 组合）
+- ③ 内核内置（约 30 个，无需 .ko）：mediatek-drm*（DRM_MEDIATEK_V2=y）、mtk-mmc-autok（mtk-mmc.c 内置）、regmap-spmi/reboot-mode/zsmalloc/system_heap、industrialio/kfifo_buf/mac80211/cfg80211（上游）
+- ④ 非必需省略：aee/mrdump/iommu_debug/mmprofile 等调试诊断类；**唯一无对应物 = mi-memory**（小米私有，三树皆无，非启动必需）
+
+⚠️ **123 是打包子集**：官方 198 中未打包的模块（aee/emi/dramc/tcpc/ufs/devapc/swpm 等约 75+ 个）在移植树（alps 同步）**有 6.12 源码**，用户环境按 mgk_64.bzl 全量构建（896 注册目标）即可覆盖；123 只是 8-07 快照的打包选择。
+
 **已知 modpost undefined（非阻断）**：vendor/mediatek 模块的跨模块引用 MTK typec/tcpc（`tcpm_*`、`tcpc_dev_*`）——由用户环境完整依赖树 + depmod 在加载时解决。
 
 **构建配方要点**（易错，详见 BRINGUP.md §1）：

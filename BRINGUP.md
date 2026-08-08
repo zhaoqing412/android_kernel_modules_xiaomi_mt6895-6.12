@@ -67,6 +67,14 @@ scripts/kconfig/merge_config.sh -m -r \
 `Image.gz` + `mt6895.dtb` + `xaga.dtbo`(+`xaga_global.dtbo`) + 模块 ko 集。
 打包进 boot/vendor_boot 时注意:dtbo 用 `xaga.dtbo`(CN 版);开机先用 CN 版。
 
+### 1.5 模块覆盖(官方 198 → 6.12, 无硬缺口)
+官方 5.10 ramdisk 的 198 个 .ko(vermagic `5.10.198`, 6.12 内核无法加载)由 6.12 侧四层覆盖:
+① 123 打包模块中 109 个同名直接替代;② 更名/合并(clkchk/mt6375-gauge/mtk_system_heap/
+pinctrl-mtk-common-v2/fan53870-ldo 等, 详见 STATUS.md §4);③ 约 30 个 6.12 内核内置
+(mediatek-drm*/mtk-mmc-autok/regmap-spmi/mac80211 等, 无需 .ko);④ 调试诊断类非必需省略。
+**唯一无对应物 = `mi-memory`**(小米私有, 非启动必需)。注意 123 只是打包子集:官方 198 中
+未打包的模块在移植树(alps 同步)有源码, 用户环境按 mgk_64.bzl 全量构建(896 目标)可覆盖。
+
 ---
 
 ## 2. 开机 bring-up(上电顺序)
