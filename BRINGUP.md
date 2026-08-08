@@ -67,6 +67,11 @@ scripts/kconfig/merge_config.sh -m -r \
 `Image.gz` + `mt6895.dtb` + `xaga.dtbo`(+`xaga_global.dtbo`) + 模块 ko 集。
 打包进 boot/vendor_boot 时注意:dtbo 用 `xaga.dtbo`(CN 版);开机先用 CN 版。
 
+#### 打包要求（2026-08-08 实测定型，官方内容验证版可启动）
+- **boot = magiskboot**（`xaga/magiskboot`，-n 流程）：`unpack -n -h boot_a.img` → 换 kernel（Image.gz 原样）/ ramdisk（`magiskboot cpio ... "add 0755 kernelsu.ko <6.12版>"`）→ `repack -n`。⚠️ 默认 repack 会重新 gzip 压缩 kernel，**实测不能启动**，必须 -n。
+- **vendor_boot = 本地 mkbootimg**（`/tmp/mkboot_new/mkbootimg_lineage-21.0.py`）：`--vendor_boot out.img --vendor_ramdisk <官方完整ramdisk区42,743,860B 含2,005B "TRAILER!!!"尾部> --dtb <DTBO_TAG容器> --vendor_cmdline "bootopt=64S3,32N2,64N2" --base 0x40000000 --kernel_offset 0 --ramdisk_offset 0x26f00000 --tags_offset 0x7c80000 --dtb_offset 0x7c80000 --header_version 4 --pagesize 4096 --board ""`；产物需 patch vrt 偏移 43,077,632 处 4 字节为 42,741,855 + pad 到 64MB。⚠️ magiskboot 打包 vendor_boot 实测失败（丢 2,005B 尾部 + ramdisk_size 字段不符），勿用。
+- 详细配方见容器根 `AGENTS.md`「xaga 镜像打包要求」小节与 `xaga/README.md`。
+
 ### 1.5 模块覆盖(官方 198 → 6.12, 无硬缺口)
 官方 5.10 ramdisk 的 198 个 .ko(vermagic `5.10.198`, 6.12 内核无法加载)由 6.12 侧四层覆盖:
 ① 123 打包模块中 109 个同名直接替代;② 更名/合并(clkchk/mt6375-gauge/mtk_system_heap/
