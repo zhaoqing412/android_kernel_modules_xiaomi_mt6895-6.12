@@ -3,14 +3,14 @@
 > Redmi Note 11T Pro / POCO X4 GT / Redmi K50i (xaga, MT6895 / Dimensity 8100)
 > 6.12 MTK kernel_device_modules 移植树。目标:编译出可开机的内核 + DTBO + 模块,
 > 在真机上完成从"亮屏进系统"到"充电功能"的 bring-up。
-> 状态基准:commit e214b6e(工作树干净)。
+> 状态基准:commit 270467e（2026-08-07，工作树干净）。历史经 rebase，旧 hash 见 STATUS.md §9。
 
 ---
 
 ## 0. 树结构速览
 
 ```
-xaga/kernel_xiaomi_mt6895-6.12/            # 本移植树(git 仓库, 4 commits)
+xaga/kernel_xiaomi_mt6895-6.12/            # 本移植树(git 仓库, 24 commits)
 └── kernel_device_modules-6.12/            # MTK 6.12 OOT 模块源(基于 OPPO oddo6_12, OPPO 专属已剥离)
     ├── arch/arm64/boot/dts/mediatek/      # xaga.dts / xaga_global.dts 板级 overlay
     ├── arch/arm64/configs/vendor/xaga.config   # xaga defconfig 片段
@@ -36,8 +36,9 @@ xaga/kernel_xiaomi_mt6895-6.12/            # 本移植树(git 仓库, 4 commits)
 ### 1.2 项目注册(mgk 侧, 本树无法完成)
 - **DTBO 列表**:`kernel/build/bazel_mgk_rules` 中把 `xaga` 加入 project 的 DTBO 列表
   (参考 OPPO 自己的 `arch/arm64/boot/dts/oplus/oplus6895_23021.dts` 注册方式)。
-  备选:经典构建可直接用 `arch/arm64/boot/dts/mediatek/Makefile` 中已加的
-  `dtb-$(CONFIG_ARCH_MEDIATEK) += xaga.dtb xaga_global.dtb`。
+  ⚠️ 本树 `arch/arm64/boot/dts/mediatek/Makefile` **未注册 xaga**(0 处引用);经典构建
+  路径需自行添加 `dtb-$(CONFIG_ARCH_MEDIATEK) += xaga.dtb xaga_global.dtb`,
+  kleaf 路径则走 mgk 规则的 DTBO 列表(上方主路径)。
 - **模块列表**:`mgk_64.bzl` 已注册 xaga 相关模块(见 §2.3);其余模块走
   OPPO/MTK 默认列表,需确认 xaga 不需要的模块(oplus_* 已剥离)。
 
@@ -52,7 +53,8 @@ scripts/kconfig/merge_config.sh -m -r \
 `CONFIG_DRM_PANEL_L16_*`(面板)、`CONFIG_XMEXT_LN8000/SC8551A_CHG_PUMP=m`(充电泵)、
 `CONFIG_XMEXT_TI_GAUGE=m`(bq28z610 → "bms" psy)、`CONFIG_XM_PD_MANAGER=m`(充电算法,
 **开机后对齐 usb_psy 前保持回退充电, 不插快充头**)、`CONFIG_SIMTRAY_STATUS=m`、
-`CONFIG_INPUT_AW8697_HAPTIC=m`、`CONFIG_TOUCHSCREEN_XIAOMI_DOUBLE_CLICK=m`。
+`CONFIG_INPUT_AW8697_HAPTIC=m`、`CONFIG_TOUCHSCREEN_XIAOMI_DOUBLE_CLICK=m`、
+`CONFIG_MTK_VIDEO_KTD2687=m`(闪光灯)、`CONFIG_DRM_PANEL_LEDS_KTZ8863A=m`(背光)。
 
 ### 1.4 产物
 `Image.gz` + `mt6895.dtb` + `xaga.dtbo`(+`xaga_global.dtbo`) + 模块 ko 集。
@@ -96,7 +98,9 @@ mtk 框架(mtk_charger/mtk_battery/mtk_disp_*)  ← 6.12 原生, 一般 OK
 `pd_cp_manager` / `charger_class`(power/supply);
 `nt36672c`(touchscreen/NVT36672C);`panel-l16-*` + `leds-ktz8863a`(drm/panel);
 `aw8697_haptic`(input/misc, 经 ddk_makefile glob);`simtray`(misc, Kconfig 接线)。
-> 注:qc_cp_manager 源码在树内但不启用(xaga 是 MTK PD 快充设备, 5.10 也未启用 QC 管理器)。
+> 注:KTD2687 闪光灯走 `drivers/misc/mediatek` 的 BUILD.bazel(mtk-composite 接线, 非
+> mgk_64.bzl device_modules);6 颗 sensor 走 src-v4l2(见 §6)。qc_cp_manager 源码在树内但
+> 不启用(xaga 是 MTK PD 快充设备, 5.10 也未启用 QC 管理器)。
 
 ---
 
@@ -131,8 +135,8 @@ drivers/power/supply/mtk_pd_adapter.c    (pd_authentication 成功路径, ~:568)
     (+ #include "mtk_charger.h" under CONFIG_XM_PD_MANAGER)
 ```
 
-> ✅ **状态(2026-08-06)**:§3.1 的 5 处名称替换、§3.2 的两个写入方均已实现并提交
-> (commit 见 §5 遗留清单下方),上机只需验证,无需再改代码。
+> ✅ **状态(2026-08-06)**:§3.1 的 5 处名称替换(commit 109b0d0)、§3.2 的两个写入方
+> (commit 109b0d0/19311e8)均已实现并提交,上机只需验证,无需再改代码。
 
 ### 3.3 已知依赖(已移植, 勿删)
 - 面板 `panel-l16-*.c` 引用 3 个 provider:`is_tp_doubleclick_enable()`
@@ -164,15 +168,17 @@ drivers/power/supply/mtk_pd_adapter.c    (pd_authentication 成功路径, ~:568)
 | dtbo.dts.0(实机反编译)与移植 DTS 逐节点吻合 | 板级 DTS 得到实机验证, 无需改动 |
 
 ## 5. 遗留事项(非开机阻塞)
-- [x] §3.1 psy 名称对齐 — **已实现并提交**
-- [x] §3.2 USB_PROP 写入方(mtk_chg_type_det + mtk_pd_adapter)— **已实现并提交**
+- [x] §3.1 psy 名称对齐 — **已实现并提交**(commit 109b0d0)
+- [x] §3.2 USB_PROP 写入方(mtk_chg_type_det + mtk_pd_adapter)— **已实现并提交**(commit 109b0d0/19311e8)
 - [ ] 真机上验证 §3.4 验证顺序(需完整构建环境 + 设备)
 - [ ] 触控 fw(nt36672e fw 文件)放入 vendor 分区对应路径
 - [ ] xaga_global 变体开机验证(若 CN 版 TEE/svp 有问题时用)
 - [ ] mtk-master-charger 名字的 kABI/模块加载顺序核对(若有 modprobe 依赖)
 - [ ] **指纹驱动(goodix_cap)**: DTS 有 `goodix,goodix-fp` 节点(cust_mt6895_fingerprint.dtsi), 5.10 用 drivers/input/fingerprint/goodix_cap/(GF3626ZS9 TEE), 6.12 未移植 —— 依赖 5.10 内核私有 mtk_spi.h(用户环境), 移植步骤见 README.md 已知缺口 §1
+- [ ] **sensor 用户环境合入**: 在用户环境 `src-v4l2/BUILD.bazel` 的 `config_cust_kernel_imgsensor` 追加 6 个 xaga* 名字(步骤见 §6)
+- [ ] **lm3644 注册残留清理**(可选): `mgk_64.bzl:1361` 给 mt6895 注册了 lm3644, xaga 用 KTD2687 不用, 保留无害可删
 
-## 6. 相机 sensor 移植(2026-08-07, 已提交 9c6a13e)
+## 6. 相机 sensor 移植(2026-08-07, 已提交 7f75af8 + f3e8e80)
 xaga 的 6 颗 camera sensor 驱动已从 5.10 ESK 移植到本树:
 
 | sensor | 角色 | 目录 |
@@ -199,3 +205,16 @@ xaga 的 6 颗 camera sensor 驱动已从 5.10 ESK 移植到本树:
 4. DTS 侧 `xaga_mt6895_camera_v4l2.dtsi` 的 imgsensor 节点 compatible 对应 sensor 名, 已由板级 DTS 提供
 
 注意: sensor 驱动只依赖 v4l2 框架(用户环境 mtkcam), 不在 mgk_64.bzl 的 device_modules 列表; 若构建报缺 `subdrv_i2c_wr_u8_u8` 之类符号, 说明用户环境 mtkcam 版本更老, 以本树 Makefile/本地表写为准即可。
+
+## 7. 闪光灯与快充协议(2026-08-07, 非开机阻塞)
+
+### 7.1 KTD2687 相机闪光灯(commit e321232/1aadba1)
+- 驱动:`drivers/misc/mediatek/flashlight/v4l2/ktd2687.c`,双灯(v4l2 subdev)。
+- 接线:`CONFIG_MTK_VIDEO_KTD2687=m` + flashlight 核心/composite 已恢复(顶层 Kbuild
+  obj-y + `drivers/misc/mediatek` BUILD.bazel ddk_makefile/ddk_kconfigs)。
+- 上机验证:`/sys/class/leds/` 出现 ktd2687 相关节点,相机开闪光灯日志无 probe 失败。
+
+### 7.2 MTK Pump Express 协议(commit 4b2d268)
+- 恢复 pep/pep20/pep40/pep45/pep50/pep50p 六个协议模块(`mtk_pep*`, 自 alps 同步),
+  注册进 mgk_64.bzl device_modules。
+- 配合 `CONFIG_XM_PD_MANAGER=m` 在 PD 快充协商时选择 PE 协议分支, 不阻塞开机。

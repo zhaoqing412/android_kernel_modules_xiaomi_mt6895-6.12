@@ -1,15 +1,18 @@
 # kernel_xiaomi_mt6895-6.12
 
+> 移植状态总览见 [STATUS.md](STATUS.md)（基准 commit `270467e`，2026-08-07；历史经 rebase，旧 hash 见 STATUS.md §9）
+
 xaga（Redmi Note 11T Pro / POCO X4 GT / Redmi K50i，Dimensity 8100 / MT6895）的 **Android 6.12 内核模块移植树**。
 
 - 基座：OPPO 6.12 MTK 模块树（`kernel_device_modules-6.12`，kleaf/mgk 构建模型）
-- 移植来源：小米 5.10 ESK 内核（`kernel_xiaomi_mt6895`，16.2-rebase）与官方 5.10 内核（xaga-s-oss）
+- 移植来源：小米 5.10 ESK 内核（`../baselines/kernel/kernel_xiaomi_mt6895`，16.2-rebase）与官方 5.10 内核（`../baselines/kernel/offical_kernel_xiaomi_mt6895`，xaga-s-oss）
 - 内核版本：6.12（GKI common + MTK mgk 规则）
 - 配套内核源码：OPPO 6.12 内核（`oddo6_12/android_kernel_oppo_mt6896`，6.12.23）
 
 ## 目录
 
 - `kernel_device_modules-6.12/` — 模块树（本仓库主体，kleaf/BUILD.bazel + Kbuild 双路径）
+- `STATUS.md` — 移植状态总览（进度/构建/缺口/下一步）
 - `BRINGUP.md` — 开机 bring-up 指南（构建步骤、上电顺序、充电/显示/触摸对齐）
 - 本文件 — 仓库概览、已移植内容、已知缺口
 
@@ -38,11 +41,12 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 | NVT36672C | Novatek SPI 触摸屏（6.12 API 适配） |
 | aw8697 haptic | Awinic 线性马达 |
 | leds-ktz8863a + panel-l16 ×2 | 背光 + 两块 L16 DSC 面板（ESD 恢复） |
-| ln8000 / sc8551 / sc8561 / bq28z610 | 充电泵 + 电量计（6.12 psy 对齐） |
+| ln8000 / sc8551 / sc8561 / bq28z610 | 充电泵 + 电量计（6.12 psy 对齐，commit 109b0d0） |
 | pd_cp_manager + 充电框架 | mtk_charger/mtk_pd_* 全套（`mtk-master-charger` psy 名对齐） |
 | **6 颗 camera sensor** | s5khm2/s5k4h7/ov16a1/s5kgw1/gc02m1/ov02b10（src-v4l2，2026-08-07 移植） |
 | **KTD2687 相机闪光灯** | 双灯驱动 + flashlight 核心接线（2026-08-07 移植） |
 | **MTK Pump Express** | pep/pep20/pep40/pep45/pep50/pep50p 协议模块接线（2026-08-07 恢复） |
+| **MTK 平台模块（123 ko）** | 全量平台模块构建（1409327/5829818，自 alps 树同步） |
 
 **板级 DTS**：`xaga-mt6895.dtsi` 链（charger/display/thermal/touch/camera）+ `cust/xaga.dtsi` + `xaga_global.dts`（全球版变体）。
 
@@ -62,13 +66,15 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 3. **camera sensor 合入**：6 颗 sensor 在本树 `vendor/mediatek/kernel_modules/mtkcam/imgsensor/src-v4l2/common/xaga*/`，用户环境需在 `src-v4l2/BUILD.bazel` 的 `config_cust_kernel_imgsensor` 追加 6 个名字（详见 BRINGUP.md §6）
 4. **lm3644 注册残留**：`mgk_64.bzl:1361` 给 mt6895 注册了 lm3644（xaga 用 KTD2687 不用 LM3644，保留无害，可删）
 5. **触控 fw**：nt36672c fw 文件需放入 vendor 分区对应路径
+6. **真机验证未做**：psy 对齐后充电流程、xaga_global 变体、mtk-master-charger kABI/模块加载顺序（见 STATUS.md §6）
 
 ## 提交历史要点
 
-- `3c365ef` 特性：oops 分区 pstore/blk + 充电框架接线
-- `6fc39f0` / `132501c` 全构建修复（6.12 API 适配）
-- `31e4114` 全面审计修复（crash bug/config 缺口/kleaf 注册）
-- `9c6a13e` + `bc47032` + `edd496c` camera sensor / KTD2687 闪光灯 / Pump Express（2026-08-07）
+- `49dfceb` 导入 6.12 modules + xaga 板级移植 / `19311e8` 充电框架 + panel providers / `f4bc147` NVT36672C 触摸
+- `d55ac4f` / `e361186` 全构建与首次编译修复（6.12 API 适配）
+- `1409327` + `5829818` 全量平台模块构建（118 → 123 ko）/ `a377ba2` 审计修复
+- `7f75af8` + `f3e8e80` 6 颗 camera sensor / `e321232` + `1aadba1` KTD2687 闪光灯 / `4b2d268` Pump Express（2026-08-07）
+- `270467e`（HEAD）README + 设备名修正；完整新旧 hash 对照见 STATUS.md §9
 
 ## 许可
 
