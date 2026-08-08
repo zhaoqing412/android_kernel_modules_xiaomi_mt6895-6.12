@@ -40,7 +40,14 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 - 模块树内 **133 个 `.ko`**（`kernel_device_modules-6.12/` 原位）
 - `$OUT/Module.symvers` — 模块符号表（in-tree + OOT 链接用）
 
-关键路径均可用环境变量覆盖（`K`/`M`/`OUT`/`PEM`/`JOBS`）。编译日志保留在 `/tmp/xaga_build.*/`。
+**OPPO 6.12 内核源码（`K`）自动定位**，无需硬编码路径——依次尝试：
+
+1. `K` 环境变量（若已设置且存在）
+2. 本工作区布局（`../../oddo6_12/android_kernel_oppo_mt6896` 等）
+3. 同级目录下的 GitHub 远程克隆 `android_kernel_oddo_mt6895`
+4. 都找不到时提示手动输入
+
+其他路径均可用环境变量覆盖（`M`/`OUT`/`PEM`/`JOBS`）。编译日志保留在 `/tmp/xaga_build.*/`。
 
 板级 defconfig 片段：`arch/arm64/configs/vendor/xaga.config`
 板级 DTS：`arch/arm64/boot/dts/mediatek/xaga.dts`（overlay 于 `mt6895.dts` SoC 基座）

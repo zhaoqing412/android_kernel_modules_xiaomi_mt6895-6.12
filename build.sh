@@ -7,6 +7,12 @@
 #   2. in-tree modules (refreshes Module.symvers)
 #   3. out-of-tree modules tree -> 133 x .ko (make M=)
 #
+# The OPPO 6.12 kernel source (K) is located automatically:
+#   - $K env var if set and exists
+#   - local workspace paths
+#   - a sibling dir named android_kernel_oddo_mt6895 (GitHub remote name)
+#   - otherwise prompts for input
+#
 # Overridable via env: K M OUT PEM JOBS
 # Usage: ./build.sh [--no-clean]
 #
@@ -16,7 +22,6 @@ set -euo pipefail
 # Paths (all overridable)
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-K="${K:-/media/zhaoqing/builder/kernel/oddo6_12/android_kernel_oppo_mt6896}"
 M="${M:-$SCRIPT_DIR/kernel_device_modules-6.12}"
 OUT="${OUT:-/media/zhaoqing/builder/out_oppo612}"
 PEM="${PEM:-$M/certs/mtk_signing_key.pem}"
@@ -32,6 +37,53 @@ done
 
 WORK="$(mktemp -d /tmp/xaga_build.XXXXXX)"
 log() { echo -e "\n\033[1;32m=== $* ===\033[0m"; }
+
+# ---------------------------------------------------------------------------
+# Locate the OPPO 6.12 kernel source tree (K)
+# ---------------------------------------------------------------------------
+locate_kernel() {
+    local candidates=()
+    # explicit env
+    [ -n "${K:-}" ] && candidates+=("$K")
+    # local workspace (this workspace's layout)
+    candidates+=(
+        "$SCRIPT_DIR/../../oddo6_12/android_kernel_oppo_mt6896"
+        "$SCRIPT_DIR/../oddo6_12/android_kernel_oppo_mt6896"
+        "$SCRIPT_DIR/oddo6_12/android_kernel_oppo_mt6896"
+        "$SCRIPT_DIR/../../android_kernel_oppo_mt6896"
+        "$SCRIPT_DIR/../android_kernel_oppo_mt6896"
+        "$SCRIPT_DIR/android_kernel_oppo_mt6896"
+    )
+    # GitHub remote clone name (android_kernel_oddo_mt6895)
+    candidates+=(
+        "$SCRIPT_DIR/../../android_kernel_oddo_mt6895"
+        "$SCRIPT_DIR/../android_kernel_oddo_mt6895"
+        "$SCRIPT_DIR/android_kernel_oddo_mt6895"
+        "$SCRIPT_DIR/../../xaga/android_kernel_oddo_mt6895"
+        "$SCRIPT_DIR/../xaga/android_kernel_oddo_mt6895"
+        "$SCRIPT_DIR/xaga/android_kernel_oddo_mt6895"
+    )
+    local c
+    for c in "${candidates[@]}"; do
+        if [ -f "$c/arch/arm64/configs/gki_defconfig" ]; then
+            echo "$c"
+            return 0
+        fi
+    done
+    return 1
+}
+
+if K="$(locate_kernel)"; then
+    log "kernel source: $K"
+else
+    echo "OPPO 6.12 kernel source not found automatically." >&2
+    echo "Set K=<path> or enter it now (expects arch/arm64/configs/gki_defconfig):" >&2
+    read -r -p "K=" K
+    if [ -z "${K:-}" ] || [ ! -f "$K/arch/arm64/configs/gki_defconfig" ]; then
+        echo "ERROR: invalid kernel path: $K" >&2
+        exit 1
+    fi
+fi
 
 # 27 include dirs for out-of-tree module builds (verbatim from 2026-08-08)
 INC="-I$M/include -I$M/include/soc/mediatek -I$M/drivers/clk/mediatek \
