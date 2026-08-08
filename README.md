@@ -38,16 +38,23 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 产物：
 
 - 模块树内 **133 个 `.ko`**（`kernel_device_modules-6.12/` 原位）
-- `$OUT/Module.symvers` — 模块符号表（in-tree + OOT 链接用）
+- `out/Module.symvers` — 模块符号表（in-tree + OOT 链接用；默认输出在本仓库 `out/` 目录）
 
-**OPPO 6.12 内核源码（`K`）自动定位**，无需硬编码路径——依次尝试：
+**路径全部默认相对脚本目录，无需硬编码**：
+
+- 模块树 `M` = `./kernel_device_modules-6.12`
+- 输出 `OUT` = `./out`
+- 签名 key `PEM` = `$M/certs/mtk_signing_key.pem`
+- 工具链 `LLVM_PREFIX` = `/usr/lib/llvm-18`（clang 18）
+
+**OPPO 6.12 内核源码（`K`）自动定位**——依次尝试：
 
 1. `K` 环境变量（若已设置且存在）
-2. 本工作区布局（`../../oddo6_12/android_kernel_oppo_mt6896` 等）
-3. 同级目录下的 GitHub 远程克隆 `android_kernel_oddo_mt6895`
+2. 脚本同级/父级目录：`./android_kernel_oppo_mt6896`、`../oddo6_12/android_kernel_oppo_mt6896` 等
+3. GitHub 远程克隆名 `android_kernel_oddo_mt6895`（同级/父级/`xaga/` 下）
 4. 都找不到时提示手动输入
 
-其他路径均可用环境变量覆盖（`M`/`OUT`/`PEM`/`JOBS`）。编译日志保留在 `/tmp/xaga_build.*/`。
+所有路径均可用环境变量覆盖（`K`/`M`/`OUT`/`PEM`/`LLVM_PREFIX`/`JOBS`）。编译日志保留在 `/tmp/xaga_build.*/`。
 
 板级 defconfig 片段：`arch/arm64/configs/vendor/xaga.config`
 板级 DTS：`arch/arm64/boot/dts/mediatek/xaga.dts`（overlay 于 `mt6895.dts` SoC 基座）

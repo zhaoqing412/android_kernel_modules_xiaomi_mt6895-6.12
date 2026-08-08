@@ -13,18 +13,19 @@
 #   - a sibling dir named android_kernel_oddo_mt6895 (GitHub remote name)
 #   - otherwise prompts for input
 #
-# Overridable via env: K M OUT PEM JOBS
+# Overridable via env: K M OUT PEM LLVM_PREFIX JOBS
 # Usage: ./build.sh [--no-clean]
 #
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# Paths (all overridable)
+# Paths (all overridable; defaults relative to this script's directory)
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 M="${M:-$SCRIPT_DIR/kernel_device_modules-6.12}"
-OUT="${OUT:-/media/zhaoqing/builder/out_oppo612}"
+OUT="${OUT:-$SCRIPT_DIR/out}"
 PEM="${PEM:-$M/certs/mtk_signing_key.pem}"
+LLVM_PREFIX="${LLVM_PREFIX:-/usr/lib/llvm-18}"
 JOBS="${JOBS:-$(nproc)}"
 SKIP_CLEAN=0
 
@@ -45,23 +46,18 @@ locate_kernel() {
     local candidates=()
     # explicit env
     [ -n "${K:-}" ] && candidates+=("$K")
-    # local workspace (this workspace's layout)
+    # sibling / parent dirs of this script (workspace + GitHub clone layouts)
     candidates+=(
-        "$SCRIPT_DIR/../../oddo6_12/android_kernel_oppo_mt6896"
-        "$SCRIPT_DIR/../oddo6_12/android_kernel_oppo_mt6896"
-        "$SCRIPT_DIR/oddo6_12/android_kernel_oppo_mt6896"
-        "$SCRIPT_DIR/../../android_kernel_oppo_mt6896"
-        "$SCRIPT_DIR/../android_kernel_oppo_mt6896"
         "$SCRIPT_DIR/android_kernel_oppo_mt6896"
-    )
-    # GitHub remote clone name (android_kernel_oddo_mt6895)
-    candidates+=(
-        "$SCRIPT_DIR/../../android_kernel_oddo_mt6895"
+        "$SCRIPT_DIR/../android_kernel_oppo_mt6896"
+        "$SCRIPT_DIR/../oddo6_12/android_kernel_oppo_mt6896"
+        "$SCRIPT_DIR/../../oddo6_12/android_kernel_oppo_mt6896"
+        "$SCRIPT_DIR/android_kernel_oddo_mt6895"          # GitHub remote name
         "$SCRIPT_DIR/../android_kernel_oddo_mt6895"
-        "$SCRIPT_DIR/android_kernel_oddo_mt6895"
-        "$SCRIPT_DIR/../../xaga/android_kernel_oddo_mt6895"
-        "$SCRIPT_DIR/../xaga/android_kernel_oddo_mt6895"
+        "$SCRIPT_DIR/../../android_kernel_oddo_mt6895"
         "$SCRIPT_DIR/xaga/android_kernel_oddo_mt6895"
+        "$SCRIPT_DIR/../xaga/android_kernel_oddo_mt6895"
+        "$SCRIPT_DIR/../../xaga/android_kernel_oddo_mt6895"
     )
     local c
     for c in "${candidates[@]}"; do
@@ -104,7 +100,7 @@ INC="-I$M/include -I$M/include/soc/mediatek -I$M/drivers/clk/mediatek \
 for p in "$K" "$M" "$PEM"; do
     [ -e "$p" ] || { echo "missing required path: $p" >&2; exit 1; }
 done
-export PATH="/usr/lib/llvm-18/bin:$PATH"
+export PATH="$LLVM_PREFIX/bin:$PATH"
 export KCONFIG_EXT_PREFIX="$M/"   # REQUIRED for every make (module symbols)
 
 # ---------------------------------------------------------------------------
