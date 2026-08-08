@@ -6,15 +6,14 @@
 /*
 this file is only for attribution of xaga
 Ported from the 5.10 ESK kernel (xaga-mt6895.dtsi) to the 6.12 MTK tree.
-The 5.10 SoC base carried Xiaomi charge-control nodes and board thermistors
-(ntc4-8) that the 6.12 base mt6895.dts lacks; they are restored below via
-xiaomi-mt6895-xaga-charger.dtsi / xiaomi-mt6895-xaga-thermal.dtsi.
+The Xiaomi charge-control nodes (xagapro_charger/pd_cp_manager/xagapro_PCM)
+and board thermistors (ntc4-8) are defined in the 6.12 base mt6895.dts
+(restored from 5.10); this overlay covers them via &-references so each
+becomes a target fragment (same layout as the factory dtbo).
 */
 #include <dt-bindings/iio/mt635x-auxadc.h>
 #include <dt-bindings/thermal/thermal.h>
 #include "xiaomi-mt6895-common.dtsi"
-#include "xiaomi-mt6895-xaga-charger.dtsi"
-#include "xiaomi-mt6895-xaga-thermal.dtsi"
 #include "xaga_mt6895_camera_v4l2.dtsi"
 
 &u2port0 {

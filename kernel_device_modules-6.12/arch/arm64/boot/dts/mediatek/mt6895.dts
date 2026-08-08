@@ -27,6 +27,14 @@
 #include <dt-bindings/power/mtk-charger.h>
 #include <dt-bindings/interconnect/mtk,mmqos.h>
 
+/*
+ * xaga board nodes that live in the SoC base (restored from 5.10):
+ * xagapro_charger / pd_cp_manager / xagapro_PCM + tboard_thermistor4-8.
+ * The xaga board overlay covers them via &-references (target fragments).
+ */
+#include "xiaomi-mt6895-xaga-charger.dtsi"
+#include "xiaomi-mt6895-xaga-thermal.dtsi"
+
 / {
 	model = "MT6895";
 	compatible = "mediatek,MT6895";
