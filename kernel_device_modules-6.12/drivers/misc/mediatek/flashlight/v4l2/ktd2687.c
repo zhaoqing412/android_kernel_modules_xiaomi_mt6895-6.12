@@ -740,22 +740,17 @@ static int ktd2687_ioctl(unsigned int cmd, unsigned long arg)
 
 static int ktd2687_set_driver(int set)
 {
-	int ret = 0;
-
 	/* set chip and usage count */
 	//mutex_lock(&ktd2687_mutex);
 	if (set) {
-		if (!use_count) {
-			ret = ktd2687_init(ktd2687_flash_data);
-			pr_debug("Set driver: %d\n", use_count);
-		}
+		if (!use_count)
+			ktd2687_init(ktd2687_flash_data);
 	} else {
 		use_count--;
 		if (!use_count)
-			ret = ktd2687_uninit(ktd2687_flash_data);
+			ktd2687_uninit(ktd2687_flash_data);
 		if (use_count < 0)
 			use_count = 0;
-		pr_debug("Unset driver: %d\n", use_count);
 	}
 	//mutex_unlock(&ktd2687_mutex);
 
@@ -812,7 +807,7 @@ static int ktd2687_parse_dt(struct ktd2687_flash *flash)
 					"part", &flash->flash_dev_id[i].part))
 			goto err_node_put;
 		snprintf(flash->flash_dev_id[i].name, FLASHLIGHT_NAME_SIZE,
-				flash->subdev_led[i].name);
+				"%s", flash->subdev_led[i].name);
 		flash->flash_dev_id[i].channel = i;
 		flash->flash_dev_id[i].decouple = decouple;
 
