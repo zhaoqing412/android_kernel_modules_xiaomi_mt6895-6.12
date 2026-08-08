@@ -56,6 +56,13 @@ scripts/kconfig/merge_config.sh -m -r \
 `CONFIG_INPUT_AW8697_HAPTIC=m`、`CONFIG_TOUCHSCREEN_XIAOMI_DOUBLE_CLICK=m`、
 `CONFIG_MTK_VIDEO_KTD2687=m`(闪光灯)、`CONFIG_DRM_PANEL_LEDS_KTZ8863A=m`(背光)。
 
+> ⚠️ **oops 分区日志(xaga_oops_log 模块, raw 分区直写)**:`CONFIG_XAGA_OOPS_LOG=m`
+> 注册 kmsg dumper,崩溃时用 **panic 安全的轮询 bio** 把 dmesg 文本直接写入
+> `/dev/block/sdc81`(offset 0 覆写:64B "XAGA" 头 + 文本 payload)。无需 cmdline、
+> 无需预格式化、无需 best_effort。读取:`dd if=/dev/block/sdc81 bs=64 skip=1`
+> 或 `strings /dev/block/sdc81`。不使用官方 pstore/blk(best_effort 模式下
+> panic 无法落盘,且不注入 best_effort=1 时后端根本不注册)。
+
 ### 1.4 产物
 `Image.gz` + `mt6895.dtb` + `xaga.dtbo`(+`xaga_global.dtbo`) + 模块 ko 集。
 打包进 boot/vendor_boot 时注意:dtbo 用 `xaga.dtbo`(CN 版);开机先用 CN 版。

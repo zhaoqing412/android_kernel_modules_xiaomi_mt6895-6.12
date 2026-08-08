@@ -52,9 +52,8 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 
 ## 特性
 
-- **内核日志 → oops 分区**：`CONFIG_PSTORE_BLK=y` + `PSTORE_BLK_BLKDEV="/dev/block/sdc81"`（pstore/blk 写 oops 分区）
-  - 注意：pstore/blk 的 `best_effort` 默认关，若 oops 分区未格式化需加 cmdline `pstore_blk.best_effort=1`
-- 产物镜像（boot/vendor_boot/dtbo）：见 `xaga/images/6.12/`
+- **内核日志 → oops 分区**：`CONFIG_XAGA_OOPS_LOG=m`（自 5.10 ESK 移植的 kmsg_dumper，panic 安全 bio 直写 raw 分区 `/dev/block/sdc81`；读取：`dd if=/dev/block/sdc81 bs=64 skip=1` 当文本处理）
+- 产物镜像（boot/vendor_boot/dtbo）：见 `xaga/images/out/`（打包产物；构建中间产物在 `xaga/images/building/`）
 
 ## 已知缺口 / 待用户环境处理
 

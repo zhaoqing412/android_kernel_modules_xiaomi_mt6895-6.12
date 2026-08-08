@@ -7,3 +7,11 @@ config SIMTRAY_STATUS
 	tristate "Xiaomi SIM tray status"
 	help
 	  Say Y here to enable the Xiaomi SIM tray status driver (xiaomi,simtray-status).
+
+config XAGA_OOPS_LOG
+	tristate "xaga oops partition kernel log dumper"
+	help
+	  Save kernel panic/oops log to the dedicated "oops" block partition
+	  (/dev/block/sdc81 by default) as raw text. Polling bio writes make
+	  it panic-safe, unlike the pstore/blk backend which cannot write
+	  during panic. Read back with: dd if=/dev/block/sdc81 bs=64 skip=1
