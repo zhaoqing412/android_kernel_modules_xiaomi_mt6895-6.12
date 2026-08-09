@@ -61,7 +61,7 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 - 打包输出 `OUT_IMG` = `../images/out/`
 - 工具：`MAGISKBOOT` / `MKBOOTIMG` / `MKDTBO` / `KERNELSU` 均在 `../images/building/tools/`
 - 签名 key `PEM` = `$M/certs/mtk_signing_key.pem`
-- 工具链 `LLVM_PREFIX` = `/usr/lib/llvm-18`（clang 18）；`USE_CCACHE=1` 可加 ccache 前缀
+- 工具链 `LLVM_PREFIX` = `$HOME/clang`（**AOSP clang-r536225**，OPPO `build.config.constants` 推荐，勿用 apt 的 clang-18）；`USE_CCACHE=1` 可加 ccache 前缀
 
 **OPPO 6.12 内核源码（`K`）自动定位**——依次尝试：
 

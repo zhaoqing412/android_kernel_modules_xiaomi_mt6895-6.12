@@ -40,7 +40,7 @@ MKDTBO="${MKDTBO:-$IMG_DIR/building/tools/mkdtbo.py}"
 MAGISKBOOT="${MAGISKBOOT:-$IMG_DIR/building/tools/magiskboot}"
 KERNELSU="${KERNELSU:-$IMG_DIR/building/tools/android16-6.12_kernelsu.ko}"
 PEM="${PEM:-$M/certs/mtk_signing_key.pem}"
-LLVM_PREFIX="${LLVM_PREFIX:-/usr/lib/llvm-18}"
+LLVM_PREFIX="${LLVM_PREFIX:-$HOME/clang}"   # AOSP clang-r536225 (OPPO build.config.constants); NOT apt clang-18
 JOBS="${JOBS:-$(nproc)}"
 VERMAGIC_VER="6.12.76-4k"
 
@@ -125,7 +125,8 @@ preflight() {
     if [ ${#missing[@]} -gt 0 ]; then
         echo "ERROR: missing build tools: ${missing[*]}" >&2
         echo "  sudo apt-get install -y bc bison flex lz4 unzip ccache cpio python3 binutils-aarch64-linux-gnu" >&2
-        echo "  sudo apt-get install -y clang-18 lld-18 llvm-18 libdw-dev" >&2
+        echo "  clang: install AOSP clang-r536225 (OPPO build.config.constants) under \$HOME/clang," >&2
+        echo "         e.g. curl -L https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/..." >&2
         exit 1
     fi
     for p in "$K" "$M" "$PEM"; do
