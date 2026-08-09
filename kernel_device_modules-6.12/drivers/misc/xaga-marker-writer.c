@@ -66,6 +66,11 @@ static void xaga_marker_ring_write(const char *buf, int n)
 	void __iomem *ring = xaga_mr_base + XAGA_RING_OFF;
 	int i;
 
+	/* MTK aee/mrdump_mini rewrites the region header on its init (LK
+	 * registers 0x48170000 as mrdump_mini_header, magic "addr"/"size"),
+	 * so re-assert our XAGR magic on every write - the next module load
+	 * after aee restores it. */
+	writel(XAGA_MAGIC, xaga_mr_base + 0x0000);
 	for (i = 0; i < n; i++)
 		writeb(buf[i], ring + ((cursor + i) % XAGA_RING_SZ));
 	writel(cursor + n, xaga_mr_cursor);
