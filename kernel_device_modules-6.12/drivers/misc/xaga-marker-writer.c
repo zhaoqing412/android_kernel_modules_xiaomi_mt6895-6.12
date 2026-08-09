@@ -2,16 +2,21 @@
 /*
  * xaga boot-stage marker module (XAGR ring writer).
  *
- * Writes an "XAGR" header + circular text ring into the minirdump reserved
- * region (0x48170000). Markers survive an AP watchdog reboot in DRAM and are
- * dumped by the xaga-marker reader built into the XagaForge kernel
- * (xaga/baselines/kernel/xagaforge), which prints them in dmesg on the next
- * boot, so a boot hang can be located even when the kernel dies before the
- * ramoops console is up.
+ * Writes an "XAGR" header + circular text ring into the log_store reserved
+ * region (0x7ffbf000). Markers survive an AP watchdog reboot in DRAM and are
+ * dumped by the xaga-marker reader built into the lineage_xaga kernel
+ * (xaga/baselines/kernel/lineage_xaga), which prints them in dmesg on the
+ * next boot, so a boot hang can be located even when the kernel dies before
+ * the ramoops console is up.
  *
- * Layout matches the reader (xagaforge drivers/misc/xaga-marker.c):
+ * Layout matches the reader (lineage_xaga drivers/misc/xaga-marker.c):
  *   u32 magic @0x0000, u32 cursor @0x0004, u32 total @0x0008,
  *   u32 stage @0x1000, text ring @0x2000 (0xE000 bytes).
+ *
+ * The ring lives in log_store (0x7ffbf000), NOT minirdump (0x48170000):
+ * writing minirdump triggers MTK's mrdump machinery and reboots the device
+ * immediately. log_store is a non-secure reserved area not managed by
+ * mrdump/aee.
  *
  * A module (not built-in): this tree's kernel Image is built from the OPPO
  * common kernel only, so built-in objects here never reach vmlinux. The
@@ -26,7 +31,13 @@
 #include <linux/notifier.h>
 #include <linux/printk.h>
 
-#define XAGA_MRDUMP_PA	0x48170000UL
+/* Writing the minirdump region (0x48170000) triggers MTK's mrdump machinery
+ * and reboots the device immediately (observed on device 2026-08-09; also
+ * documented in the xaga-marker reader). Use the log_store region instead:
+ * a non-secure reserved area (0x7ffbf000) that is not managed by mrdump/aee,
+ * survives the watchdog reboot in DRAM, and is read by the lineage_xaga
+ * reader (also NS, no TZASC violation). */
+#define XAGA_MRDUMP_PA	0x7ffbf000UL
 #define XAGA_MRDUMP_SZ	0x10000UL
 #define XAGA_RING_OFF	0x2000U
 #define XAGA_RING_SZ	0xE000U
