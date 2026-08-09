@@ -33,15 +33,15 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 1. 配置：`gki_defconfig` + `mgk_64_k612_defconfig` + `vendor/xaga.config`
 2. 内核 `Image` + `Image.gz`（gzip）
 3. in-tree 模块（刷新 `Module.symvers`）
-4. OOT 模块 → **134 个 `.ko`**（`make M=`，硬断言，含 xaga-marker-writer 诊断模块）
+4. OOT 模块 → **133 个 `.ko`**（`make M=`，硬断言）
 5. DTS 三件：`mt6895.dtb`（SoC 基座）+ `xaga.dtbo` / `xaga_global.dtbo`（fdtoverlay 校验）
 6. `images/out/boot_new.img` — magiskboot `-n`：Image.gz 内核 + 6.12 kernelsu 注入官方 boot
-7. `images/out/vendor_boot_new.img` — mkbootimg：官方 vendor ramdisk 换 134 个 6.12 .ko（含 xaga-marker-writer 诊断模块，modules.load 排最前）+ 元数据重建（modules.load/recovery 134 行 + depmod 平铺）+ DTBO_TAG dtb 槽 + pad 64MB
+7. `images/out/vendor_boot_new.img` — mkbootimg：官方 vendor ramdisk 换 133 个 6.12 .ko + 元数据重建（modules.load/recovery 133 行 + depmod 平铺）+ DTBO_TAG dtb 槽 + pad 64MB
 8. `images/out/dtbo_new.img` — DTOv1 单条目（xaga.dtbo，不 pad）
 
 ```
 ./build.sh                        # 默认：全量编译 + 打包（产物 → images/out/）
-./build.sh --modules-only         # 只编译内核模块（配置 → 134 个 .ko），不编译 Image/DTS、不打包
+./build.sh --modules-only         # 只编译内核模块（配置 → 133 个 .ko），不编译 Image/DTS、不打包
 ./build.sh --no-clean             # 增量编译（不清除已有产物）
 ./build.sh --skip=BOOT,VENDOR     # 全量编译但跳过指定打包步骤（DTBO 同理）
 ./build.sh --help
@@ -51,7 +51,7 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 
 - 编译产物在 `out/`：`Image` / `Image.gz` / `Module.symvers` / `dts/`（DTS 三件副本）
 - 打包产物在 `images/out/`：`boot_new.img` / `vendor_boot_new.img` / `dtbo_new.img`
-- 模块树内 **134 个 `.ko`**（`kernel_device_modules-6.12/` 原位）
+- 模块树内 **133 个 `.ko`**（`kernel_device_modules-6.12/` 原位）
 
 **路径全部默认相对脚本目录，无需硬编码**：
 
@@ -120,7 +120,7 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 - `1409327` + `5829818` 全量平台模块构建（118 → 123 ko）/ `a377ba2` 审计修复
 - `7f75af8` + `f3e8e80` 6 颗 camera sensor / `e321232` + `1aadba1` KTD2687 闪光灯 / `4b2d268` Pump Express（2026-08-07）
 - `270467e` README + 设备名修正；完整新旧 hash 对照见 STATUS.md §9
-- `build.sh` 一键构建脚本（clean → 配置 → in-tree 模块 → 134 个 .ko）
+- `build.sh` 一键构建脚本（clean → 配置 → in-tree 模块 → 133 个 .ko）
 
 ## 许可
 

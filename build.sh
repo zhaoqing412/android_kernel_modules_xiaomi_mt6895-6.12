@@ -200,12 +200,12 @@ modules() {
     log "4/8 in-tree modules (Module.symvers)"
     ( cd "$K" && make "${MAKE_CC[@]}" O="$OUT" ARCH=arm64 LLVM=1 -j"$JOBS" modules > "$WORK/inmod.log" 2>&1 )
 
-    log "4b/8 out-of-tree modules -> 134 x .ko (KBUILD_MODPOST_WARN=1)"
+    log "4b/8 out-of-tree modules -> 133 x .ko (KBUILD_MODPOST_WARN=1)"
     make -C "$K" O="$OUT" ARCH=arm64 LLVM=1 KCONFIG_EXT_PREFIX="$M/" M="$M" \
         DEVICE_MODULES_PATH="$M" DEVCIE_MODULES_INCLUDE="$INC" \
         KBUILD_MODPOST_WARN=1 -j"$JOBS" modules > "$WORK/ootmod.log" 2>&1
     NKO="$(find "$M" -name '*.ko' | wc -l)"
-    [ "$NKO" -eq 134 ] || { echo "ERROR: expected 134 .ko, got $NKO" >&2; exit 1; }
+    [ "$NKO" -eq 133 ] || { echo "ERROR: expected 133 .ko, got $NKO" >&2; exit 1; }
     echo "$NKO .ko built"
 }
 
@@ -270,13 +270,6 @@ pack_vendor() {
     cp $(find "$M" -name '*.ko') lib/modules/
     cd lib/modules
     ls *.ko | sed 's|\.ko$||' | sort > modules.load
-    # xaga-marker-writer must load FIRST so its module notifier logs the rest
-    if grep -q '^xaga-marker-writer$' modules.load; then
-        grep -v '^xaga-marker-writer$' modules.load > modules.load.tmp
-        printf 'xaga-marker-writer\n' > modules.load
-        cat modules.load.tmp >> modules.load
-        rm -f modules.load.tmp
-    fi
     cp modules.load modules.load.recovery
     # depmod: temp version dir (flat layout), move metadata out, drop prefix
     local VER="$VERMAGIC_VER"

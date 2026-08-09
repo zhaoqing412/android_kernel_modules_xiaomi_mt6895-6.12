@@ -15,13 +15,3 @@ config XAGA_OOPS_LOG
 	  (/dev/block/sdc81 by default) as raw text. Polling bio writes make
 	  it panic-safe, unlike the pstore/blk backend which cannot write
 	  during panic. Read back with: dd if=/dev/block/sdc81 bs=64 skip=1
-
-config XAGA_MARKER_WRITER
-	tristate "xaga boot-stage marker writer (XAGR ring)"
-	help
-	  Write boot-stage markers into the minirdump reserved region
-	  (0x48170000) at each module load (module notifier) so a boot hang
-	  can be located from the next boot's dmesg (dumped by the xaga-marker
-	  reader in the XagaForge kernel). Must load FIRST from the vendor
-	  ramdisk modules.load to log the modules that follow; pack_vendor
-	  orders it so.
