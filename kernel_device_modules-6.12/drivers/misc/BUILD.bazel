@@ -12,8 +12,8 @@ define_mgk_ddk_ko(
 )
 
 define_mgk_ddk_ko(
-    name = "xaga_oops_log",
-    srcs = ["xaga_oops_log.c"],
+    name = "xaga-marker-writer",
+    srcs = ["xaga-marker-writer.c"],
     includes = ["."],
 )
 

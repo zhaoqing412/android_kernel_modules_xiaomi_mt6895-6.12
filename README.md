@@ -98,7 +98,7 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 
 ## 特性
 
-- **内核日志 → oops 分区**：`CONFIG_XAGA_OOPS_LOG=m`（自 5.10 ESK 移植的 kmsg_dumper，panic 安全 bio 直写 raw 分区 `/dev/block/sdc81`；读取：`dd if=/dev/block/sdc81 bs=64 skip=1` 当文本处理）
+- **挂死定位（xaga-marker）**：`CONFIG_XAGA_MARKER_WRITER=m`（xaga-marker-writer 模块，modules.load 排第一），模块加载逐条写 XAGR 环到 minirdump 保留区 0x48170000；内核挂死（kmsg_dumper 不触发）时环最后一条 = 挂死模块，WDT 复位后 DRAM 保留，由 **lineage_xaga 内核的 xaga-marker 读端**下次启动 dmesg 打印（替代已弃用的 xaga_oops_log/oops 分区方案，2026-08-09）
 - 产物镜像（boot/vendor_boot/dtbo）：见 `xaga/images/out/`（打包产物；构建中间产物在 `xaga/images/building/`）
 
 ## 已知缺口 / 待用户环境处理

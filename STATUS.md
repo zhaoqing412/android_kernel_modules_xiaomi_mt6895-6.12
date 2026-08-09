@@ -52,7 +52,7 @@ xaga/kernel_xiaomi_mt6895-6.12/
 | INPUT_AW8697_HAPTIC | =m | 线性马达 |
 | MTK_VIDEO_KTD2687 | =m | 闪光灯 |
 | CUSTOM_KERNEL_IMGSENSOR | 6 颗 | sensor 名列表（s5khm2/s5k4h7/ov16a1/s5kgw1/gc02m1/ov02b10） |
-| XAGA_OOPS_LOG | =m | oops 分区日志（自 5.10 移植的 kmsg_dumper，panic 安全 bio 直写 raw 分区 sdc81，无需 cmdline） |
+| XAGA_MARKER_WRITER | =m | boot-stage marker（XAGR 环写 minirdump 0x48170000，挂死定位，lineage_xaga 读端读） |
 
 ## 4. 构建状态
 
@@ -98,7 +98,7 @@ xaga/kernel_xiaomi_mt6895-6.12/
 | 4 | DTS Makefile 0 处 xaga 注册 | 需用户环境 | DTBO 列表在 `kernel/build` mgk 规则注册（本树无法完成）；mgk_64.bzl:1361 给 mt6895 注册了 lm3644（xaga 用 KTD2687，保留无害可删） |
 | 5 | 触控 fw 文件 | 需设备侧 | nt36672e fw 文件放入 vendor 分区对应路径 |
 | 6 | 真机验证未做 | 待设备 | psy 对齐后充电流程、xaga_global 变体、mtk-master-charger kABI/模块加载顺序 |
-| 7 | xaga_oops_log 模块未在完整构建环境编译 | 需用户环境 | 新移植模块（2026-08-08），API 已对照 6.12.23 核实，语法检查通过（缺 generated 头）；需完整 MTK 环境编译验证；panic 下 IRQ 全屏蔽时 bio 完成中断不触发，已加有界轮询（超时放弃不挂死，写请求已入队仍会落盘） |
+| 7 | xaga-marker-writer 模块未在完整构建环境编译 | 需用户环境 | 新移植模块（2026-08-09），需完整 MTK 环境编译验证；挂死定位方案（XAGR 环），替代已弃用的 xaga_oops_log/oops 分区方案 |
 
 ## 7. 下一步
 
@@ -119,7 +119,7 @@ xaga/kernel_xiaomi_mt6895-6.12/
 | 触摸用 NVT36672C 而非 6.12 NT36532 | xaga 实际出货驱动（双击唤醒 + 游戏参数） |
 | C7 不移植 fpsgo_cus/msync2_frd_cus | fpsgo 被 6.12 fpsgo_v3 完整覆盖；msync2 核心是闭源 5.10 二进制 |
 | 保留 of_gpio.h/of_get_named_gpio | 63 个树内用户；移植更多 5.10 驱动时勿"现代化"成 gpiod |
-| oops 日志用自定义 kmsg_dumper（xaga_oops_log）而非官方 pstore/blk | pstore/blk 的 best_effort 模式 panic 无法落盘、需 cmdline 注入且 zone 布局复杂；自定义模块轮询 bio 直写 raw 分区，panic 安全、读取即文本（审计 2026-08-08 定案，原 0b7a811 PSTORE_BLK 方案弃用） |
+| 挂死定位用 xaga-marker（XAGR 环）而非 oops 分区/kmsg_dumper | 内核挂死时 kmsg_dumper 不触发（oops 方案失效）；marker 写端在每次模块加载时写环，环最后一条 = 挂死模块，WDT 复位后 DRAM 保留，lineage_xaga 读端下次启动 dmesg 打印（定案 2026-08-09，xaga_oops_log 弃用） |
 
 ## 9. 新旧 commit 对照（rebase 后旧 hash 全部失效）
 

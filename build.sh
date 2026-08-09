@@ -179,8 +179,8 @@ config() {
         "$M/arch/arm64/configs/vendor/xaga.config" > "$WORK/merge.log" 2>&1 )
     ( cd "$K" && make "${MAKE_CC[@]}" O="$OUT" ARCH=arm64 LLVM=1 olddefconfig > "$WORK/config2.log" 2>&1 )
     sed -i "s|^CONFIG_MODULE_SIG_KEY=.*|CONFIG_MODULE_SIG_KEY=\"$PEM\"|" "$OUT/.config"
-    grep -q '^CONFIG_XAGA_OOPS_LOG=m' "$OUT/.config" \
-        || { echo "ERROR: CONFIG_XAGA_OOPS_LOG missing after merge" >&2; exit 1; }
+    grep -q '^CONFIG_XAGA_MARKER_WRITER=m' "$OUT/.config" \
+        || { echo "ERROR: CONFIG_XAGA_MARKER_WRITER missing after merge" >&2; exit 1; }
 }
 
 # ---------------------------------------------------------------------------
@@ -270,6 +270,13 @@ pack_vendor() {
     cp $(find "$M" -name '*.ko') lib/modules/
     cd lib/modules
     ls *.ko | sed 's|\.ko$||' | sort > modules.load
+    # xaga-marker-writer must load FIRST so its module notifier logs the rest
+    if grep -q '^xaga-marker-writer$' modules.load; then
+        grep -v '^xaga-marker-writer$' modules.load > modules.load.tmp
+        printf 'xaga-marker-writer\n' > modules.load
+        cat modules.load.tmp >> modules.load
+        rm -f modules.load.tmp
+    fi
     cp modules.load modules.load.recovery
     # depmod: temp version dir (flat layout), move metadata out, drop prefix
     local VER="$VERMAGIC_VER"

@@ -8,10 +8,12 @@ config SIMTRAY_STATUS
 	help
 	  Say Y here to enable the Xiaomi SIM tray status driver (xiaomi,simtray-status).
 
-config XAGA_OOPS_LOG
-	tristate "xaga oops partition kernel log dumper"
+config XAGA_MARKER_WRITER
+	tristate "xaga boot-stage marker writer (XAGR ring)"
 	help
-	  Save kernel panic/oops log to the dedicated "oops" block partition
-	  (/dev/block/sdc81 by default) as raw text. Polling bio writes make
-	  it panic-safe, unlike the pstore/blk backend which cannot write
-	  during panic. Read back with: dd if=/dev/block/sdc81 bs=64 skip=1
+	  Write boot-stage markers into the minirdump reserved region
+	  (0x48170000) at each module load (module notifier) so a boot hang
+	  can be located from the next boot's dmesg (dumped by the xaga-marker
+	  reader in the lineage_xaga kernel). Must load FIRST from the vendor
+	  ramdisk modules.load to log the modules that follow; pack_vendor
+	  orders it so.

@@ -56,12 +56,14 @@ scripts/kconfig/merge_config.sh -m -r \
 `CONFIG_INPUT_AW8697_HAPTIC=m`、`CONFIG_TOUCHSCREEN_XIAOMI_DOUBLE_CLICK=m`、
 `CONFIG_MTK_VIDEO_KTD2687=m`(闪光灯)、`CONFIG_DRM_PANEL_LEDS_KTZ8863A=m`(背光)。
 
-> ⚠️ **oops 分区日志(xaga_oops_log 模块, raw 分区直写)**:`CONFIG_XAGA_OOPS_LOG=m`
-> 注册 kmsg dumper,崩溃时用 **panic 安全的轮询 bio** 把 dmesg 文本直接写入
-> `/dev/block/sdc81`(offset 0 覆写:64B "XAGA" 头 + 文本 payload)。无需 cmdline、
-> 无需预格式化、无需 best_effort。读取:`dd if=/dev/block/sdc81 bs=64 skip=1`
-> 或 `strings /dev/block/sdc81`。不使用官方 pstore/blk(best_effort 模式下
-> panic 无法落盘,且不注入 best_effort=1 时后端根本不注册)。
+> ⚠️ **boot-stage marker(XAGR 环,挂死定位)**:`CONFIG_XAGA_MARKER_WRITER=m`
+> (xaga-marker-writer 模块,vendor ramdisk modules.load 排第一)把每次模块加载
+> 写入 minirdump 保留区 0x48170000 的 XAGR 环(magic 0x52474158 @0x0000 /
+> cursor @0x0004 / total @0x0008 / stage @0x1000 / 文本环 @0x2000 长 0xE000),
+> 环最后一条 = 挂死模块。环随 AP watchdog 复位在 DRAM 保留,下次启动由
+> **lineage_xaga 内核的 xaga-marker 读端**(postcore_initcall dump)dmesg 打印。
+> 内核挂死时 kmsg_dumper 不触发,故不用 xaga_oops_log/oops 分区方案
+> (已弃用,2026-08-09)。
 
 ### 1.4 产物
 `Image.gz` + `mt6895.dtb` + `xaga.dtbo`(+`xaga_global.dtbo`) + 模块 ko 集。
