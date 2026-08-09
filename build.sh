@@ -255,7 +255,9 @@ pack_boot() {
 pack_vendor() {
     log "7/8 vendor_boot_new.img (no 5.10 modules, mkbootimg, padded 64MB)"
     local VD="$WORK/vb"; mkdir -p "$VD"; cd "$VD"
-    "$MAGISKBOOT" unpack -n -h "$OFFICIAL/vendor_boot.img" > "$WORK/vb_unpack.log" 2>&1
+    # magiskboot unpack on vendor_boot exits 3 (VBMETA handling) though it
+    # extracts everything; later steps verify the files exist
+    "$MAGISKBOOT" unpack -n -h "$OFFICIAL/vendor_boot.img" > "$WORK/vb_unpack.log" 2>&1 || true
     cd "$VD/vendor_ramdisk"
     lz4 -l -d -f ramdisk.cpio vr.raw > /dev/null 2>&1 || true
     mkdir -p rd && cd rd
