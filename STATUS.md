@@ -5,7 +5,7 @@
 
 ## 1. 项目定位与树结构
 
-xaga（Redmi Note 11T Pro / POCO X4 GT / Redmi K50i，MT6895 / Dimensity 8100）的 **Android 6.12 内核模块移植树** —— 把小米 5.10 ESK 的板级 DTS 与 OOT 驱动搬到 6.12 MTK 模块树（`kernel_device_modules-6.12`，kleaf/mgk 构建模型，基座为 OPPO oddo6_12）。
+xaga（Redmi Note 11T Pro / POCO X4 GT / Redmi K50i，MT6895 / Dimensity 8100）的 **Android 6.12 内核模块移植树** —— 把小米 5.10 ESK 的板级 DTS 与 OOT 驱动搬到 6.12 MTK 模块树（`kernel_device_modules-6.12`，kleaf/mgk 构建模型，基座为 OPPO `android_kernel_oddo_mt6895`）。
 
 ```
 xaga/kernel_xiaomi_mt6895-6.12/
@@ -114,7 +114,7 @@ xaga/kernel_xiaomi_mt6895-6.12/
 
 | 决策 | 理由 |
 |---|---|
-| 基于 OPPO oddo6_12 而非小米 6.6 | 同版本（6.12）优先；小米 6.6 是 GKI common，无 MTK 设备层 |
+| 基于 OPPO `android_kernel_oddo_mt6895` 而非小米 6.6 | 同版本（6.12）优先；小米 6.6 是 GKI common，无 MTK 设备层 |
 | qc_cp_manager 不启用 | xaga 是 MTK PD 快充设备；5.10 vendor 配置从未设置 XM_QC_MANAGER |
 | 触摸用 NVT36672C 而非 6.12 NT36532 | xaga 实际出货驱动（双击唤醒 + 游戏参数） |
 | C7 不移植 fpsgo_cus/msync2_frd_cus | fpsgo 被 6.12 fpsgo_v3 完整覆盖；msync2 核心是闭源 5.10 二进制 |

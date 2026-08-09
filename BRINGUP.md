@@ -11,14 +11,14 @@
 
 ```
 xaga/kernel_xiaomi_mt6895-6.12/            # 本移植树(git 仓库, 24 commits)
-└── kernel_device_modules-6.12/            # MTK 6.12 OOT 模块源(基于 OPPO oddo6_12, OPPO 专属已剥离)
+└── kernel_device_modules-6.12/            # MTK 6.12 OOT 模块源(基于 OPPO android_kernel_oddo_mt6895, OPPO 专属已剥离)
     ├── arch/arm64/boot/dts/mediatek/      # xaga.dts / xaga_global.dts 板级 overlay
     ├── arch/arm64/configs/vendor/xaga.config   # xaga defconfig 片段
     ├── drivers/...                        # 移植的小米驱动(触摸/充电/面板/背光/触觉)
     └── kernel/kleaf/mgk_64.bzl            # mgk 模块注册表
 ```
 
-**本树不含**:GKI common 内核(需 OPPO `oddo6_12/android_kernel_oppo_mt6896` 6.12.23 或小米 6.6 对应内核)、`kernel/build`(MTK mgk bazel 规则)、clang 工具链、`vendor/mediatek/kernel_modules`(connectivity/gpu 等 MTK 通用模块, 6.12 版本在 OPPO 树 `vendor/mediatek/kernel_modules/`)。这些来自用户的完整 MTK repo manifest 环境。
+**本树不含**:GKI common 内核(需 OPPO `../android_kernel_oddo_mt6895` 6.12.23 或小米 6.6 对应内核)、`kernel/build`(MTK mgk bazel 规则)、clang 工具链、`vendor/mediatek/kernel_modules`(connectivity/gpu 等 MTK 通用模块, 6.12 版本在 OPPO 树 `vendor/mediatek/kernel_modules/`)。这些来自用户的完整 MTK repo manifest 环境。
 
 ---
 
@@ -27,7 +27,7 @@ xaga/kernel_xiaomi_mt6895-6.12/            # 本移植树(git 仓库, 24 commits
 ### 1.1 需要的组件
 | 组件 | 来源 | 说明 |
 |---|---|---|
-| GKI common 内核 6.12 | OPPO `android_kernel_oppo_mt6896`(6.12.23) | 与 modules 树配对编译 |
+| GKI common 内核 6.12 | OPPO `../android_kernel_oddo_mt6895`(6.12.23) | 与 modules 树配对编译 |
 | kernel_device_modules-6.12 | 本移植树 | 含 xaga 板级+驱动 |
 | kernel/build (mgk 规则) | MTK alps manifest | bazel/kleaf 构建驱动 |
 | vendor/mediatek/kernel_modules | OPPO 树或 MTK manifest | connectivity/gpu/met_drv/udc(6.12 版, mt6895 已支持) |
@@ -68,7 +68,7 @@ scripts/kconfig/merge_config.sh -m -r \
 打包进 boot/vendor_boot 时注意:dtbo 用 `xaga.dtbo`(CN 版);开机先用 CN 版。
 
 #### 打包要求（2026-08-08 实测定型，官方内容验证版可启动）
-- **boot = magiskboot**（`xaga/magiskboot`，-n 流程）：`unpack -n -h boot_a.img` → 换 kernel（Image.gz 原样）/ ramdisk（`magiskboot cpio ... "add 0755 kernelsu.ko <6.12版>"`）→ `repack -n`。⚠️ 默认 repack 会重新 gzip 压缩 kernel，**实测不能启动**，必须 -n。
+- **boot = magiskboot**（`xaga/images/building/tools/magiskboot`，-n 流程）：`unpack -n -h boot_a.img` → 换 kernel（Image.gz 原样）/ ramdisk（`magiskboot cpio ... "add 0755 kernelsu.ko <6.12版>"`）→ `repack -n`。⚠️ 默认 repack 会重新 gzip 压缩 kernel，**实测不能启动**，必须 -n。
 - **vendor_boot = 本地 mkbootimg**（`/tmp/mkboot_new/mkbootimg_lineage-21.0.py`）：`--vendor_boot out.img --vendor_ramdisk <官方完整ramdisk区42,743,860B 含2,005B "TRAILER!!!"尾部> --dtb <DTBO_TAG容器> --vendor_cmdline "bootopt=64S3,32N2,64N2" --base 0x40000000 --kernel_offset 0 --ramdisk_offset 0x26f00000 --tags_offset 0x7c80000 --dtb_offset 0x7c80000 --header_version 4 --pagesize 4096 --board ""`；产物需 patch vrt 偏移 43,077,632 处 4 字节为 42,741,855 + pad 到 64MB。⚠️ magiskboot 打包 vendor_boot 实测失败（丢 2,005B 尾部 + ramdisk_size 字段不符），勿用。
 - 详细配方见容器根 `AGENTS.md`「xaga 镜像打包要求」小节与 `xaga/README.md`。
 
@@ -180,7 +180,7 @@ drivers/power/supply/mtk_pd_adapter.c    (pd_authentication 成功路径, ~:568)
 
 | 决策 | 理由 |
 |---|---|
-| 基于 OPPO oddo6_12 而非小米 6.6 | 同版本(6.12)优先; 小米 6.6 是 GKI common 且无 MTK 设备层 |
+| 基于 OPPO `android_kernel_oddo_mt6895` 而非小米 6.6 | 同版本(6.12)优先; 小米 6.6 是 GKI common 且无 MTK 设备层 |
 | 板级 DTS 直接移植 5.10 ESK 链, 不 include k6895v1_64.dts | 两树定义相同 label → DTC 重复标签错误 |
 | 触摸用 NVT36672C 而非 6.12 NT36532 | xaga 实际出货驱动(双击唤醒+游戏参数); NT36532 只有基础绑定 |
 | 充电管理器默认开启, 但 usb_psy 对齐留到真机 | 编译无碍; 真机回退安全 |

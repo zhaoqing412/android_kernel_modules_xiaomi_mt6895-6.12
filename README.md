@@ -7,7 +7,7 @@ xaga（Redmi Note 11T Pro / POCO X4 GT / Redmi K50i，Dimensity 8100 / MT6895）
 - 基座：OPPO 6.12 MTK 模块树（`kernel_device_modules-6.12`，kleaf/mgk 构建模型）
 - 移植来源：小米 5.10 ESK 内核（`../baselines/kernel/kernel_xiaomi_mt6895`，16.2-rebase）与官方 5.10 内核（`../baselines/kernel/offical_kernel_xiaomi_mt6895`，xaga-s-oss）
 - 内核版本：6.12（GKI common + MTK mgk 规则）
-- 配套内核源码：OPPO 6.12 内核（`oddo6_12/android_kernel_oppo_mt6896`，6.12.23）
+- 配套内核源码：OPPO 6.12 内核（`../android_kernel_oddo_mt6895`，6.12.23）
 
 ## 目录
 
@@ -26,35 +26,51 @@ gki_defconfig + merge_config.sh -m <mgk_64_k612_defconfig> <vendor/xaga.config>
 CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 ```
 
-### 一键构建模块：`./build.sh`
+### 一键构建+打包：`./build.sh`
 
-在完整工作区（OPPO 6.12 内核 `oddo6_12/android_kernel_oppo_mt6896`）内，`build.sh` 可从零完成**内核模块**的全部编译：
+在完整工作区（OPPO 6.12 内核 `../android_kernel_oddo_mt6895`）内，`build.sh` 默认从零完成**全量编译 + 打包**（工具链/依赖处理参考 `clang_build_fix.sh`）：
+
+1. 配置：`gki_defconfig` + `mgk_64_k612_defconfig` + `vendor/xaga.config`
+2. 内核 `Image` + `Image.gz`（gzip）
+3. in-tree 模块（刷新 `Module.symvers`）
+4. OOT 模块 → **133 个 `.ko`**（`make M=`，硬断言）
+5. DTS 三件：`mt6895.dtb`（SoC 基座）+ `xaga.dtbo` / `xaga_global.dtbo`（fdtoverlay 校验）
+6. `images/out/boot_new.img` — magiskboot `-n`：Image.gz 内核 + 6.12 kernelsu 注入官方 boot
+7. `images/out/vendor_boot_new.img` — mkbootimg：官方 vendor ramdisk 换 133 个 6.12 .ko + 元数据重建（modules.load/recovery 133 行 + depmod 平铺）+ DTBO_TAG dtb 槽 + pad 64MB
+8. `images/out/dtbo_new.img` — DTOv1 单条目（xaga.dtbo，不 pad）
 
 ```
-./build.sh              # 默认：clean → 配置 → in-tree 模块 → 133 个 .ko
-./build.sh --no-clean   # 增量编译（不清除已有产物）
+./build.sh                        # 默认：全量编译 + 打包（产物 → images/out/）
+./build.sh --modules-only         # 只编译内核模块（配置 → 133 个 .ko），不编译 Image/DTS、不打包
+./build.sh --no-clean             # 增量编译（不清除已有产物）
+./build.sh --skip=BOOT,VENDOR     # 全量编译但跳过指定打包步骤（DTBO 同理）
+./build.sh --help
 ```
 
 产物：
 
+- 编译产物在 `out/`：`Image` / `Image.gz` / `Module.symvers` / `dts/`（DTS 三件副本）
+- 打包产物在 `images/out/`：`boot_new.img` / `vendor_boot_new.img` / `dtbo_new.img`
 - 模块树内 **133 个 `.ko`**（`kernel_device_modules-6.12/` 原位）
-- `out/Module.symvers` — 模块符号表（in-tree + OOT 链接用；默认输出在本仓库 `out/` 目录）
 
 **路径全部默认相对脚本目录，无需硬编码**：
 
 - 模块树 `M` = `./kernel_device_modules-6.12`
-- 输出 `OUT` = `./out`
+- 编译输出 `OUT` = `./out`
+- 官方镜像 `OFFICIAL` = `../images/offical/`（`boot.img` / `vendor_boot.img` / `dtbo.img`）
+- 打包输出 `OUT_IMG` = `../images/out/`
+- 工具：`MAGISKBOOT` / `MKBOOTIMG` / `MKDTBO` / `KERNELSU` 均在 `../images/building/tools/`
 - 签名 key `PEM` = `$M/certs/mtk_signing_key.pem`
-- 工具链 `LLVM_PREFIX` = `/usr/lib/llvm-18`（clang 18）
+- 工具链 `LLVM_PREFIX` = `/usr/lib/llvm-18`（clang 18）；`USE_CCACHE=1` 可加 ccache 前缀
 
 **OPPO 6.12 内核源码（`K`）自动定位**——依次尝试：
 
 1. `K` 环境变量（若已设置且存在）
-2. 脚本同级/父级目录：`./android_kernel_oppo_mt6896`、`../oddo6_12/android_kernel_oppo_mt6896` 等
+2. 脚本同级/父级目录：`../android_kernel_oddo_mt6895`（xaga/ 下，本机位置）等
 3. GitHub 远程克隆名 `android_kernel_oddo_mt6895`（同级/父级/`xaga/` 下）
 4. 都找不到时提示手动输入
 
-所有路径均可用环境变量覆盖（`K`/`M`/`OUT`/`PEM`/`LLVM_PREFIX`/`JOBS`）。编译日志保留在 `/tmp/xaga_build.*/`。
+所有路径均可用环境变量覆盖（`K`/`M`/`OUT`/`XAGA`/`IMG_DIR`/`OFFICIAL`/`OUT_IMG`/`PEM`/`LLVM_PREFIX`/`JOBS`）。编译日志保留在 `/tmp/xaga_build.*/`。
 
 板级 defconfig 片段：`arch/arm64/configs/vendor/xaga.config`
 板级 DTS：`arch/arm64/boot/dts/mediatek/xaga.dts`（overlay 于 `mt6895.dts` SoC 基座）
