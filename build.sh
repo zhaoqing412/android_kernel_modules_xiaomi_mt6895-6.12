@@ -189,7 +189,8 @@ config() {
 kernel() {
     log "3/8 kernel Image + Image.gz"
     ( cd "$K" && make "${MAKE_CC[@]}" O="$OUT" ARCH=arm64 LLVM=1 -j"$JOBS" Image > "$WORK/kernel.log" 2>&1 )
-    gzip -c "$OUT/arch/arm64/boot/Image" > "$OUT/arch/arm64/boot/Image.gz"
+    # gzip -n: no embedded filename/timestamp (MTK bootloader requirement)
+    gzip -n -c "$OUT/arch/arm64/boot/Image" > "$OUT/arch/arm64/boot/Image.gz"
     ls -la "$OUT/arch/arm64/boot/Image.gz"
 }
 
