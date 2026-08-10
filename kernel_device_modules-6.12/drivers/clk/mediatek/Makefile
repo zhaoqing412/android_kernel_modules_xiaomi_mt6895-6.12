@@ -404,6 +404,18 @@ endif
 #endif
 
 # xaga: platform module wiring
+# clk-common: MTK clock framework core (clk-mtk/clk-pll/clk-gate/clk-mux +
+# clkchk/clk-fmeter/mtk-pd-chk/clkdbg). alps builds this via BUILD.bazel;
+# without it clkchk's get_all_provider_clks is never exported and
+# clk-bringup fails to load in init's first stage (Attempted to kill init,
+# 2026-08-10). clk-mt6895* etc. depend on these symbols.
+obj-m += clk-common.o
+clk-common-y := clk-mtk.o clk-pll.o clk-gate.o clk-mux.o clkchk.o \
+		clk-fmeter.o mtk-pd-chk.o clkdbg.o
+# clkdbg_test_task sets but never reads ign (strsep() discard) - alps verbatim
+$(obj)/clkdbg.o: ccflags-y += -Wno-unused-but-set-variable
+
+# xaga: platform module wiring
 obj-m += clk-bringup.o
 
 # xaga: platform module wiring
