@@ -23,7 +23,8 @@ subdir-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/scp/rv
 #snd-soc-mtk-common-$(CONFIG_SND_SOC_MTK_SMART_PHONE) += mtk-sp-pcm-ops.o mtk-afe-debug.o
 
 # functions for external modules
-#obj-$(CONFIG_SND_SOC_MTK_SMART_PHONE) += mtk-afe-external.o
+# xaga: platform module wiring (exports notify_vb_audio_control for mediatek-drm)
+obj-$(CONFIG_SND_SOC_MTK_SMART_PHONE) += mtk-afe-external.o
 
 # speaker dynamic detect
 #obj-$(CONFIG_SND_SOC_MTK_SMART_PHONE) += mtk-sp-spk-amp.o

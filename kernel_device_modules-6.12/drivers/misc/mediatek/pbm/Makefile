@@ -31,5 +31,19 @@
 # ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling/
 # obj-$(CONFIG_MTK_PEAK_POWER_BUDGET) += mtk_peak_power_budget.o
 
+# xaga: platform module wiring (alps BUILD.bazel; exports kicker_ppb_request_power
+# for flashlight)
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mcupm/include
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mdpm_v1/inc
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpueb
+ccflags-y += -I$(srctree)/drivers/gpu/mediatek/gpufreq
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpufreq/v2/include
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/cg_ppt
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/tinysys_scmi
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mbraink
+ccflags-y += -I$(src)
+obj-$(CONFIG_MTK_PEAK_POWER_BUDGET) += mtk_peak_power_budget.o
+
 # xaga: platform module wiring
 obj-m += mtk_pbm.o

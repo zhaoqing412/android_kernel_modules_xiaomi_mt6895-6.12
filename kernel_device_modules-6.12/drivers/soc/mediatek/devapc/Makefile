@@ -6,11 +6,14 @@ endif
 
 subdir-ccflags-$(CONFIG_MTK_ENG_BUILD) += -DDBG_ENABLE
 
-#obj-$(CONFIG_DEVAPC_ARCH_COMMON) += device-apc-common-legacy.o
-#device-apc-common-legacy-$(CONFIG_DEVAPC_ARCH_COMMON) += devapc-mtk-common.o
+# xaga: platform module wiring (alps BUILD.bazel: device-apc-common-legacy /
+# device-apc-common / device-apc-mt6895; exports register_devapc_vio_callback
+# etc. for clkchk-mt6895 / mtk-mminfra-debug)
+obj-$(CONFIG_DEVAPC_ARCH_COMMON) += device-apc-common-legacy.o
+device-apc-common-legacy-$(CONFIG_DEVAPC_ARCH_COMMON) += devapc-mtk-common.o
 
-#obj-$(CONFIG_DEVAPC_ARCH_MULTI) += device-apc-common.o
-#device-apc-common-$(CONFIG_DEVAPC_ARCH_MULTI) += devapc-mtk-multi-ao.o
+obj-$(CONFIG_DEVAPC_ARCH_MULTI) += device-apc-common.o
+device-apc-common-$(CONFIG_DEVAPC_ARCH_MULTI) += devapc-mtk-multi-ao.o
 
 #ifneq ($(wildcard $(src)/devapc-mt6761.c),)
 #obj-$(CONFIG_DEVAPC_MT6761) += device-apc-mt6761.o
@@ -68,8 +71,8 @@ subdir-ccflags-$(CONFIG_MTK_ENG_BUILD) += -DDBG_ENABLE
 #endif
 #
 #ifneq ($(wildcard $(src)/devapc-mt6895.c),)
-#obj-$(CONFIG_DEVAPC_MT6895) += device-apc-mt6895.o
-#device-apc-mt6895-$(CONFIG_DEVAPC_MT6895) += devapc-mt6895.o
+obj-$(CONFIG_DEVAPC_MT6895) += device-apc-mt6895.o
+device-apc-mt6895-$(CONFIG_DEVAPC_MT6895) += devapc-mt6895.o
 #endif
 #
 #ifneq ($(wildcard $(src)/devapc-mt6897.c),)

@@ -15,4 +15,10 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mmdebug/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/vcp/include/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/vcp/rv/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/
+
+# xaga: platform module wiring (alps BUILD.bazel mtk-mmdebug-vcp-stub +
+# mtk-mmdebug-vcp; exports mmdebug_is_init_done for mtk-mmdvfs-v5)
+obj-m += mtk-mmdebug-vcp-stub.o
+obj-m += mtk-mmdebug-vcp.o
 

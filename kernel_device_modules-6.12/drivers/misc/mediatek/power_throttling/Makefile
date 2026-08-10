@@ -11,6 +11,10 @@
 
 # obj-$(CONFIG_MTK_MD_POWER_THROTTLING) += mtk_md_power_throttling.o
 
+# xaga: platform module wiring (alps BUILD.bazel; exports register_bp_thl_notify
+# for flashlight / dump_lvsys_thd etc. for mtk_low_battery_throttling)
+obj-m += mtk_bp_thl.o
+obj-m += pmic_lvsys_notify.o
 
 # xaga: platform module wiring
 obj-m += mtk_battery_oc_throttling.o

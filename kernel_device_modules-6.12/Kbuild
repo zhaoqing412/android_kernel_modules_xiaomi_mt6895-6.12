@@ -43,7 +43,9 @@ obj-y += drivers/rtc/
 
 obj-y += drivers/remoteproc/
 
-#obj-y += drivers/rpmsg/
+# xaga: platform module wiring (mtk_rpmsg_mbox exports mtk_rpmsg_create_channel/
+# create_device for mtk_tinysys_ipi)
+obj-y += drivers/rpmsg/
 
 obj-y += drivers/thermal/mediatek/
 
@@ -63,6 +65,9 @@ obj-y += drivers/mmc/host/
 
 obj-y += drivers/tee/
 
+# xaga: platform module wiring (mtu3 exports ssusb_get_drvdata for ps5170)
+obj-y += drivers/usb/
+
 obj-y += drivers/gpu/drm/mediatek/
 
 obj-y += drivers/input/misc/
@@ -81,6 +86,9 @@ obj-y += drivers/net/ethernet/stmicro/
 obj-y += drivers/net/phy/
 
 obj-y += drivers/devfreq/
+
+# xaga: platform module wiring (system_heap exports dma_buf_get_gid for mediatek-drm)
+obj-y += drivers/dma-buf/heaps/
 
 obj-y += drivers/misc/mediatek/dcm/
 obj-y += drivers/misc/

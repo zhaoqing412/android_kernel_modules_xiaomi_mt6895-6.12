@@ -27,3 +27,9 @@ obj-$(CONFIG_DRM_PANEL_LEDS_KTZ8863A) += leds-ktz8863a.o
 obj-$(CONFIG_DRM_PANEL_LEDS_KTZ8863A) += leds-ktz8863a.o
 
 ccflags-$(CONFIG_DRM_MEDIATEK_PANEL) += -I$(DEVICE_MODULES_PATH)/drivers/leds/
+
+# xaga: provides the __weak mtk_drm_gateic_set_backlight that leds-mtk-disp
+# may call (alps ships the file unbuilt; MTK_COMMON_LCM_DRV path)
+obj-m += mtk_drm_gateic.o
+mtk_drm_gateic-y := mtk_drm_gateic_rt4801h.o \
+	mtk_drm_gateic_rt4831a.o mtk_drm_panel_i2c.o

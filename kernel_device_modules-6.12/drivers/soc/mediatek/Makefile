@@ -33,6 +33,10 @@ obj-m += mtk-mbox.o
 # xaga: platform module wiring
 obj-m += mtk-mmdvfs.o
 
+# xaga: platform module wiring (alps BUILD.bazel mtk-mmdvfs-v3; exports
+# mtk_mmdvfs_camera_notify / mtk_mmdvfs_genpd_notify for mtk-vmm-notifier)
+obj-$(CONFIG_MTK_MMDVFS_VCP) += mtk-mmdvfs-v3.o
+
 # xaga: platform module wiring
 obj-m += mtk-pm-domain-disable-unused.o
 

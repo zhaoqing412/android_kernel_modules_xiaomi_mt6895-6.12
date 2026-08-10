@@ -12,5 +12,14 @@ ccflags-y += -I$(srctree)/kernel/
 # obj-$(CONFIG_DEVICE_MODULES_SCSI_UFS_MEDIATEK) += vendor/
 # obj-$(CONFIG_SCSI_UFS_MEDIATEK_DBG) += ufs-mediatek-dbg.o
 
+# xaga: platform module wiring (alps BUILD.bazel ufs-mediatek-mod; exports
+# ufs_mtk_rpmb_get_raw_dev for rpmb-mtk). Module name differs from the main
+# source (ufs-mediatek.c) to avoid Kbuild self-aggregation.
+obj-m += ufs-mediatek-mod.o
+ufs-mediatek-mod-y := ufs-mediatek.o ufs-mediatek-sysfs.o ufs-mediatek-mimic.o \
+		ufs-mediatek-mbrain.o
+ufs-mediatek-mod-$(CONFIG_MTK_BLOCK_IO_TRACER) += ufs-mediatek-btag.o
+ufs-mediatek-mod-$(CONFIG_MTK_RPMB) += ufs-mediatek-rpmb.o ufs-mediatek-ise-dummy.o
+
 # xaga: platform module wiring
 obj-m += ufs-mediatek-dbg.o

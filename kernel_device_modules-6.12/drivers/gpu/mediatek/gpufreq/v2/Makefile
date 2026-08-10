@@ -10,27 +10,37 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # See http://www.gnu.org/licenses/gpl-2.0.html for more details.
 #
-# ccflags-y += -I$(DEVICE_MODULES_PATH)/include/
-# ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpufreq/v2/include/
-# ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/ged/include/
-# ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpueb/include/
-# ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mt-plat/
-# ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/
-# ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/base/power/include/
-# ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/clk/mediatek/
-# ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling/
-# ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/pbm/
-# ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/aee/aed/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/include/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpufreq/v2/include/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/ged/include/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpueb/include/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mt-plat/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/base/power/include/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/clk/mediatek/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/power_throttling/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/pbm/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/aee/aed/
 
-# ccflags-y += \
-# 	-Wno-unused-variable \
-# 	-Wno-unused-function \
-# 	-Wno-unused-but-set-variable
+ccflags-y += \
+	-Wno-unused-variable \
+	-Wno-unused-function \
+	-Wno-unused-but-set-variable
 
-# mtk_gpufreq_wrapper-y := \
-# 	gpufreq_v2.o \
-# 	gpufreq_history.o \
-# 	gpufreq_debug.o
+# xaga: platform module wiring (alps BUILD.bazel mtk_gpufreq_wrapper + 
+# mtk_gpufreq_mt6895; wrapper exports gpufreq_set_mfgsys_config for
+# mtk_peak_power_budget)
+obj-$(CONFIG_MTK_GPU_SUPPORT) += mtk_gpufreq_wrapper.o
+mtk_gpufreq_wrapper-y := \
+	gpufreq_v2.o \
+	gpufreq_history.o \
+	gpufreq_debug.o
+
+obj-$(CONFIG_MTK_GPU_MT6895_SUPPORT) += mtk_gpufreq_mt6895.o
+mtk_gpufreq_mt6895-y := \
+	gpufreq_history_mt6895.o \
+	gpuppm.o \
+	gpufreq_mt6895.o
 
 # mtk_gpufreq_mt6886-y := \
 # 	gpufreq_history_mt6886.o \

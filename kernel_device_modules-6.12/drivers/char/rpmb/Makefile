@@ -13,6 +13,10 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/mmc/core
 
 obj-$(CONFIG_RPMB_SIM) += rpmb_sim.o
 
+# xaga: platform module wiring (alps BUILD.bazel rpmb; exports rpmb_mtk_cmd_req
+# for rpmb-mtk)
+obj-m += core.o
+
 ccflags-y += -D__CHECK_ENDIAN
 
 # xaga: platform module wiring

@@ -16,9 +16,11 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpueb/include/
 
 ccflags-y += -Wno-unused-but-set-variable
 
-# ifneq ($(CONFIG_MTK_GPU_LEGACY),y)
-# obj-$(CONFIG_MTK_TINYSYS_GPUEB_SUPPORT) += mtk_gpueb.o
-# endif
+# xaga: platform module wiring (exports get_gpueb_ipidev etc. for
+# mtk_peak_power_budget / mtk_bp_thl)
+ifneq ($(CONFIG_MTK_GPU_LEGACY),y)
+obj-$(CONFIG_MTK_TINYSYS_GPUEB_SUPPORT) += mtk_gpueb.o
+endif
 
 mtk_gpueb-y += \
     gpueb.o \

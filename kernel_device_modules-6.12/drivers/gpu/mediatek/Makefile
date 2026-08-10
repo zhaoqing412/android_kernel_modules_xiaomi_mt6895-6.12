@@ -54,6 +54,7 @@ ifneq ($(CONFIG_MTK_GPU_SUPPORT),)
     obj-y += gpu_iommu/
     obj-y += gpueb/
     obj-y += gpu_pdma/
+    obj-y += hal/
 
 ifneq ($(CONFIG_MTK_GPU_VERSION),"")
 # GPU R5P0

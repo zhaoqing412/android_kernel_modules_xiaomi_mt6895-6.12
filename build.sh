@@ -7,14 +7,14 @@
 #   1. kernel config      gki_defconfig + mgk_64_k612_defconfig + vendor/xaga.config
 #   2. kernel Image + Image.gz (gzip, per xaga packaging requirement)
 #   3. in-tree modules    (refreshes Module.symvers)
-#   4. out-of-tree modules -> 135 x .ko (make M=)
+#   4. out-of-tree modules -> 197 x .ko (make M=)
 #   5. DTS: mt6895.dtb (SoC base) + xaga.dtbo / xaga_global.dtbo (fdtoverlay check)
 #   6. boot_new.img       magiskboot -n: Image.gz kernel + 6.12 kernelsu in official boot
-#   7. vendor_boot_new.img mkbootimg: official ramdisk with 135 x 6.12 .ko, DTBO_TAG
+#   7. vendor_boot_new.img mkbootimg: official ramdisk with 197 x 6.12 .ko, DTBO_TAG
 #                        dtb slot, vrt name=[]/type=[platform], padded 64MB
 #   8. dtbo_new.img       DTOv1 single entry (xaga.dtbo), NOT padded
 #
-# --modules-only: compile modules only (config + in-tree + 135 .ko hard assert),
+# --modules-only: compile modules only (config + in-tree + 197 .ko hard assert),
 #                 no Image / DTS / packaging.
 #
 # Usage: ./build.sh [--modules-only] [--no-clean] [--skip=BOOT,VENDOR,DTBO]
@@ -201,6 +201,7 @@ config() {
         -e 's|^CONFIG_ARM64_E0PD=y|# CONFIG_ARM64_E0PD is not set|' \
         -e 's|^CONFIG_KASAN=y|# CONFIG_KASAN is not set|' \
         -e 's|^CONFIG_KASAN_HW_TAGS=y|# CONFIG_KASAN_HW_TAGS is not set|' \
+        -e 's|^CONFIG_MTK_ECCCI_DRIVER=m|# CONFIG_MTK_ECCCI_DRIVER is not set|' \
         "$OUT/.config"
     ( cd "$K" && make "${MAKE_CC[@]}" O="$OUT" ARCH=arm64 LLVM=1 olddefconfig > "$WORK/config2.log" 2>&1 )
     sed -i "s|^CONFIG_MODULE_SIG_KEY=.*|CONFIG_MODULE_SIG_KEY=\"$PEM\"|" "$OUT/.config"
@@ -238,18 +239,18 @@ kernel() {
 }
 
 # ---------------------------------------------------------------------------
-# 4. Modules: in-tree (Module.symvers) + out-of-tree 135 x .ko
+# 4. Modules: in-tree (Module.symvers) + out-of-tree 197 x .ko
 # ---------------------------------------------------------------------------
 modules() {
     log "4/8 in-tree modules (Module.symvers)"
     ( cd "$K" && make "${MAKE_CC[@]}" O="$OUT" ARCH=arm64 LLVM=1 -j"$JOBS" modules > "$WORK/inmod.log" 2>&1 )
 
-    log "4b/8 out-of-tree modules -> 135 x .ko (KBUILD_MODPOST_WARN=1)"
+    log "4b/8 out-of-tree modules -> 197 x .ko (KBUILD_MODPOST_WARN=1)"
     make -C "$K" O="$OUT" ARCH=arm64 LLVM=1 KCONFIG_EXT_PREFIX="$M/" M="$M" \
         DEVICE_MODULES_PATH="$M" DEVCIE_MODULES_INCLUDE="$INC" \
         KBUILD_MODPOST_WARN=1 -j"$JOBS" modules > "$WORK/ootmod.log" 2>&1
     NKO="$(find "$M" -name '*.ko' | wc -l)"
-    [ "$NKO" -eq 135 ] || { echo "ERROR: expected 135 .ko, got $NKO" >&2; exit 1; }
+    [ "$NKO" -eq 197 ] || { echo "ERROR: expected 197 .ko, got $NKO" >&2; exit 1; }
     echo "$NKO .ko built"
 }
 
@@ -295,7 +296,7 @@ pack_boot() {
 }
 
 # ---------------------------------------------------------------------------
-# 7. vendor_boot_new.img: official ramdisk, 5.10 .ko removed, 135 x 6.12 .ko
+# 7. vendor_boot_new.img: official ramdisk, 5.10 .ko removed, 197 x 6.12 .ko
 # ---------------------------------------------------------------------------
 pack_vendor() {
     log "7/8 vendor_boot_new.img (no 5.10 modules, mkbootimg, padded 64MB)"

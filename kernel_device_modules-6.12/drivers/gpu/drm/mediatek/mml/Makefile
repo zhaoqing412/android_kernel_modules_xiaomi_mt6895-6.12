@@ -12,127 +12,128 @@
 # GNU General Public License for more details.
 #
 
-#ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/drm/mediatek/mediatek_v2 \
-#             -I$(DEVICE_MODULES_PATH)/drivers/gpu/drm/mediatek/dpc \
-#             -I$(DEVICE_MODULES_PATH)/drivers/devfreq \
-#             -I$(DEVICE_MODULES_PATH)/drivers/dma-buf/heaps/ \
-#             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mmdvfs \
-#             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/smi \
-#             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include \
-#             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat \
-#             -I$(DEVICE_MODULES_PATH)/drivers/iommu \
-#             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mtk-interconnect \
-#             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/cmdq/mailbox \
-#             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/slbc \
-#             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mmp \
-#             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/tinysys_scmi \
-#             -I$(DEVICE_MODULES_PATH)/drivers/iommu/arm/arm-smmu-v3 \
-#             -I$(DEVICE_MODULES_PATH)/drivers/media/platform/mtk-vcodec \
-#             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mminfra/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/drm/mediatek/mediatek_v2 \
+             -I$(DEVICE_MODULES_PATH)/drivers/gpu/drm/mediatek/dpc \
+             -I$(DEVICE_MODULES_PATH)/drivers/devfreq \
+             -I$(DEVICE_MODULES_PATH)/drivers/dma-buf/heaps/ \
+             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mmdvfs \
+             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/smi \
+             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include \
+             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat \
+             -I$(DEVICE_MODULES_PATH)/drivers/iommu \
+             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mtk-interconnect \
+             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/cmdq/mailbox \
+             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/slbc \
+             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mmp \
+             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/tinysys_scmi \
+             -I$(DEVICE_MODULES_PATH)/drivers/iommu/arm/arm-smmu-v3 \
+             -I$(DEVICE_MODULES_PATH)/drivers/media/platform/mtk-vcodec \
+             -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mminfra/
 #
-#ifneq ($(filter y m, $(CONFIG_MTK_MME_SUPPORT)),)
-#ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mme
-#endif
+ifneq ($(filter y m, $(CONFIG_MTK_MME_SUPPORT)),)
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/mme
+endif
 #
-#obj-$(CONFIG_MTK_MML_LEGACY) := mtk-mml.o
-#obj-$(CONFIG_MTK_MML) := mtk-mml.o
+obj-$(CONFIG_MTK_MML_LEGACY) := mtk-mml.o
+obj-$(CONFIG_MTK_MML) := mtk-mml.o
 #
-#mtk-mml-legacy-objs := mtk-mml.o
+mtk-mml-legacy-objs := mtk-mml.o
 #
-#mtk-mml-objs += mtk-mml-monitor.o
+mtk-mml-objs += mtk-mml-monitor.o
 #
-#mtk-mml-objs += mtk-mml-driver.o
-#mtk-mml-objs += mtk-mml-core.o
-#mtk-mml-objs += mtk-mml-tile.o
-#mtk-mml-objs += mtk-mml-pq-core.o
-#mtk-mml-objs += mtk-mml-adaptor.o
-#mtk-mml-objs += mtk-mml-drm-adaptor.o
-#mtk-mml-objs += mtk-mml-dle-adaptor.o
-#mtk-mml-objs += mtk-mml-m2m-adaptor.o
-#mtk-mml-objs += mtk-mml-buf.o
-#mtk-mml-objs += mtk-mml-sys.o
-#mtk-mml-objs += tile_core.o
-#mtk-mml-objs += tile_mdp_func.o
-#mtk-mml-objs += DpTileScaler.o
+mtk-mml-objs += mtk-mml-driver.o
+mtk-mml-objs += mtk-mml-core.o
+mtk-mml-objs += mtk-mml-tile.o
+mtk-mml-objs += mtk-mml-pq-core.o
+mtk-mml-objs += mtk-mml-adaptor.o
+mtk-mml-objs += mtk-mml-drm-adaptor.o
+mtk-mml-objs += mtk-mml-dle-adaptor.o
+mtk-mml-objs += mtk-mml-m2m-adaptor.o
+mtk-mml-objs += mtk-mml-dbgtp.o
+mtk-mml-objs += mtk-mml-buf.o
+mtk-mml-objs += mtk-mml-sys.o
+mtk-mml-objs += tile_core.o
+mtk-mml-objs += tile_mdp_func.o
+mtk-mml-objs += DpTileScaler.o
 ## device components
-#mtk-mml-objs += mtk-mml-aal.o
-#mtk-mml-objs += mtk-mml-color.o
-#mtk-mml-objs += mtk-mml-fg.o
-#mtk-mml-objs += mtk-mml-fg-fw.o
-#mtk-mml-objs += mtk-mml-hdr.o
-#mtk-mml-objs += mtk-mml-mutex.o
-#mtk-mml-objs += mtk-mml-rdma.o
-#mtk-mml-objs += mtk-mml-rsz.o
-#mtk-mml-objs += mtk-mml-rsz-fw.o
-#mtk-mml-objs += mtk-mml-pq-rdma.o
-#mtk-mml-objs += mtk-mml-pq-birsz.o
-#mtk-mml-objs += mtk-mml-pq-birsz-fw.o
-#mtk-mml-objs += mtk-mml-tcc.o
-#mtk-mml-objs += mtk-mml-tdshp.o
-#mtk-mml-objs += mtk-mml-wrot.o
-#mtk-mml-objs += mtk-mml-rrot.o
-#mtk-mml-objs += mtk-mml-merge.o
-#mtk-mml-objs += mtk-mml-c3d.o
-#mtk-mml-objs += mtk-mml-dpc.o
-#mtk-mml-objs += mtk-mml-wdma.o
-#mtk-mml-objs += mtk-mml-chist.o
+mtk-mml-objs += mtk-mml-aal.o
+mtk-mml-objs += mtk-mml-color.o
+mtk-mml-objs += mtk-mml-fg.o
+mtk-mml-objs += mtk-mml-fg-fw.o
+mtk-mml-objs += mtk-mml-hdr.o
+mtk-mml-objs += mtk-mml-mutex.o
+mtk-mml-objs += mtk-mml-rdma.o
+mtk-mml-objs += mtk-mml-rsz.o
+mtk-mml-objs += mtk-mml-rsz-fw.o
+mtk-mml-objs += mtk-mml-pq-rdma.o
+mtk-mml-objs += mtk-mml-pq-birsz.o
+mtk-mml-objs += mtk-mml-pq-birsz-fw.o
+mtk-mml-objs += mtk-mml-tcc.o
+mtk-mml-objs += mtk-mml-tdshp.o
+mtk-mml-objs += mtk-mml-wrot.o
+mtk-mml-objs += mtk-mml-rrot.o
+mtk-mml-objs += mtk-mml-merge.o
+mtk-mml-objs += mtk-mml-c3d.o
+mtk-mml-objs += mtk-mml-dpc.o
+mtk-mml-objs += mtk-mml-wdma.o
+mtk-mml-objs += mtk-mml-chist.o
 #
 ## mml call sspm support
-#mtk-mml-objs += mtk-mml-scmi.o
+mtk-mml-objs += mtk-mml-scmi.o
 #
-#ifneq (,$(strip $(CONFIG_MMPROFILE)))
-#mtk-mml-objs += mtk-mml-mmp.o
-#endif
+ifneq (,$(strip $(CONFIG_MMPROFILE)))
+mtk-mml-objs += mtk-mml-mmp.o
+endif
 #
-#ifneq ($(wildcard $(src)/mtk-mml-tp-mt6878.c),)
-#obj-$(CONFIG_MTK_MML) += mtk-mml-mt6878.o
-#mtk-mml-mt6878-objs := mtk-mml-tp-mt6878.o
-#endif
+ifneq ($(wildcard $(src)/mtk-mml-tp-mt6878.c),)
+obj-$(CONFIG_MTK_MML) += mtk-mml-mt6878.o
+mtk-mml-mt6878-objs := mtk-mml-tp-mt6878.o
+endif
 #
-#ifneq ($(wildcard $(src)/mtk-mml-tp-mt6886.c),)
-#obj-$(CONFIG_MTK_MML) += mtk-mml-mt6886.o
-#mtk-mml-mt6886-objs := mtk-mml-tp-mt6886.o
-#endif
+ifneq ($(wildcard $(src)/mtk-mml-tp-mt6886.c),)
+obj-$(CONFIG_MTK_MML) += mtk-mml-mt6886.o
+mtk-mml-mt6886-objs := mtk-mml-tp-mt6886.o
+endif
 #
-#ifneq ($(wildcard $(src)/mtk-mml-tp-mt6895.c),)
-#obj-$(CONFIG_MTK_MML) += mtk-mml-mt6895.o
-#mtk-mml-mt6895-objs := mtk-mml-tp-mt6895.o
-#endif
+ifneq ($(wildcard $(src)/mtk-mml-tp-mt6895.c),)
+obj-$(CONFIG_MTK_MML) += mtk-mml-mt6895.o
+mtk-mml-mt6895-objs := mtk-mml-tp-mt6895.o
+endif
 #
-#ifneq ($(wildcard $(src)/mtk-mml-tp-mt6897.c),)
-#obj-$(CONFIG_MTK_MML) += mtk-mml-mt6897.o
-#mtk-mml-mt6897-objs := mtk-mml-tp-mt6897.o
-#endif
+ifneq ($(wildcard $(src)/mtk-mml-tp-mt6897.c),)
+obj-$(CONFIG_MTK_MML) += mtk-mml-mt6897.o
+mtk-mml-mt6897-objs := mtk-mml-tp-mt6897.o
+endif
 #
-#ifneq ($(wildcard $(src)/mtk-mml-tp-mt6899.c),)
-#obj-$(CONFIG_MTK_MML) += mtk-mml-mt6899.o
-#mtk-mml-mt6899-objs := mtk-mml-tp-mt6899.o
-#endif
+ifneq ($(wildcard $(src)/mtk-mml-tp-mt6899.c),)
+obj-$(CONFIG_MTK_MML) += mtk-mml-mt6899.o
+mtk-mml-mt6899-objs := mtk-mml-tp-mt6899.o
+endif
 #
-#ifneq ($(wildcard $(src)/mtk-mml-tp-mt6983.c),)
-#obj-$(CONFIG_MTK_MML) += mtk-mml-mt6983.o
-#mtk-mml-mt6983-objs := mtk-mml-tp-mt6983.o
-#endif
+ifneq ($(wildcard $(src)/mtk-mml-tp-mt6983.c),)
+obj-$(CONFIG_MTK_MML) += mtk-mml-mt6983.o
+mtk-mml-mt6983-objs := mtk-mml-tp-mt6983.o
+endif
 #
-#ifneq ($(wildcard $(src)/mtk-mml-tp-mt6985.c),)
-#obj-$(CONFIG_MTK_MML) += mtk-mml-mt6985.o
-#mtk-mml-mt6985-objs := mtk-mml-tp-mt6985.o
-#endif
+ifneq ($(wildcard $(src)/mtk-mml-tp-mt6985.c),)
+obj-$(CONFIG_MTK_MML) += mtk-mml-mt6985.o
+mtk-mml-mt6985-objs := mtk-mml-tp-mt6985.o
+endif
 #
-#ifneq ($(wildcard $(src)/mtk-mml-tp-mt6989.c),)
-#obj-$(CONFIG_MTK_MML) += mtk-mml-mt6989.o
-#mtk-mml-mt6989-objs := mtk-mml-tp-mt6989.o
-#endif
+ifneq ($(wildcard $(src)/mtk-mml-tp-mt6989.c),)
+obj-$(CONFIG_MTK_MML) += mtk-mml-mt6989.o
+mtk-mml-mt6989-objs := mtk-mml-tp-mt6989.o
+endif
 #
-#ifneq ($(wildcard $(src)/mtk-mml-tp-mt6991.c),)
-#obj-$(CONFIG_MTK_MML) += mtk-mml-mt6991.o
-#mtk-mml-mt6991-objs := mtk-mml-tp-mt6991.o
-#endif
+ifneq ($(wildcard $(src)/mtk-mml-tp-mt6991.c),)
+obj-$(CONFIG_MTK_MML) += mtk-mml-mt6991.o
+mtk-mml-mt6991-objs := mtk-mml-tp-mt6991.o
+endif
 #
-#ifneq ($(wildcard $(src)/mtk-mml-tp-mt6993.c),)
-#obj-$(CONFIG_MTK_MML) += mtk-mml-mt6993.o
-#mtk-mml-mt6993-objs := mtk-mml-tp-mt6993.o
-#endif
+ifneq ($(wildcard $(src)/mtk-mml-tp-mt6993.c),)
+obj-$(CONFIG_MTK_MML) += mtk-mml-mt6993.o
+mtk-mml-mt6993-objs := mtk-mml-tp-mt6993.o
+endif
 #
 ## for unit test
 #ifeq ($(strip $(CONFIG_MTK_MML_DEBUG)),y)
@@ -144,8 +145,8 @@
 #ccflags-y += -DMML_FPGA
 #endif
 #
-#ccflags-y += -DMML_DL_SUPPORT
-#ccflags-y += -DMML_STASH_SUPPORT
+ccflags-y += -DMML_DL_SUPPORT
+ccflags-y += -DMML_STASH_SUPPORT
 #
 #ifeq ($(strip $(MGK_INTERNAL)),true)
 #ccflags-y += -DMML_IR_SUPPORT

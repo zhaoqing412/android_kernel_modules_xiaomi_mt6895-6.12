@@ -47,8 +47,5 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/dramc/$(MTK_PLATFORM
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/cmdq/mailbox/ \
              -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/clkbuf/v1/inc/ \
 
-# xaga: platform module wiring
-obj-m += mtk_disp_notify.o
-
-# xaga: platform module wiring
-obj-m += mtk_sync.o
+# xaga: mtk_sync/mtk_panel_ext/mtk_disp_notify registered above via
+# obj-$(CONFIG_DEVICE_MODULES_DRM_MEDIATEK) (alps-verbatim, no duplicates)

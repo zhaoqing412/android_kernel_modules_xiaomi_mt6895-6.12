@@ -26,12 +26,13 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/l3c_part
 endif
 
 ifneq (strip $(CONFIG_MTK_SLBC),)
-#obj-${CONFIG_MTK_SLBC} += mtk_slbc.o
-#mtk_slbc-y += slbc.o
+# xaga: platform module wiring (exports slbc_request etc. for mediatek-drm)
+obj-${CONFIG_MTK_SLBC} += mtk_slbc.o
+mtk_slbc-y += slbc.o
 endif
 
 ifneq ($(wildcard $(src)/slbc_mt6895.c),)
-#obj-${CONFIG_MTK_SLBC_MT6895} += slbc_mt6895.o
+obj-${CONFIG_MTK_SLBC_MT6895} += slbc_mt6895.o
 endif
 
 ifneq ($(wildcard $(src)/slbc_mt6991.c),)
@@ -50,6 +51,9 @@ endif
 
 # xaga: platform module wiring
 obj-m += slbc_ipi.o
+
+# xaga: platform module wiring (slbc_trace exports slbc_trace_rec_write for slbc_ipi)
+obj-m += slbc_trace.o
 
 # xaga: platform module wiring
 obj-m += slbc_mt6895.o

@@ -3,4 +3,5 @@
 CFLAGS_core.o				:= -I$(src)
 mtk-icc-core-objs			:= core.o
 
-#obj-$(CONFIG_INTERCONNECT_MTK_EXTENSION)	+= mtk-icc-core.o
+# xaga: platform module wiring (exports mtk_icc_* for mmqos-common)
+obj-$(CONFIG_INTERCONNECT_MTK_EXTENSION)	+= mtk-icc-core.o

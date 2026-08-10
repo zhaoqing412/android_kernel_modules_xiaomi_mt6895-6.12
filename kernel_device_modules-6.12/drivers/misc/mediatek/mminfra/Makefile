@@ -16,3 +16,5 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/clk/mediatek
 
 # xaga: platform module wiring
 obj-m += mtk-mminfra-debug.o
+# xaga: mtk_mminfra_on_off provider (mtk-smi / mtk-mminfra-debug depend on it)
+obj-m += mtk-mminfra-util-dummy.o

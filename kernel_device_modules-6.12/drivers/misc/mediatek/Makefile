@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 export MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
-#obj-$(CONFIG_MTK_SLBC) += slbc/
+# xaga: platform module wiring (slbc exports slbc_request for mediatek-drm)
+obj-$(CONFIG_MTK_SLBC) += slbc/
 obj-$(CONFIG_MTK_CM_MGR) += cm_mgr/
 obj-$(CONFIG_MTK_CM_MGR_LEGACY_V0) += cm_mgr_legacy_v0/
 #obj-$(CONFIG_MTK_CM_MGR_LEGACY_V1) += cm_mgr_legacy_v1/
@@ -66,6 +67,9 @@ obj-$(CONFIG_MTK_MDPM_LEGACY) += mdpm_v1/
 obj-$(CONFIG_MTK_PBM) += pbm/
 # obj-$(CONFIG_MTK_CG_PEAK_POWER_THROTTLING) += cg_ppt/
 obj-$(CONFIG_MTK_CCU) += ccu/src/
+# xaga: platform module wiring (extdev_io_class exports devm_extdev_io_device_register for rt5133-regulator)
+obj-$(CONFIG_EXTCON_MTK_USB) += extcon/
+obj-y += subpmic/
 obj-$(CONFIG_MEDIATEK_CPU_DVFS) += cpufreq_v2/
 obj-$(CONFIG_MTK_UNIFIED_POWER) += upower/
 obj-$(CONFIG_MTK_PTPOD_GPU) += eemgpu/
@@ -97,8 +101,17 @@ obj-$(CONFIG_MTK_VMM_NOTIFIER) += vmm/
 obj-$(CONFIG_MTK_MMINFRA) += mminfra/
 obj-$(CONFIG_MTK_HW_SEMAPHORE) += hw_sem/
 obj-$(CONFIG_DEVICE_MODULES_MTK_SMI) += smi/
-#obj-$(CONFIG_INTERCONNECT_MTK_MMQOS_COMMON) += mmqos/
-#obj-$(CONFIG_MTK_MM_MONITOR) += mm_monitor/
+# xaga: platform module wiring (blocktag exports mmc_mtk_biolog_* for mtk-mmc)
+obj-$(CONFIG_MTK_BLOCK_IO_TRACER) += blocktag/
+# xaga: platform module wiring (alps BUILD.bazel builds these via bazel;
+# the Makefile paths need explicit descends to be compiled)
+obj-$(CONFIG_MTK_IOMMU_MISC) += iommu/
+obj-$(CONFIG_MTK_TINYSYS_SCMI) += tinysys_scmi/
+obj-$(CONFIG_MTK_TINYSYS_VCP_SUPPORT) += vcp/
+obj-$(CONFIG_INTERCONNECT_MTK_MMQOS_COMMON) += mmqos/
+# xaga: platform module wiring (mtk-mm-monitor-controller exports mtk_mmmc_*
+# for mmqos-common)
+obj-$(CONFIG_MTK_MM_MONITOR) += mm_monitor/
 obj-$(CONFIG_MTK_GATE_IC) += gate_ic/
 #obj-$(CONFIG_MTK_WIDEVINE_DRM) += widevine_drm/
 obj-$(CONFIG_MTK_PGBOOST) += pgboost/

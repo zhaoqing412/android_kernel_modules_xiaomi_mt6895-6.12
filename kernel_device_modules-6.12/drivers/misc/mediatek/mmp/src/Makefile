@@ -20,3 +20,7 @@ subdir-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include
 ifeq ($(CONFIG_MTK_GMO_RAM_OPTIMIZE),y)
 ccflags-y += -DFORBID_MMP_START
 endif
+
+# xaga: platform module wiring (alps BUILD.bazel mmprofile; exports
+# mmprofile_enable etc. for mtk-mmdvfs)
+obj-m += mmprofile.o

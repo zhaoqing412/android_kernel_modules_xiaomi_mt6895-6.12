@@ -15,7 +15,10 @@ ccflags-y += -I$(MFD_TOP)/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/hwccf/include/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/clk/mediatek/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/soc/mediatek/
 
-#obj-$(CONFIG_MTK_HWCCF) += hwccf.o
-#hwccf-y += src/hwccf_api.o
-#hwccf-y += src/hwccf_port.o
+# xaga: platform module wiring (exports hwccf_is_enabled for mediatek-drm)
+obj-$(CONFIG_MTK_HWCCF) += hwccf.o
+hwccf-y += src/hwccf_api.o
+hwccf-y += src/hwccf_port.o
+hwccf-y += src/hwccf_dbg.o

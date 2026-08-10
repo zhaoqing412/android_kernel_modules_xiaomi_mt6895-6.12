@@ -91,4 +91,7 @@ void mtk_serial_dump_reg(void __iomem *base, unsigned int offset,
 /* stop dump if offx is negative */
 void mtk_cust_dump_reg(void __iomem *base, int off1, int off2, int o3, int o4);
 
+/* xaga: alps relies on -Wno-implicit-function-declaration for this one */
+void mtk_dump_dbg_slot(void);
+
 #endif

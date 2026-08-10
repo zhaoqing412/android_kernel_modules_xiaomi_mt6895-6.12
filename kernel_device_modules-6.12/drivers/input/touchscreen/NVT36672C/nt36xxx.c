@@ -87,7 +87,14 @@ static void nvt_ts_late_resume(struct early_suspend *h);
 #endif
 static int32_t nvt_ts_suspend(struct device *dev);
 static int32_t nvt_ts_resume(struct device *dev);
-extern int get_lockdown_info_for_nvt(unsigned char *plockdowninfo);
+/*
+ * 5.10 shipped this from mi_disp/mi_dsi_panel.c; nothing provides it on
+ * 6.12 (mi_disp not ported). Keep the call site working with -EOPNOTSUPP.
+ */
+static int get_lockdown_info_for_nvt(unsigned char *plockdowninfo)
+{
+	return -EOPNOTSUPP;
+}
 static int32_t __maybe_unused nvt_check_palm(uint8_t input_id, uint8_t *data);
 static int nvt_write_ic_command(int mode, bool enable);
 uint32_t ENG_RST_ADDR  = 0x7FFF80;

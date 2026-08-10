@@ -19,8 +19,10 @@
 #include <linux/of_reserved_mem.h>
 #include <mt-plat/mrdump.h>
 #include <linux/vmalloc.h>
+#if IS_ENABLED(CONFIG_MTK_PKVM_CMDQ)
 #include <asm/kvm_pkvm_module.h>
 #include <pkvm_mgmt/pkvm_mgmt.h>
+#endif
 
 #include "cmdq-util.h"
 
