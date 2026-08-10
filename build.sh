@@ -177,10 +177,35 @@ config() {
         "$OUT/.config" \
         "$M/arch/arm64/configs/mgk_64_k612_defconfig" \
         "$M/arch/arm64/configs/vendor/xaga.config" > "$WORK/merge.log" 2>&1 )
+    # xaga has no hardware virtualization: the MT6895 boot chain (LK/ATF, 5.10
+    # era) provides no pKVM-capable EL2/hyp, so protected-KVM init hangs early
+    # (unknown-SMC / hyp install). Drop kvm-arm.mode=protected from the baked
+    # gki CONFIG_CMDLINE, turn KVM off (KVM_ARM64/ARM_PKVM_GUEST/VFIO_PKVM_IOMMU
+    # follow via olddefconfig), and disable the MTK pKVM modules. merge_config
+    # here is -m (only-add, never overrides), so fix them up like
+    # CONFIG_MODULE_SIG_KEY below.
+    sed -i \
+        -e 's|^CONFIG_KVM=y|# CONFIG_KVM is not set|' \
+        -e 's|kvm-arm.mode=protected ||' \
+        -e 's|^CONFIG_MTK_PKVM_MKP=m|# CONFIG_MTK_PKVM_MKP is not set|' \
+        -e 's|^CONFIG_MTK_PKVM_MTK_SMC_HANDLER=m|# CONFIG_MTK_PKVM_MTK_SMC_HANDLER is not set|' \
+        -e 's|^CONFIG_MTK_PKVM_TMEM=m|# CONFIG_MTK_PKVM_TMEM is not set|' \
+        -e 's|^CONFIG_MTK_PKVM_SMMU=m|# CONFIG_MTK_PKVM_SMMU is not set|' \
+        -e 's|^CONFIG_MTK_PKVM_ISP=m|# CONFIG_MTK_PKVM_ISP is not set|' \
+        -e 's|^CONFIG_MTK_PKVM_CMDQ=m|# CONFIG_MTK_PKVM_CMDQ is not set|' \
+        "$OUT/.config"
     ( cd "$K" && make "${MAKE_CC[@]}" O="$OUT" ARCH=arm64 LLVM=1 olddefconfig > "$WORK/config2.log" 2>&1 )
     sed -i "s|^CONFIG_MODULE_SIG_KEY=.*|CONFIG_MODULE_SIG_KEY=\"$PEM\"|" "$OUT/.config"
     grep -q '^CONFIG_XAGA_MARKER_WRITER=y' "$OUT/.config" \
         || { echo "ERROR: CONFIG_XAGA_MARKER_WRITER missing after merge" >&2; exit 1; }
+    if grep -q 'kvm-arm.mode' "$OUT/.config"; then
+        echo "ERROR: kvm-arm.mode still present after KVM disable" >&2
+        exit 1
+    fi
+    if grep -q '^CONFIG_KVM=y' "$OUT/.config"; then
+        echo "ERROR: CONFIG_KVM still enabled after disable" >&2
+        exit 1
+    fi
 }
 
 # ---------------------------------------------------------------------------
