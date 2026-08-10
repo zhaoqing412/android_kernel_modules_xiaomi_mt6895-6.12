@@ -193,6 +193,14 @@ config() {
         -e 's|^CONFIG_MTK_PKVM_SMMU=m|# CONFIG_MTK_PKVM_SMMU is not set|' \
         -e 's|^CONFIG_MTK_PKVM_ISP=m|# CONFIG_MTK_PKVM_ISP is not set|' \
         -e 's|^CONFIG_MTK_PKVM_CMDQ=m|# CONFIG_MTK_PKVM_CMDQ is not set|' \
+        -e 's|^CONFIG_ARM64_AMU_EXTN=y|# CONFIG_ARM64_AMU_EXTN is not set|' \
+        -e 's|^CONFIG_ARM64_MTE=y|# CONFIG_ARM64_MTE is not set|' \
+        -e 's|^CONFIG_ARM64_EPAN=y|# CONFIG_ARM64_EPAN is not set|' \
+        -e 's|^CONFIG_ARM64_SME=y|# CONFIG_ARM64_SME is not set|' \
+        -e 's|^CONFIG_ARM64_BTI=y|# CONFIG_ARM64_BTI is not set|' \
+        -e 's|^CONFIG_ARM64_E0PD=y|# CONFIG_ARM64_E0PD is not set|' \
+        -e 's|^CONFIG_KASAN=y|# CONFIG_KASAN is not set|' \
+        -e 's|^CONFIG_KASAN_HW_TAGS=y|# CONFIG_KASAN_HW_TAGS is not set|' \
         "$OUT/.config"
     ( cd "$K" && make "${MAKE_CC[@]}" O="$OUT" ARCH=arm64 LLVM=1 olddefconfig > "$WORK/config2.log" 2>&1 )
     sed -i "s|^CONFIG_MODULE_SIG_KEY=.*|CONFIG_MODULE_SIG_KEY=\"$PEM\"|" "$OUT/.config"
@@ -204,6 +212,16 @@ config() {
     fi
     if grep -q '^CONFIG_KVM=y' "$OUT/.config"; then
         echo "ERROR: CONFIG_KVM still enabled after disable" >&2
+        exit 1
+    fi
+    for sym in AMU_EXTN MTE EPAN SME BTI E0PD; do
+        if grep -q "^CONFIG_ARM64_${sym}=y" "$OUT/.config"; then
+            echo "ERROR: CONFIG_ARM64_${sym} still enabled after disable" >&2
+            exit 1
+        fi
+    done
+    if grep -q '^CONFIG_KASAN=y' "$OUT/.config"; then
+        echo "ERROR: CONFIG_KASAN still enabled after disable" >&2
         exit 1
     fi
 }
