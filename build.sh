@@ -7,14 +7,14 @@
 #   1. kernel config      gki_defconfig + mgk_64_k612_defconfig + vendor/xaga.config
 #   2. kernel Image + Image.gz (gzip, per xaga packaging requirement)
 #   3. in-tree modules    (refreshes Module.symvers)
-#   4. out-of-tree modules -> 133 x .ko (make M=)
+#   4. out-of-tree modules -> 134 x .ko (make M=)
 #   5. DTS: mt6895.dtb (SoC base) + xaga.dtbo / xaga_global.dtbo (fdtoverlay check)
 #   6. boot_new.img       magiskboot -n: Image.gz kernel + 6.12 kernelsu in official boot
-#   7. vendor_boot_new.img mkbootimg: official ramdisk with 133 x 6.12 .ko, DTBO_TAG
+#   7. vendor_boot_new.img mkbootimg: official ramdisk with 134 x 6.12 .ko, DTBO_TAG
 #                        dtb slot, vrt name=[]/type=[platform], padded 64MB
 #   8. dtbo_new.img       DTOv1 single entry (xaga.dtbo), NOT padded
 #
-# --modules-only: compile modules only (config + in-tree + 133 .ko hard assert),
+# --modules-only: compile modules only (config + in-tree + 134 .ko hard assert),
 #                 no Image / DTS / packaging.
 #
 # Usage: ./build.sh [--modules-only] [--no-clean] [--skip=BOOT,VENDOR,DTBO]
@@ -238,18 +238,18 @@ kernel() {
 }
 
 # ---------------------------------------------------------------------------
-# 4. Modules: in-tree (Module.symvers) + out-of-tree 133 x .ko
+# 4. Modules: in-tree (Module.symvers) + out-of-tree 134 x .ko
 # ---------------------------------------------------------------------------
 modules() {
     log "4/8 in-tree modules (Module.symvers)"
     ( cd "$K" && make "${MAKE_CC[@]}" O="$OUT" ARCH=arm64 LLVM=1 -j"$JOBS" modules > "$WORK/inmod.log" 2>&1 )
 
-    log "4b/8 out-of-tree modules -> 133 x .ko (KBUILD_MODPOST_WARN=1)"
+    log "4b/8 out-of-tree modules -> 134 x .ko (KBUILD_MODPOST_WARN=1)"
     make -C "$K" O="$OUT" ARCH=arm64 LLVM=1 KCONFIG_EXT_PREFIX="$M/" M="$M" \
         DEVICE_MODULES_PATH="$M" DEVCIE_MODULES_INCLUDE="$INC" \
         KBUILD_MODPOST_WARN=1 -j"$JOBS" modules > "$WORK/ootmod.log" 2>&1
     NKO="$(find "$M" -name '*.ko' | wc -l)"
-    [ "$NKO" -eq 133 ] || { echo "ERROR: expected 133 .ko, got $NKO" >&2; exit 1; }
+    [ "$NKO" -eq 134 ] || { echo "ERROR: expected 134 .ko, got $NKO" >&2; exit 1; }
     echo "$NKO .ko built"
 }
 
@@ -295,7 +295,7 @@ pack_boot() {
 }
 
 # ---------------------------------------------------------------------------
-# 7. vendor_boot_new.img: official ramdisk, 5.10 .ko removed, 133 x 6.12 .ko
+# 7. vendor_boot_new.img: official ramdisk, 5.10 .ko removed, 134 x 6.12 .ko
 # ---------------------------------------------------------------------------
 pack_vendor() {
     log "7/8 vendor_boot_new.img (no 5.10 modules, mkbootimg, padded 64MB)"
@@ -324,6 +324,33 @@ pack_vendor() {
     done
     sed -i "s|$VER/||g" modules.dep   # flat layout: strip version-dir prefix
     rm -rf "$VER"
+    # xaga: order modules.load by dependency (modules.dep) so first-stage
+    # insmod never hits "Unknown symbol" - alphabetical order loads e.g.
+    # cache-parity (c) before mrdump (m) which it depends on (2026-08-10).
+    python3 - modules.dep <<'PYEOF' > modules.load
+import sys
+
+deps = {}
+for line in open(sys.argv[1]):
+    if ':' not in line:
+        continue
+    mod, rest = line.split(':', 1)
+    mod = mod.strip()
+    if mod.endswith('.ko'):
+        mod = mod[:-3]
+    deps[mod] = [x.strip()[:-3] if x.strip().endswith('.ko') else x.strip()
+                 for x in rest.split() if x.strip()]
+
+order, remaining = [], set(deps)
+while remaining:
+    ready = sorted(m for m in remaining if not (set(deps[m]) & remaining))
+    if not ready:
+        ready = sorted(remaining)
+    order += ready
+    remaining -= set(ready)
+
+sys.stdout.write('\n'.join(order) + '\n')
+PYEOF
     cd "$VD/vendor_ramdisk/rd"
     find . | cpio -o -H newc > "$VD/vr_new.cpio" 2>/dev/null || true
     lz4 -l -9 -f "$VD/vr_new.cpio" "$VD/vr_new.lz4" > /dev/null 2>&1

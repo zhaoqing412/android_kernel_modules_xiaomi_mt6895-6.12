@@ -20,18 +20,21 @@ endif
 #subdir-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/android/
 
 ccflags-y += -DTEXT_OFFSET=$(TEXT_OFFSET)
-#obj-$(CONFIG_MTK_AEE_IPANIC)	+= mrdump.o
+ccflags-y += -I$(srctree)/drivers/android/ # debug_kinfo.h (K tree)
+# xaga: restore the mrdump module (alps builds it via BUILD.bazel with these
+# srcs). mboot_params.c EXPORTs aee_sram_printk, which cache-parity /
+# slc-parity / gic-ram-parity / bus-parity depend on - without it init's
+# first-stage module load aborts (Attempted to kill init, 2026-08-10).
+obj-$(CONFIG_MTK_AEE_IPANIC)	+= mrdump.o
 
-#mrdump-y := \
-#	mboot_params.o \
-#	mrdump_control.o \
-#	mrdump_mini.o \
-#	mrdump_panic.o \
-#	mrdump_helper.o
+mrdump-y := \
+	mboot_params.o \
+	mrdump_control.o \
+	mrdump_mini.o \
+	mrdump_panic.o \
+	mrdump_helper.o
 
-#mrdump-$(CONFIG_ARM) += mrdump_arm.o
-
-#mrdump-$(CONFIG_ARM64) += \
-#	mrdump_arm64.o
+mrdump-$(CONFIG_ARM64) += \
+	mrdump_arm64.o
 
 KASAN_SANITIZE := n
