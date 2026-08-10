@@ -7,13 +7,3 @@ config SIMTRAY_STATUS
 	tristate "Xiaomi SIM tray status"
 	help
 	  Say Y here to enable the Xiaomi SIM tray status driver (xiaomi,simtray-status).
-
-config XAGA_MARKER_WRITER
-	tristate "xaga boot-stage marker writer (XAGR ring)"
-	help
-	  Write boot-stage markers into the minirdump reserved region
-	  (0x48170000) at each module load (module notifier) so a boot hang
-	  can be located from the next boot's dmesg (dumped by the xaga-marker
-	  reader in the lineage_xaga kernel). Must load FIRST from the vendor
-	  ramdisk modules.load to log the modules that follow; pack_vendor
-	  orders it so.

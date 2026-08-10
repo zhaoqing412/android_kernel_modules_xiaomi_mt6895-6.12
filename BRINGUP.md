@@ -56,22 +56,24 @@ scripts/kconfig/merge_config.sh -m -r \
 `CONFIG_INPUT_AW8697_HAPTIC=m`、`CONFIG_TOUCHSCREEN_XIAOMI_DOUBLE_CLICK=m`、
 `CONFIG_MTK_VIDEO_KTD2687=m`(闪光灯)、`CONFIG_DRM_PANEL_LEDS_KTZ8863A=m`(背光)。
 
-> ⚠️ **boot-stage marker(XAGR 环,挂死定位)**:`CONFIG_XAGA_MARKER_WRITER=m`
-> (xaga-marker-writer 模块,vendor ramdisk modules.load 排第一)把每次模块加载
-> 写入 **log_store 保留区 0x7ffbf000** 的 XAGR 环(magic 0x52474158 @0x0000 /
-> cursor @0x0004 / total @0x0008 / stage @0x1000 / 文本环 @0x2000 长 0xE000),
-> 环最后一条 = 挂死模块。环随 AP watchdog 复位在 DRAM 保留,下次启动由
-> **lineage_xaga 内核的 xaga-marker 读端**(postcore_initcall dump,dmesg +
-> `/proc/xaga_marker`)打印。内核挂死时 kmsg_dumper 不触发,故不用
-> xaga_oops_log/oops 分区方案(已弃用,2026-08-09)。
+> ⚠️ **boot-stage marker(XAGR 环,挂死定位)**:`CONFIG_XAGA_MARKER_WRITER=y`
+> (**内置内核**,源码在 OPPO 内核树 `drivers/misc/xaga-marker-writer.c`,
+> 不再做模块——模块版从未写入)在 **arm64 setup_arch 头部**(`early_ioremap_init`
+> 之后,MMU fixmap 允许的最早映射点)把 **log_store 保留区 0x7ffbf000** 映射为
+> XAGR 环(magic 0x52474158 @0x0000 / cursor @0x0004 / total @0x0008 /
+> stage @0x1000 / 文本环 @0x2000 长 0xE000),并把**每个 printk()**(vprintk_emit
+> 钩子)镜像进环——启动任何阶段挂死,环尾部就是最后一段内核打印。
+> 环随 AP watchdog 复位在 DRAM 保留,下次启动由 **lineage_xaga 内核的
+> xaga-marker 读端**(postcore_initcall dump,dmesg + `/proc/xaga_marker`)打印。
+> 内核挂死时 kmsg_dumper 不触发,故不用 xaga_oops_log/oops 分区方案
+> (已弃用,2026-08-09)。
 > ⚠️ **教训(2026-08-09 实测)**:XAGR 环**绝不能放 minirdump 区 0x48170000**——
 > 写入该区触发 MTK mrdump 机制**立即重启**(diff.txt 注释同款教训);
 > aee/mrdump_mini 也会覆写该区头。换 log_store(0x7ffbf000,NS 安全区、
 > 不在 LK mblock 表、非 mrdump 区)。
-> ⚠️ **当前阻塞(2026-08-09 末)**:6.12 内核真机启动早期即被 watchdog 重启
-> (内核尚未加载到 vendor 模块/marker-writer),与 marker 方案无关——6.12
-> 开机问题本身未解决,marker 方案在真机未验证。排查 6.12 开机优先于
-> marker 验证。
+> ⚠️ **注意**:"提前到 setup_arch **前**"在 arm64 上不可行——paging_init 之前
+> 线性映射未建立、0x7ffbf000 不可写,`early_ioremap`(fixmap)是硬件允许的
+> 最早途径;模块加载期(此前模块 notifier 的活)由 printk 镜像自然覆盖。
 
 ### 1.4 产物
 `Image.gz` + `mt6895.dtb` + `xaga.dtbo`(+`xaga_global.dtbo`) + 模块 ko 集。

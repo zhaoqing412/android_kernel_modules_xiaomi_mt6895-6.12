@@ -1274,7 +1274,6 @@ mgk_64_kleaf_device_modules = [
     "//kernel_device_modules-{}/drivers/misc/mediatek/task_turbo:vip_engine".format(kernel_version),
     "//kernel_device_modules-{}/drivers/misc/mediatek/performance:frs".format(kernel_version),
     "//kernel_device_modules-{}/drivers/misc:simtray".format(kernel_version),
-    "//kernel_device_modules-{}/drivers/misc:xaga-marker-writer".format(kernel_version),
     "//kernel_device_modules-{}/drivers/misc:hwid".format(kernel_version),
     "//kernel_device_modules-{}/drivers/input/touchscreen:double_click".format(kernel_version),
     "//kernel_device_modules-{}/drivers/input/touchscreen:xiaomi_touch".format(kernel_version),
