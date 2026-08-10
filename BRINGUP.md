@@ -89,8 +89,14 @@ scripts/kconfig/merge_config.sh -m -r \
 ① 123 打包模块中 109 个同名直接替代;② 更名/合并(clkchk/mt6375-gauge/mtk_system_heap/
 pinctrl-mtk-common-v2/fan53870-ldo 等, 详见 STATUS.md §4);③ 约 30 个 6.12 内核内置
 (mediatek-drm*/mtk-mmc-autok/regmap-spmi/mac80211 等, 无需 .ko);④ 调试诊断类非必需省略。
-**唯一无对应物 = `mi-memory`**(小米私有, 非启动必需)。注意 123 只是打包子集:官方 198 中
-未打包的模块在移植树(alps 同步)有源码, 用户环境按 mgk_64.bzl 全量构建(896 目标)可覆盖。
+**唯一无对应物 = `mi-memory`**(小米私有, 非启动必需)。
+
+**2026-08-10 打包集扩展为 197 ko**:init 首阶段按 modules.load 拓扑序逐个 insmod, 任一
+`Unknown symbol` 即 `Attempted to kill init`;经全量 `llvm-nm` 审计恢复约 60 个提供者模块
+(mediatek_v2/mml/devapc/iommu/cmdq/tcpc_class/cqhci/gpufreq v2+hal/slbc/hwccf/mtu3/
+system_heap 等, 全部按 alps `BUILD.bazel`), **197 ko、0 undefined**——完整依赖表与移植
+方法论见 `xaga-drm-restore.md`。打包阶段对 .ko `llvm-strip --strip-debug`(官方无 DWARF,
+移植树带 DWARF5 达 130MB, strip 后 25MB)。
 
 ---
 

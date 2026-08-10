@@ -278,6 +278,79 @@ mediatek-drm / mtk-mml / panel 的符号依赖链牵出的外围模块，全部�
 
 ---
 
+## 七·补、完整依赖关系表（消费者 → 提供者）
+
+以下依赖由 2026-08-10 全量 `llvm-nm` 审计得出（所有 `.ko` 的 undefined 符号与
+全部导出符号求差集），**恢复后 0 undefined**。供其他移植者对照：
+
+### 7.1 DRM 消费者 → 提供者
+
+| 消费者模块 | 缺失符号 | 提供者模块 | 恢复动作 |
+|---|---|---|---|
+| `mediatek-drm.ko` | `find_panel_ctx`/`mtk_panel_ext_create`/`mtk_panel_remove`/`mtk_panel_detach`/`find_panel_ext`/`mtk_drm_get_lcm_version` | `mtk_panel_ext.ko` | v2/Makefile 注册 |
+| `mediatek-drm.ko` | `mtk_sync_fence_create`/`mtk_sync_timeline_*`/`mtk_sync_share_fence_create` | `mtk_sync.ko` | v2/Makefile 注册 |
+| `mediatek-drm.ko` | `mtk_disp_notifier_call_chain`/`mtk_disp_sub_notifier_*`/`mtk_disp_3rd_notifier_*` | `mtk_disp_notify.ko` | v2/Makefile 注册 |
+| `mediatek-drm.ko` | `mml_drm_*`（20+ 符号） | `mtk-mml.ko` | mml/Makefile 恢复 |
+| `mediatek-drm.ko` | `slbc_*`（request/release/validate/power_on/off/invalidate） | `mtk_slbc.ko` | slbc/Makefile 恢复 |
+| `mediatek-drm.ko` | `hwccf_is_enabled` | `hwccf.ko` | hwccf/Makefile 恢复 |
+| `mediatek-drm.ko` | `dma_buf_get_gid` | `system_heap.ko` | **新建** heaps/Makefile |
+| `mediatek-drm.ko` | `notify_vb_audio_control` | `mtk-afe-external.ko` | sound/common 恢复 |
+| `mediatek-drm.ko` | `get/set_panel_dead_flag` | `mediatek-drm.ko` 自身（mtk_disp_recovery.c 新增导出） | 5.10 移植 |
+| `mediatek-drm.ko` | `bdg_*`（15 个）/`mtk_spi_*`/`get_ap_data_rate`/`is_bdg_supported`/`check_stopstate` | `mediatek-drm.ko` 自身（mtk_disp_bdg.o） | 补进 y 列表 |
+| `mediatek-drm.ko` | `mtk_dbgtp_*`（17 个）/`mml_dbgtp_register` | `mediatek-drm.ko` 自身（mtk_disp_dbgtp.o） | 补进 y 列表 |
+
+### 7.2 面板 / 触控 / 背光 → 提供者
+
+| 消费者模块 | 缺失符号 | 提供者模块 |
+|---|---|---|
+| `panel-l16-42-02-0a-dsc-vdo.ko` / `panel-l16-36-02-0b-dsc-vdo.ko` | `find_panel_ctx`/`find_panel_ext`/`get_panel_dead_flag`/`mtk_panel_detach`/`mtk_panel_ext_create`/`mtk_panel_remove` | `mtk_panel_ext.ko` + `mediatek-drm.ko`（dead_flag） |
+| `nvt36672c.ko` | `get_lockdown_info_for_nvt`/`mtk_disp_notifier_register`/`set_panel_dead_flag` | **桩化**（6.12 无 mi_disp）+ `mtk_disp_notify.ko` + `mediatek-drm.ko` |
+| `leds-mtk-disp.ko` | `mtk_drm_gateic_set_backlight`/`mtk_drm_get_conn_obj_id_from_idx`/`mtk_drm_get_lcm_version`/`mtk_drm_set_conn_backlight_level`/`mtkfb_set_backlight_level`/`_gate_ic_backlight_set` | `mtk_drm_gateic.ko`（__weak 提供）+ `mediatek-drm.ko` + `rt4831a_drv.ko` |
+| `leds-mtk-pwm.ko` | `mtk_drm_get_conn_obj_id_from_idx` | `mediatek-drm.ko` |
+| `usb_dp_selector.ko` | `mtk_dp_aux_swap_enable`/`mtk_dp_set_pin_assign`/`mtk_dp_SWInterruptSet` | `mediatek-drm.ko` |
+| `mtk-mml.ko` | `mml_dbgtp_*` | `mtk-mml.ko` 自身（mtk-mml-dbgtp.o） |
+
+### 7.3 非 DRM 但同批修复的外围链
+
+| 消费者模块 | 缺失符号 | 提供者模块 |
+|---|---|---|
+| `mtk_peak_power_budget.ko` | `gpufreq_set_mfgsys_config` | `mtk_gpufreq_wrapper.ko`（gpufreq/v2） |
+| `mtk_peak_power_budget.ko` | `get_gpueb_ipidev`/`mtk_ipi_send_compl_to_gpueb` | `mtk_gpueb.ko` |
+| `mtk_peak_power_budget.ko` | `get_mcupm_ipidev`/`get_mcupms_ipidev_number` | `mcupm_v3.ko` |
+| `mtk_gpufreq_wrapper.ko` | `mtk_get_gpu_*_fp`（4 个） | `mtk_gpu_hal.ko`（hal/Makefile 恢复） |
+| `mtk_bp_thl.ko` | `ccci_set_power_throttle_cb`/`exec_ccci_kern_func` | ~~eccci~~ → **关 CONFIG_MTK_ECCCI_DRIVER**（IS_ENABLED 守卫剔除） |
+| `mtk-mmdvfs-v3.ko`（依赖方 vmm） | `mtk_mmdvfs_camera_notify`/`mtk_mmdvfs_genpd_notify` | `mtk-mmdvfs-v3.ko` 自身 |
+| `mtk-mmdvfs-v5.ko` | `mtk_vmm_ctrl_dbg_use` | `mtk-vmm-notifier.ko` |
+| `mtk-mmdvfs-v5.ko` | `mmdebug_is_init_done` | `mtk-mmdebug-vcp.ko` |
+| `mmqos-common.ko` | `mtk_icc_*` | `mtk-icc-core.ko` |
+| `mmqos-common.ko` | `mtk_dramc_get_ddr_type` | `mtk_dramc.ko` |
+| `mmqos-common.ko` | `mtk_mmmc_*` | `mtk-mm-monitor-controller.ko` |
+| `mmqos-common.ko` | `mtk_mmdvfs_enable_vcp` | `mtk-mmdvfs-v5.ko` |
+| `mtk-smi.ko` / `mtk-mminfra-debug.ko` | `mtk_mminfra_on_off` | `mtk-mminfra-util-dummy.ko` |
+| `mtk-smi-dbg.ko` | `mtk_emidbg_dump` | `emi.ko` |
+| `mtk-mmc.ko` | `cqhci_init`/`cqhci_irq`/`cqhci_deactivate` | `cqhci.ko` |
+| `mtk-mmc.ko` / `mtk-mmc-dbg.ko` | `mmc_mtk_biolog_*`/`set_mmc_perf_mode` | `blocktag.ko` |
+| `rpmb-mtk.ko` | `rpmb_mtk_cmd_req` | `core.ko`（rpmb） |
+| `rpmb-mtk.ko` | `mc_*`（7 个 TEE 符号） | `mcDrvModule.ko`（tee/gud/700） |
+| `rpmb-mtk.ko` | `ufs_mtk_rpmb_get_raw_dev` | `ufs-mediatek-mod.ko` |
+| `mtk_tinysys_ipi.ko` | `mtk_rpmsg_create_channel`/`create_device` | `mtk_rpmsg_mbox.ko` |
+| `mtk-mmdvfs.ko`（mtk-mmdvfs-v5） | `mmprofile_*`（5 个） | `mmprofile.ko` |
+| `ps5170.ko` | `ssusb_get_drvdata`/`ssusb_power_*_notifier` | `mtu3.ko` |
+| `clkchk-mt6895.ko` / `mtk-mminfra-debug.ko` | `register_devapc_*` | `device-apc-common(-legacy).ko` |
+| `spmi-mtk-mpu.ko` | `ext_pmif_base` | `spmi-mtk-pmif.ko`（pmif-core.o） |
+| `flashlight.ko` | `kicker_ppb_request_power`/`register_bp_thl_notify` | `mtk_peak_power_budget.ko` + `mtk_bp_thl.ko` |
+| `mtk_low_battery_throttling.ko` | `dump_lvsys_thd`/`lvsys_*` | `pmic_lvsys_notify.ko` |
+| `slbc_ipi.ko` | `slbc_trace_rec_write` | `slbc_trace.ko` |
+| `rt5133-regulator.ko` | `devm_extdev_io_device_register` | `extdev_io_class.ko`（subpmic） |
+
+### 7.4 依赖恢复的最终判定
+
+- **197 个 .ko 全部无 undefined 符号**（nm 审计 0 缺口）。
+- 3 处无法编译的符号按"可执行性判定"处理：`get_lockdown_info_for_nvt`（桩化）、
+  `ccci_*`（关 CONFIG）、OPPO `oplus_ofp_*`（换 alps 原版文件）。
+- 模块加载顺序由 build.sh 的 **python Kahn 拓扑排序**（读 depmod modules.dep）保证，
+  不靠 modules.load 字母序。
+
 ## 八、验证结果
 
 - 全量模块编译：**197 个 .ko，0 个 modpost undefined 符号**
@@ -286,6 +359,11 @@ mediatek-drm / mtk-mml / panel 的符号依赖链牵出的外围模块，全部�
   `xaga:` 注释）。
 - DRM 相关旧缺口（panel-l16 / nvt36672c / leds-mtk-disp / leds-mtk-pwm /
   usb_dp_selector / mtk-mml / mediatek-drm）的 undefined 符号全部闭环。
+- **镜像体积（2026-08-10 追加）**：官方 vendor_boot ramdisk ko 合计 39.4MB，
+  移植树恢复的 197 ko 带 DWARF5 调试段达 130MB → build.sh 打包阶段加
+  `llvm-strip --strip-debug`（保留 .symtab/__ksymtab/modinfo）→ **25MB**，
+  vendor_boot_new.img 从 90MB 降回 64MB 规格（与官方一致）。boot_new.img
+  结构不变（kernel 13.2MB + ramdisk 1.77MB，64MB pad，与官方一致）。
 
 ## 附：相关文件索引
 

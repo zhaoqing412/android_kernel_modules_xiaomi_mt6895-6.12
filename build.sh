@@ -313,6 +313,10 @@ pack_vendor() {
     # remove all 5.10 modules, install 6.12 ones
     find . -name '*.ko' -delete
     cp $(find "$M" -name '*.ko') lib/modules/
+    # xaga: official 5.10 modules carry no DWARF (40MB vs our 130MB for the
+    # same 198 modules). Drop debug sections, keep .symtab + __ksymtab so
+    # modinfo/depmod/insmod all still work (2026-08-10).
+    find lib/modules -name '*.ko' -exec "$LLVM_PREFIX/bin/llvm-strip" --strip-debug {} +
     cd lib/modules
     ls *.ko | sed 's|\.ko$||' | sort > modules.load
     cp modules.load modules.load.recovery
