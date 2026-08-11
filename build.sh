@@ -355,10 +355,10 @@ pack_boot() {
     "$MAGISKBOOT" unpack -n -h "$OFFICIAL/boot.img" > "$WORK/boot_unpack.log" 2>&1
     cp "$OUT/arch/arm64/boot/Image.gz" kernel
     # ramdisk is kept compressed by -n; decompress, swap kernelsu, recompress
-    lz4 -l -d -f ramdisk.cpio ramdisk.raw > /dev/null 2>&1 || true
+    lz4 -d -f ramdisk.cpio ramdisk.raw > /dev/null 2>&1 || true
     "$MAGISKBOOT" cpio ramdisk.raw "add 0755 kernelsu.ko $KERNELSU" \
         > "$WORK/boot_cpio.log" 2>&1
-    lz4 -l -9 -f ramdisk.raw ramdisk_new.lz4 > /dev/null 2>&1
+    lz4 -9 -f ramdisk.raw ramdisk_new.lz4 > /dev/null 2>&1
     cp ramdisk_new.lz4 ramdisk.cpio
     "$MAGISKBOOT" repack -n "$OFFICIAL/boot.img" > "$WORK/boot_repack.log" 2>&1
     cp new-boot.img "$OUT_IMG/boot_new.img"
@@ -371,11 +371,25 @@ pack_boot() {
 pack_vendor() {
     log "7/8 vendor_boot_new.img (no 5.10 modules, mkbootimg, padded 64MB)"
     local VD="$WORK/vb"; mkdir -p "$VD"; cd "$VD"
-    # magiskboot unpack on vendor_boot exits 3 (VBMETA handling) though it
-    # extracts everything; later steps verify the files exist
+    # magiskboot unpack on vendor_boot exits 3 (VBMETA handling) and may
+    # return BEFORE ramdisk.cpio is fully written (race, 2026-08-11: lz4 of
+    # the half-written file yields a 67-68MB cpio vs the full 80MB -> the
+    # system section incl. system/etc/recovery.fstab is silently dropped).
+    # Use the verified-full official lz4 stream directly for the ramdisk and
+    # keep magiskboot only for the dtb slot (dtb_container.bin is rebuilt
+    # from the SoC base below anyway).
     "$MAGISKBOOT" unpack -n -h "$OFFICIAL/vendor_boot.img" > "$WORK/vb_unpack.log" 2>&1 || true
     cd "$VD/vendor_ramdisk"
-    lz4 -l -d -f ramdisk.cpio vr.raw > /dev/null 2>&1 || true
+    local VR_SRC="${VENDOR_RAMDISK_LZ4:-$IMG_DIR/building/tools/vendor_ramdisk_official.lz4}"
+    lz4 -d -f "$VR_SRC" vr.raw > /dev/null 2>&1 || true
+    # integrity gate: the official ramdisk is exactly 83886080B. Note the
+    # cpio TRAILER!!! is NOT at EOF (official ramdisk appends a second
+    # archive ~13MB after the first TRAILER) - size is the reliable check.
+    if [ "$(stat -c %s vr.raw 2>/dev/null || echo 0)" -ne 83886080 ]; then
+        echo "ERROR: vendor ramdisk extraction incomplete ($(stat -c %s vr.raw 2>/dev/null) bytes)" >&2
+        echo "  source: $VR_SRC (expected 83886080B)" >&2
+        exit 1
+    fi
     mkdir -p rd && cd rd
     # cpio returns 2 on some entries (hardlink warnings); unpack is fine
     cpio -idmv < ../vr.raw > /dev/null 2>&1 || true
@@ -437,7 +451,7 @@ sys.stdout.write('\n'.join(order) + '\n')
 PYEOF
     cd "$VD/vendor_ramdisk/rd"
     find . | cpio -o -H newc > "$VD/vr_new.cpio" 2>/dev/null || true
-    lz4 -l -9 -f "$VD/vr_new.cpio" "$VD/vr_new.lz4" > /dev/null 2>&1
+    lz4 -9 -f "$VD/vr_new.cpio" "$VD/vr_new.lz4" > /dev/null 2>&1
 
     # dtb slot: DTBO_TAG container of the SoC base (matches official format)
     python3 "$MKDTBO" "$VD/dtb_container.bin" "$WORK/dts/mt6895.dtb" > /dev/null
@@ -457,6 +471,18 @@ data = open(p, 'rb').read()
 data += b'\x00' * (67108864 - len(data))
 open(p, 'wb').write(data)
 EOF
+    # xaga self-check: the repacked vendor ramdisk must still carry the full
+    # official system section (system/etc/recovery.fstab + toybox bin set).
+    # The extraction gate above already guarantees vr.raw is the full 80MB;
+    # this second gate catches any repack-time regression. Fail loud instead
+    # of shipping a bad vendor_boot. NOTE: avoid `grep -q` in a pipe here -
+    # set -o pipefail turns grep's early-exit SIGPIPE into a pipe failure.
+    local VRFILE="$VD/vr_new.cpio"
+    if [ "$(cpio -it < "$VRFILE" 2>/dev/null | grep -c '^system/etc/recovery.fstab$')" -eq 0 ]; then
+        echo "ERROR: vendor ramdisk missing system/etc/recovery.fstab (truncated unpack?)" >&2
+        echo "  ramdisk cpio: $(stat -c %s "$VRFILE") bytes; official full is 83886080" >&2
+        exit 1
+    fi
     cp "$VD/vendor_boot_new.img" "$OUT_IMG/vendor_boot_new.img"
     ls -la "$OUT_IMG/vendor_boot_new.img"
 }
