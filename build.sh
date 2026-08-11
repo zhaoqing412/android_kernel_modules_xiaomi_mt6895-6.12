@@ -59,7 +59,59 @@ done
 
 DTS_DIR="$M/arch/arm64/boot/dts/mediatek"
 WORK="$(mktemp -d /tmp/xaga_build.XXXXXX)"
-log() { echo -e "\n\033[1;32m=== $* ===\033[0m"; }
+
+# ---------------------------------------------------------------------------
+# Progress visualization: every log() line carries [HH:MM:SS] + (N/8) step
+# counter + cumulative time T+mm:ss + per-step duration +mm:ss. The step
+# number is parsed from the message's own "N/8" prefix (sub-steps like
+# "4b/8" and --skip steps don't disturb the counter). The bottom bar
+# (progress_bar) is drawn with \r when stdout is a TTY, otherwise the
+# step lines alone are printed (log file friendly).
+# ---------------------------------------------------------------------------
+BUILD_START_EPOCH="$(date +%s)"
+BUILD_TOTAL_STEPS=8
+BUILD_STEP_NUM=0
+BUILD_STEP_EPOCH="$BUILD_START_EPOCH"
+
+fmt_ts() { date +%H:%M:%S; }
+fmt_dur() {  # fmt_dur <seconds> -> mm:ss
+    local s=$(( $1 % 60 )) m=$(( ($1 / 60) % 60 )) h=$(( $1 / 3600 ))
+    if [ "$h" -gt 0 ]; then printf '%dh%02dm%02ds' "$h" "$m" "$s"
+    else printf '%dm%02ds' "$m" "$s"; fi
+}
+
+log() {
+    local now_epoch step_dur total_dur msg="$*" step_tag=""
+    now_epoch="$(date +%s)"
+    step_dur=$(( now_epoch - BUILD_STEP_EPOCH ))
+    total_dur=$(( now_epoch - BUILD_START_EPOCH ))
+    BUILD_STEP_EPOCH="$now_epoch"
+    # step number lives in the message ("N/8" or "4b/8"); only count whole
+    # steps so sub-steps don't advance the progress counter
+    if [[ "$msg" =~ ^([0-9]+)[ab]?/ ]]; then
+        BUILD_STEP_NUM="${BASH_REMATCH[1]}"
+        step_tag=" ($BUILD_STEP_NUM/$BUILD_TOTAL_STEPS)"
+    fi
+    echo -e "\n\033[1;32m[$(fmt_ts)]$step_tag T+$(fmt_dur $total_dur) +$(fmt_dur $step_dur) === $msg ===\033[0m"
+}
+
+# progress_bar <label> <cur> <total>: draw/refresh one line; no-op when not a TTY
+progress_bar() {
+    [ -t 1 ] || return 0
+    local label="$1" cur="$2" total="$3" pct filled bar
+    [ "$total" -gt 0 ] || total=1
+    pct=$(( cur * 100 / total ))
+    filled=$(( pct / 2 ))
+    bar=$(printf '%*s' "$filled" '' | tr ' ' '=')
+    printf '\r\033[K\033[1;36m%s [%-50s] %3d%% (%d/%d)\033[0m' \
+        "$label" "$bar" "$pct" "$cur" "$total"
+}
+
+progress_clear() { [ -t 1 ] && printf '\r\033[K'; }
+
+# log_raw: informational line that does NOT consume a step number
+log_raw() { echo -e "\033[1;33m[$*]\033[0m"; }
+
 skip() { [[ "$SKIP" == *,$1,* ]]; }
 
 # ---------------------------------------------------------------------------
@@ -87,7 +139,7 @@ locate_kernel() {
 }
 
 if K="$(locate_kernel)"; then
-    log "kernel source: $K"
+    log_raw "kernel source: $K"
 else
     echo "OPPO 6.12 kernel source not found automatically." >&2
     echo "Set K=<path> or enter it now (expects arch/arm64/configs/gki_defconfig):" >&2
@@ -152,7 +204,7 @@ PYEOF
     if [ "${USE_CCACHE:-0}" -eq 1 ]; then
         command -v ccache >/dev/null 2>&1 || { echo "USE_CCACHE=1 but ccache not found" >&2; exit 1; }
         MAKE_CC=(CC="ccache clang" CXX="ccache clang++")
-        log "ccache enabled"
+        log_raw "ccache enabled"
     fi
 }
 
@@ -246,9 +298,27 @@ modules() {
     ( cd "$K" && make "${MAKE_CC[@]}" O="$OUT" ARCH=arm64 LLVM=1 -j"$JOBS" modules > "$WORK/inmod.log" 2>&1 )
 
     log "4b/8 out-of-tree modules -> 193 x .ko (KBUILD_MODPOST_WARN=1)"
-    make -C "$K" O="$OUT" ARCH=arm64 LLVM=1 KCONFIG_EXT_PREFIX="$M/" M="$M" \
-        DEVICE_MODULES_PATH="$M" DEVCIE_MODULES_INCLUDE="$INC" \
-        KBUILD_MODPOST_WARN=1 -j"$JOBS" modules > "$WORK/ootmod.log" 2>&1
+    # progress: count .ko as they are produced; poll in background on a TTY
+    if [ -t 1 ]; then
+        make -C "$K" O="$OUT" ARCH=arm64 LLVM=1 KCONFIG_EXT_PREFIX="$M/" M="$M" \
+            DEVICE_MODULES_PATH="$M" DEVCIE_MODULES_INCLUDE="$INC" \
+            KBUILD_MODPOST_WARN=1 -j"$JOBS" modules > "$WORK/ootmod.log" 2>&1 &
+        local MPID=$!
+        local MCUR=0
+        while kill -0 "$MPID" 2>/dev/null; do
+            MCUR="$(find "$M" -name '*.ko' | wc -l)"
+            progress_bar "OOT modules" "$MCUR" 193
+            sleep 2
+        done
+        wait "$MPID"
+        MCUR="$(find "$M" -name '*.ko' | wc -l)"
+        progress_bar "OOT modules" "$MCUR" 193
+        progress_clear
+    else
+        make -C "$K" O="$OUT" ARCH=arm64 LLVM=1 KCONFIG_EXT_PREFIX="$M/" M="$M" \
+            DEVICE_MODULES_PATH="$M" DEVCIE_MODULES_INCLUDE="$INC" \
+            KBUILD_MODPOST_WARN=1 -j"$JOBS" modules > "$WORK/ootmod.log" 2>&1
+    fi
     NKO="$(find "$M" -name '*.ko' | wc -l)"
     [ "$NKO" -eq 193 ] || { echo "ERROR: expected 193 .ko, got $NKO" >&2; exit 1; }
     echo "$NKO .ko built"
@@ -427,4 +497,6 @@ else
     echo "out-of-tree modules: $(find "$M" -name '*.ko' | wc -l) x .ko in $M"
     ls -la "$OUT_IMG"/boot_new.img "$OUT_IMG"/vendor_boot_new.img "$OUT_IMG"/dtbo_new.img 2>/dev/null
 fi
+BUILD_END_EPOCH="$(date +%s)"
 echo "build log: $WORK (kept for inspection)"
+echo -e "\033[1;32m[$(fmt_ts)] total build time: $(fmt_dur $(( BUILD_END_EPOCH - BUILD_START_EPOCH )))\033[0m"
