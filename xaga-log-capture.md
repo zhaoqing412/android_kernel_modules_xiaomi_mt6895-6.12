@@ -73,3 +73,6 @@
   （setup_arch 头调 `xaga_marker_early_init()`）
 - 读端（备用，非必需）：lineage_xaga `drivers/misc/xaga-marker.c`
 - 构建接线：移植树 `build.sh`（config sed + 模块断言）+ `arch/arm64/configs/vendor/xaga.config`
+- **补丁集（2026-08-11 导出）**：`xaga/patches-lk-log/`（5 个 git format-patch，
+  含 README）——K 树写端链路 + smccc 配套，可从 OPPO 基线 `c5d442d1d` 顺序 `git am`
+  应用；`git am` 验证与 K 树 HEAD `84a4857b1` 逐字节一致

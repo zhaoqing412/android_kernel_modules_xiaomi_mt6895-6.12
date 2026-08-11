@@ -1,7 +1,8 @@
 # xaga 6.12 移植状态总览
 
-> **状态基准**: commit `17f5d4c`（2026-08-10，分支 `main`，工作树干净；此前基准 `270467e` 的 24 commits 已 rebase 重写）
+> **状态基准**: commit `a05b916`（2026-08-11，分支 `main`，已推送 origin/main；此前基准 `17f5d4c` 的 24 commits 已 rebase 重写）
 > **注意**: 提交历史被 rebase 重写过，所有旧文档引用的 hash 均已失效；新旧对照见 §9。
+> **真机验证**: **2026-08-11 起 197 个内核模块全部加载成功**（`init: Loaded 197 kernel modules took 707 ms`）——7 轮 expdb 真机诊断修复了全部 init 阶段崩溃（§10 expdb 诊断史）；当前唯一阻塞 = 启动模式（LK boot mode 2 → recovery，见 §6.7）。
 
 ## 1. 项目定位与树结构
 
@@ -37,7 +38,7 @@ xaga/kernel_xiaomi_mt6895-6.12/
 | defconfig（xaga.config） | ✅ 已完成 | 关键符号见 §3 |
 | 完整构建 + 打包 | ✅ 本机可构建 | 产物见 §4；用户环境需重跑完整集成 |
 | 指纹 goodix_cap | ❌ 未做 | 依赖 5.10 私有 mtk_spi.h，GF3626ZS9 TEE（§6.1） |
-| 真机验证 | ⏳ 进行中 | 充电流程 / xaga_global 变体 / 模块加载顺序（§6.6） |
+| 真机验证 | ✅ **模块加载链全通（2026-08-11）** | **197 ko 全部加载成功（707ms）**；7 轮 expdb 修复 devapc/mmdvfs/gateic/mmqos/dramc/msdc/UFS；剩余 = 启动模式（recovery）与功能验证（§6.6/§6.7） |
 
 ## 3. 配置（xaga.config 关键符号）
 
@@ -58,7 +59,20 @@ xaga/kernel_xiaomi_mt6895-6.12/
 
 ## 4. 构建状态
 
-**产物**（2026-08-07 本机）：`Image`（32MB）+ 22 个移植驱动 `.ko` + 123 个 MTK 平台模块 `.ko` + `xaga.dtbo` + `xaga_global.dtbo`。
+**产物**（2026-08-11，本机 `./build.sh` 全量）：`Image.gz`（13.3MB）+ **193 个 OOT 模块 `.ko`** + `mt6895.dtb` / `xaga.dtbo` / `xaga_global.dtbo` + 三个可刷镜像（`boot_new.img` / `vendor_boot_new.img` / `dtbo_new.img`，见 §4a）。单次全量构建约 4 分钟（32 核），带时间戳/步骤计数/进度条输出（2026-08-11 起）。
+
+### 4a. 打包集构成（2026-08-11 定型）
+
+- **197 ko = 193 OOT + 4 in-tree**：OOT 模块来自 M 树 `make M=`；4 个 in-tree（K 树）模块是 OOT 的符号提供者、6.12 里是 `=m`（不编进 Image），必须随 vendor_boot 打包：
+  - `drm_display_helper.ko`（`drm_dp_*`，供 mediatek-drm）→ `CONFIG_DRM_DISPLAY_HELPER=m`
+  - `drm_dma_helper.ko`（`drm_gem_dma_vm_ops`）→ `CONFIG_DRM_GEM_DMA_HELPER=m`
+  - `industrialio-triggered-buffer.ko` + `kfifo_buf.ko`（供 mt6375-adc）
+- **模块裁剪（2026-08-11）**：4 对"双模块重复导出符号"冲突（真机 `exports duplicate symbol` → init kill）按 alps 平台映射各留其一：
+  - `device-apc-common-legacy`（老 SoC v1 接口）去 / 留 `device-apc-common`（multi-ao）
+  - `mtk-mmdvfs-v5`（mt6993 专属）去 / 留 `mtk-mmdvfs-v3`（mt6895）
+  - `mtk-mmdebug-vcp`（真实现）去 / 留 `mtk-mmdebug-vcp-stub`（唯一被 ko_deps 引用）
+  - `mcDrvModule-ffa`（FF-A 传输）去 / 留 `mcDrvModule`（官方 5.10 同款）
+- **`mtk_drm_gateic` → `mediatek-drm-gateic`**（2026-08-11）：复合模块名必须与主源对象不同名（Kbuild 循环依赖），采用官方 5.10（xagaforge）与 alps mgk_64.bzl 名字；`-y` 列表含主文件 `mtk_drm_gateic.o`。
 
 **模块覆盖（官方 5.10 ramdisk 198 个模块 → 6.12，2026-08-08/10 实解包对比）**：官方 198 个 5.10 版 .ko（vermagic 5.10.198）在 6.12 内核上无法加载，由 6.12 侧以四层方式完整覆盖，**无硬缺口**：
 - ① 同名直接替代（109 个）：123 打包模块中 109 个与官方同名（bq28z610/mtk_wdt/phy-mtk-ufs/pinctrl-mt6895 等）
@@ -66,7 +80,7 @@ xaga/kernel_xiaomi_mt6895-6.12/
 - ③ 内核内置（约 30 个，无需 .ko）：mediatek-drm*（DRM_MEDIATEK_V2=y）、mtk-mmc-autok（mtk-mmc.c 内置）、regmap-spmi/reboot-mode/zsmalloc/system_heap、industrialio/kfifo_buf/mac80211/cfg80211（上游）
 - ④ 调试诊断类省略；**唯一无对应物 = mi-memory**（小米私有，三树皆无，非启动必需）
 
-⚠️ **123 是 8-07 打包快照**：官方 198 中未打包的模块（aee/emi/dramc/tcpc/ufs/devapc/swpm 等约 75+ 个）在移植树有 6.12 源码；**2026-08-10 起打包集扩展为 197 ko**（恢复 DRM/typec/gpufreq 等依赖链，见 `xaga-drm-restore.md`）。
+⚠️ **历史快照说明**：123 ko 是 2026-08-07 打包快照；2026-08-10 起打包集扩展为 197 ko（恢复 DRM/typec/gpufreq 等依赖链）；2026-08-11 定型为 193 OOT + 4 in-tree = 197（见 §4a）。
 
 **modpost undefined**：**2026-08-10 起清零**。此前 vendor/mediatek 跨引用 MTK typec/tcpc（`tcpm_*`、`tcpc_dev_*`）已随 tcpc_class 模块恢复解决；全部 197 ko 经 `llvm-nm` 审计无 undefined。
 
@@ -101,17 +115,19 @@ xaga/kernel_xiaomi_mt6895-6.12/
 | 3 | sensor 合入 | 需用户环境 | 在 `src-v4l2/BUILD.bazel` 的 `config_cust_kernel_imgsensor` 追加 6 个 xaga* 名字（make 路径自动读 CONFIG_CUSTOM_KERNEL_IMGSENSOR，无需改） |
 | 4 | DTS Makefile 0 处 xaga 注册 | 需用户环境 | DTBO 列表在 `kernel/build` mgk 规则注册（本树无法完成）；mgk_64.bzl:1361 给 mt6895 注册了 lm3644（xaga 用 KTD2687，保留无害可删） |
 | 5 | 触控 fw 文件 | 需设备侧 | nt36672e fw 文件放入 vendor 分区对应路径 |
-| 6 | 真机验证未做 | 待设备 | psy 对齐后充电流程、xaga_global 变体、mtk-master-charger kABI/模块加载顺序 |
-| 7 | 6.12 真机启动早期 watchdog 重启（未到模块加载）；marker 方案未验证 | 待设备 | 6.12 开机问题本身未解决（2026-08-09 末），marker 写端（log_store 0x7ffbf000）编译通过待真机验证；minirdump 区不能写（mrdump 立即重启，实测） |
+| 6 | 功能验证（模块加载已通） | 进行中 | 197 ko 加载成功后：进系统 → `/sys/class/power_supply/` 应有 mtk-master-charger/bms/battery → 5V 普通充电 → PD 快充管理器验证（顺序见 BRINGUP.md §3.4） |
+| 7 | **启动模式 = recovery（boot mode 2）** | ⚠️ 当前阻塞 | 2026-08-11 实测：内核与 197 模块全通，但 LK 以 `boot mode = 2`（recovery）启动 → init 第二阶段缺 system 库（`libbacktrace.so not found`）→ `Attempted to kill init`。**非内核缺陷**，是 BCB/misc 启动标志问题；正常重启（fastboot reboot 进系统）后 boot mode 应变 0 |
 
 ## 7. 下一步
 
-1. **用户环境集成（阻塞真机）**：
+1. **用户环境集成（阻塞完整构建）**：
    - mgk 规则把 `xaga` 加入项目 DTBO 列表
    - 合入 vendor/mediatek 及 alps sibling 项目
    - sensor 追加（§6.3）
-   - 完整构建 + depmod 打包
-2. **真机 bring-up**（顺序见 BRINGUP.md §3.4）：probe 检查 → `/sys/class/power_supply/` 应有 mtk-master-charger/bms/battery → 插 5V 普通充电 → 插 PD 快充验证管理器。
+2. **真机进系统验证**（模块加载链已通，2026-08-11）：
+   - 正常重启（清除 recovery 标志）→ 确认 boot mode 0
+   - init 第二阶段 / system 挂载 / zygote 启动
+   - 充电流程（顺序见 BRINGUP.md §3.4）：`/sys/class/power_supply/` → 5V 普通充电 → PD 快充
 3. **剩余工作（非阻塞）**：指纹（可选）、lm3644 清理（可选）、触控 fw 放置。
 
 ## 8. 决策记录要点
@@ -153,8 +169,35 @@ xaga/kernel_xiaomi_mt6895-6.12/
 | — | 06ee319 | 恢复 mrdump 模块（aee_sram_printk）+ modules.load 拓扑序（2026-08-10） |
 | — | 551d6cd | 恢复 clk-common 模块（get_all_provider_clks，2026-08-10） |
 | — | 17f5d4c | **恢复 MTK DRM 模块依赖链（197 ko、0 undefined）+ xaga-drm-restore.md**（2026-08-10） |
+| — | 32c3adf | **去 4 对重复导出符号模块**（devapc legacy / mmdvfs-v5 / mmdebug-vcp / gud ffa；197→193 OOT）（2026-08-11，expdb5 实证） |
+| — | c5113ed | **vendor_boot 打包 4 个 in-tree 依赖模块**（drm_display_helper/drm_dma_helper/iio buffer/kfifo；193 OOT + 4 = 197）（2026-08-11，expdb 实证） |
+| — | 99a5feb | **修复 mediatek-drm-gateic 复合模块**（改名避开 Kbuild 循环依赖）（2026-08-11） |
+| — | 84e1aaf | **mmqos DTS 属性名对齐 6.12**（larbs-supply/commons-supply/mmqos-state）（2026-08-11，NULL deref Oops） |
+| — | dc99de2 | **build.sh 进度可视化**（时间戳/步骤计数/实时进度条）（2026-08-11） |
+| — | f8313fa | **dramc getters NULL drvdata 守卫**（4 个导出函数）（2026-08-11，mmqos Oops） |
+| — | 3b9b285 | **禁用 mmc1**（xaga 无 SD 槽，QoS plist_del BUG）（2026-08-11） |
+| — | a05b916 | **ufshci 补 mediatek,ufs-disable-mcq**（UFS legacy doorbell）（2026-08-11，init 分区超时） |
 
-## 10. 相关文档索引
+## 10. expdb 真机诊断史（2026-08-08 ~ 08-11，7 轮）
+
+> 诊断方法：真机刷入构建 → WDT 复位/panic 后 dump LK expdb 分区（`xaga/expdb`，128MB raw，PL_LOG_STORE 机制自动把内核日志写进保留区并随 expdb 恢复）→ 提取文本定位崩溃。**每轮修掉一个 init 阶段问题**，最终 **197 模块全部加载成功**。
+
+| 轮次 | expdb | 失败模式 | 根因 | 修复 commit |
+|---|---|---|---|---|
+| 1-4 | expdb1-4 | `Unknown symbol` → `Attempted to kill init`（模块加载缺提供者） | devapc/clk-common/mrdump/aee_aed 等 Makefile obj- 被注释（OPPO 走 bazel） | 06ee319 / 551d6cd / 17f5d4c（2026-08-10） |
+| 5 | expdb5 | `exports duplicate symbol` → init kill | devapc legacy/common 双模块重复导出 `register_devapc_vio_callback` | 32c3adf |
+| 6 | （续 expdb5） | `exports duplicate symbol`（mmdvfs-v5） | mmdvfs-v3/v5 重复导出；alps 平台映射 mt6895 只用 v3 | 32c3adf（+mmdebug/gud 三对一并清理） |
+| — | （构建） | — | OOT 依赖 K 树 `=m` 模块（drm_display_helper 等）未打包 | c5113ed |
+| 7 | expdb（14:22） | `Unknown symbol mtk_drm_gateic_register` | 复合模块 `-y` 漏主文件 → Kbuild 循环依赖 | 99a5feb |
+| 8 | expdb（14:22） | mmqos NULL deref Oops | DTS 属性名 5.10 旧语法（larbs/commons 无 -supply） | 84e1aaf |
+| 9 | expdb（14:22） | mmqos→dramc NULL drvdata | dramc probe 缺属性早退，drvdata 未设；getter 无守卫 | f8313fa |
+| 10 | expdb（14:46） | msdc1 QoS `plist_del` BUG | xaga 无 SD 槽但 mmc1 被 enable（6.12 mtk-mmc 有 QoS 调用，5.10 无） | 3b9b285 |
+| 11 | expdb（15:03） | UFS `legacy doorbell mode not supported` → init 分区超时 | ufshci 缺 `mediatek,ufs-disable-mcq`（5.10 移植丢失） | a05b916 |
+| 12 | expdb（15:03 后续） | `libbacktrace.so not found` → init kill | **LK boot mode 2（recovery）**，非内核缺陷；197 ko 已全部加载成功（707ms） | （用户操作：正常重启） |
+
+**诊断要点**：expdb 抓取的内核日志从 setup_arch 头开始（XAGR ring armed），模块加载序列 + panic 尾部完整可见；`grep -aE "Kernel panic|Unable to handle|exports duplicate|Unknown symbol"` 即可定位每轮失败点。
+
+## 11. 相关文档索引
 
 | 文档 | 角色 | 何时看 |
 |---|---|---|

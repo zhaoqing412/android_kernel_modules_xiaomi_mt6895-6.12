@@ -3,7 +3,10 @@
 > Redmi Note 11T Pro / POCO X4 GT / Redmi K50i (xaga, MT6895 / Dimensity 8100)
 > 6.12 MTK kernel_device_modules 移植树。目标:编译出可开机的内核 + DTBO + 模块,
 > 在真机上完成从"亮屏进系统"到"充电功能"的 bring-up。
-> 状态基准:commit 270467e（2026-08-07，工作树干净）。历史经 rebase，旧 hash 见 STATUS.md §9。
+> 状态基准:commit `a05b916`（2026-08-11，已推送 origin/main）。历史经 rebase，旧 hash 见 STATUS.md §9。
+> **真机进度（2026-08-11）**: 197 个内核模块已全部加载成功（`Loaded 197 kernel modules took 707 ms`），
+> 启动链（UFS → init 首阶段 → 模块加载）全通；当前阻塞 = LK boot mode 2（recovery）导致 init 第二阶段
+> 缺 system 库（§2.4）。
 
 ---
 
@@ -116,9 +119,32 @@ system_heap 等, 全部按 alps `BUILD.bazel`), **197 ko、0 undefined**——�
 |---|---|---|
 | dtc 编译错/加载错 | 板级 DTS 引用未解析(本树已静态验证 210 引用, 再核对你环境里 base 是否一致) | arch/arm64/boot/dts/mediatek/xaga*.dts |
 | mtee/svp 相关 panic | xaga.dts 的 memory_ssmr svp-region 依赖 TEE;若无 TEE 固件, 改用 xaga_global.dts(无 svp) | xaga.dts vs xaga_global.dts |
+| `exports duplicate symbol` → init kill | 两个模块导出同名符号(devapc legacy/mmdvfs-v3-v5/mmdebug-vcp-stub/gud ffa 四对, 已修);新出现时 `grep -n "exports duplicate"` 定位, 按 alps mgk_64.bzl 平台映射留其一 | drivers/{soc/mediatek,tee/gud}/Makefile |
+| `Unknown symbol` → init kill | 提供者模块缺失:① OOT 模块漏打包 ② **K 树 `=m` in-tree 模块没进 vendor_boot**(drm_display_helper/drm_dma_helper/iio buffer/kfifo 已修) ③ 复合模块 `-y` 漏主文件(gateic 已修) | build.sh pack_vendor / 各 Makefile |
+| mmqos NULL deref Oops | DTS 属性名须 6.12 语法:`mediatek,larbs-supply`/`mediatek,commons-supply`/`mmqos-state`(5.10 旧名已修) | mt6895.dts mmqos 节点 |
+| mmqos→dramc NULL drvdata | dramc probe 缺 DTS 属性早退但 `dramc_pdev` 已赋值;4 个 getter 已有 NULL 守卫 | drivers/memory/mediatek/dramc.c |
+| msdc1 QoS `plist_del` BUG | **xaga 无 SD 槽** → mmc1 保持 disabled(xaga-mt6895.dtsi 覆盖;6.12 mtk-mmc 有 cpu_latency_qos, 5.10 无) | xaga-mt6895.dtsi `&mmc1` |
+| UFS `legacy doorbell mode not supported` | ufshci 节点需 `mediatek,ufs-disable-mcq`(MT6895 UFS 是 legacy-doorbell, 5.10 移植丢失) | mt6895.dts ufshci 节点 |
+| init `partition(s) not found` 超时 | 上一条(UFS 没起来)的连锁;UFS 修好后自愈 | — |
+| init 第二阶段 `libbacktrace.so not found` | **LK boot mode 2(recovery)**: `First stage mount skipped (recovery mode)` → system 未挂载。非内核缺陷, 检查 BCB/misc 或正常重启(§2.4) | 用户操作 |
 | 卡在 display probe | L16 面板驱动依赖 3 个 provider(见 §3.3), 缺则 probe 失败→黑屏; 先用 `xaga_global.dts` + 确认 `CONFIG_DRM_PANEL_L16_*`+`CONFIG_DRM_PANEL_LEDS_KTZ8863A` 已启 | panel-l16-*.c, leds-ktz8863a.c |
 | 卡在触摸 | NVT36672C probe;确认 `CONFIG_TOUCHSCREEN_NVT36672C_HOSTDL_SPI=m`、spi2 节点 | drivers/input/touchscreen/NVT36672C/ |
 | 充电 IC probe 失败 | i2c9/i2c7 节点(lm8000/sc8551/bq28z610)已在 DTS;bq28z610 probe 失败→无 "bms" psy(§3.2 依赖它) | drivers/power/supply/{ln8000,sc8551,bq28z610}*.c |
+
+### 2.4 启动模式(recovery)排查
+
+**症状**:内核与全部模块正常加载(`Loaded 197 kernel modules took 707 ms`), 但
+`init: First stage mount skipped (recovery mode)` → `/system/bin/init` 报
+`library "libbacktrace.so" not found` → `Attempted to kill init`(exitcode 0x100)。
+
+**原因**:LK 以 `boot mode = 2`(recovery)启动内核(`boot_linux_fdt: lk boot mode = 2`)。
+recovery 环境下 system 分区未挂载, init 无法链接系统库。**非内核/模块问题**。
+
+**处理**:
+1. `fastboot reboot`(不带 recovery 参数)正常重启, 观察 boot mode 是否回 0
+2. 若仍进 recovery: 检查 misc 分区 BCB(bootloader message)是否残留
+   `boot-recovery` 标志(`fastboot erase misc` 或 recovery 内 `adb reboot`)
+3. 确认 `androidboot.bootmode` / `bootmode` tag(LK 通过 pl-boottag 传内核)
 
 ### 2.2 开机必须 probe 成功的驱动(按顺序)
 ```
@@ -208,7 +234,9 @@ drivers/power/supply/mtk_pd_adapter.c    (pd_authentication 成功路径, ~:568)
 ## 5. 遗留事项(非开机阻塞)
 - [x] §3.1 psy 名称对齐 — **已实现并提交**(commit 109b0d0)
 - [x] §3.2 USB_PROP 写入方(mtk_chg_type_det + mtk_pd_adapter)— **已实现并提交**(commit 109b0d0/19311e8)
-- [ ] 真机上验证 §3.4 验证顺序(需完整构建环境 + 设备)
+- [x] **init 阶段模块加载链** — **2026-08-11 真机全通**(197 ko / 707ms, §2.1 排查表逐项修复)
+- [ ] **进系统验证**(boot mode 0 后): init 第二阶段 / zygote / 桌面(§2.4)
+- [ ] 真机上验证 §3.4 验证顺序(充电流程, 需进系统)
 - [ ] 触控 fw(nt36672e fw 文件)放入 vendor 分区对应路径
 - [ ] xaga_global 变体开机验证(若 CN 版 TEE/svp 有问题时用)
 - [ ] mtk-master-charger 名字的 kABI/模块加载顺序核对(若有 modprobe 依赖)

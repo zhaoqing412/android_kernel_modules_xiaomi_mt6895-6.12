@@ -228,12 +228,18 @@ root** 都搜一遍，都无则必是私有。
 ### 改动
 - 编为复合模块（gateic + 两个 IC 驱动 + I2C 助手）：
   ```make
-  obj-m += mtk_drm_gateic.o
-  mtk_drm_gateic-y := mtk_drm_gateic_rt4801h.o \
-      mtk_drm_gateic_rt4831a.o mtk_drm_panel_i2c.o
+  obj-m += mediatek-drm-gateic.o
+  mediatek-drm-gateic-y := mtk_drm_panel_i2c.o \
+      mtk_drm_gateic_rt4801h.o \
+      mtk_drm_gateic_rt4831a.o \
+      mtk_drm_gateic.o
   ```
-  （模块名与主源同名，`-y` **不含自身**——Kbuild 惯例，含自身会循环依赖
-  `cannot open mtk_drm_gateic.o`）。
+- ⚠️ **2026-08-11 真机修正（commit 99a5feb）**：模块名**必须与主源对象不同名**。
+  初版写 `obj-m += mtk_drm_gateic.o` + `mtk_drm_gateic-y := ... mtk_drm_gateic.o`
+  （含自身）→ Kbuild 循环依赖，主文件**从未编译**，`mtk_drm_gateic_register`/
+  `mtk_gateic_match_lcm_list` 变成 U 符号 → 真机 insmod `Unknown symbol` → init kill。
+  改名 `mediatek-drm-gateic`（官方 5.10 xagaforge 名 + alps mgk_64.bzl 引用的名字），
+  `-y` 列表含主文件 `mtk_drm_gateic.o`（与模块名不同，无循环）。
 
 ---
 
@@ -364,6 +370,22 @@ mediatek-drm / mtk-mml / panel 的符号依赖链牵出的外围模块，全部�
   `llvm-strip --strip-debug`（保留 .symtab/__ksymtab/modinfo）→ **25MB**，
   vendor_boot_new.img 从 90MB 降回 64MB 规格（与官方一致）。boot_new.img
   结构不变（kernel 13.2MB + ramdisk 1.77MB，64MB pad，与官方一致）。
+
+## 九、2026-08-11 真机修正（模块集定型）
+
+本文件记录的是 2026-08-10 恢复链的 197 ko 快照；2026-08-11 经 7 轮 expdb
+真机诊断，打包集最终定型为 **193 OOT + 4 in-tree = 197**（详见 STATUS.md §4a/§10）：
+
+- **裁剪 4 对重复导出符号模块**（真机 `exports duplicate symbol` → init kill；
+  两模块导出同名符号，按 alps mgk_64.bzl 平台映射各留其一）：
+  `device-apc-common-legacy` / `mtk-mmdvfs-v5`（mt6993 专属）/
+  `mtk-mmdebug-vcp` / `mcDrvModule-ffa`。
+- **gateic 改名 `mediatek-drm-gateic`**（见 §五）——本节初版接线真机失败。
+- **vendor_boot 追加 4 个 K 树 in-tree 模块**（`=m` 不编进 Image，但被 OOT 引用）：
+  `drm_display_helper.ko`（drm_dp_*）、`drm_dma_helper.ko`（drm_gem_dma_vm_ops）、
+  `industrialio-triggered-buffer.ko` + `kfifo_buf.ko`（mt6375-adc）。
+- **真机结果**：init 首阶段 **197 ko 全部加载成功（707ms）**——本文件的依赖链
+  恢复 + 上述修正共同使模块加载阶段全通。
 
 ## 附：相关文件索引
 

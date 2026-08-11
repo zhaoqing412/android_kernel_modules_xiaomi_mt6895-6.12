@@ -1,6 +1,7 @@
 # kernel_xiaomi_mt6895-6.12
 
-> 移植状态总览见 [STATUS.md](STATUS.md)（基准 commit `270467e`，2026-08-07；历史经 rebase，旧 hash 见 STATUS.md §9）
+> 移植状态总览见 [STATUS.md](STATUS.md)（基准 commit `a05b916`，2026-08-11，已推送 origin/main；历史经 rebase，旧 hash 见 STATUS.md §9）
+> **真机进度（2026-08-11）**: 197 个内核模块全部加载成功（`Loaded 197 kernel modules took 707 ms`）——init 阶段 7 轮 expdb 诊断全部修复；当前阻塞 = LK boot mode 2（recovery），详见 STATUS.md §6.7/§10
 
 xaga（Redmi Note 11T Pro / POCO X4 GT / Redmi K50i，Dimensity 8100 / MT6895）的 **Android 6.12 内核模块移植树**。
 
@@ -33,15 +34,15 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 1. 配置：`gki_defconfig` + `mgk_64_k612_defconfig` + `vendor/xaga.config`
 2. 内核 `Image` + `Image.gz`（gzip）
 3. in-tree 模块（刷新 `Module.symvers`）
-4. OOT 模块 → **197 个 `.ko`**（`make M=`，硬断言；2026-08-10 恢复 MTK DRM 全依赖链后由 135 升至 197，详见 `xaga-drm-restore.md`）
+4. OOT 模块 → **193 个 `.ko`**（`make M=`，硬断言；2026-08-10 恢复 MTK DRM 全依赖链后由 135 升至 197，2026-08-11 裁剪 4 对重复导出模块后定型 193，详见 `xaga-drm-restore.md` + STATUS.md §4a）
 5. DTS 三件：`mt6895.dtb`（SoC 基座）+ `xaga.dtbo` / `xaga_global.dtbo`（fdtoverlay 校验）
 6. `images/out/boot_new.img` — magiskboot `-n`：Image.gz 内核 + 6.12 kernelsu 注入官方 boot
-7. `images/out/vendor_boot_new.img` — mkbootimg：官方 vendor ramdisk 换 197 个 6.12 .ko（**`llvm-strip --strip-debug` 后约 25MB，与官方 39.4MB 同级**）+ 元数据重建（modules.load/recovery 197 行 + depmod 平铺拓扑序）+ DTBO_TAG dtb 槽 + pad 64MB
+7. `images/out/vendor_boot_new.img` — mkbootimg：官方 vendor ramdisk 换 **197 个 6.12 .ko（193 OOT + 4 in-tree 依赖：drm_display_helper/drm_dma_helper/industrialio-triggered-buffer/kfifo_buf）**（`llvm-strip --strip-debug` 后约 25MB）+ 元数据重建（modules.load/depmod 平铺拓扑序）+ DTBO_TAG dtb 槽 + pad 64MB
 8. `images/out/dtbo_new.img` — DTOv1 单条目（xaga.dtbo，不 pad）
 
 ```
-./build.sh                        # 默认：全量编译 + 打包（产物 → images/out/）
-./build.sh --modules-only         # 只编译内核模块（配置 → 197 个 .ko），不编译 Image/DTS、不打包
+./build.sh                        # 默认：全量编译 + 打包（产物 → images/out/），带时间戳/进度条
+./build.sh --modules-only         # 只编译内核模块（配置 → 193 个 .ko），不编译 Image/DTS、不打包
 ./build.sh --no-clean             # 增量编译（不清除已有产物）
 ./build.sh --skip=BOOT,VENDOR     # 全量编译但跳过指定打包步骤（DTBO 同理）
 ./build.sh --help
@@ -51,7 +52,7 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 
 - 编译产物在 `out/`：`Image` / `Image.gz` / `Module.symvers` / `dts/`（DTS 三件副本）
 - 打包产物在 `images/out/`：`boot_new.img` / `vendor_boot_new.img` / `dtbo_new.img`
-- 模块树内 **197 个 `.ko`**（`kernel_device_modules-6.12/` 原位）
+- 模块树内 **193 个 `.ko`**（`kernel_device_modules-6.12/` 原位）+ vendor_boot 内 197 个（含 4 in-tree）
 
 **路径全部默认相对脚本目录，无需硬编码**：
 
@@ -94,6 +95,7 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 | **MTK Pump Express** | pep/pep20/pep40/pep45/pep50/pep50p 协议模块接线（2026-08-07 恢复） |
 | **MTK 平台模块（123 ko）** | 全量平台模块构建（1409327/5829818，自 alps 树同步） |
 | **MTK DRM 全依赖链恢复（2026-08-10，+60 模块）** | mediatek_v2（80+ 文件）/ mml / mtk_panel_ext+sync+disp_notify / mtk_drm_gateic / gpufreq v2+hal / slbc+hwccf / system_heap / mmdvfs-v3/v5 / mmdebug / vmm / 等；**197 ko、0 undefined**，详见 `xaga-drm-restore.md` |
+| **真机 init 链修复（2026-08-11，7 轮 expdb）** | 去 4 对重复导出模块（devapc legacy/mmdvfs-v5/mmdebug-vcp/gud ffa）→ 193 OOT；打包 4 个 K 树 in-tree 依赖（drm_display_helper 等）→ 197；gateic 复合模块改名修复；mmqos DTS 属性 6.12 化；dramc getters NULL 守卫；mmc1 禁用（无 SD 槽）；ufshci 补 disable-mcq；**真机 197 ko 全部加载成功（707ms）** |
 
 **板级 DTS**：`xaga-mt6895.dtsi` 链（charger/display/thermal/touch/camera）+ `cust/xaga.dtsi` + `xaga_global.dts`（全球版变体）。
 
@@ -112,7 +114,7 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 3. **camera sensor 合入**：6 颗 sensor 在本树 `vendor/mediatek/kernel_modules/mtkcam/imgsensor/src-v4l2/common/xaga*/`，用户环境需在 `src-v4l2/BUILD.bazel` 的 `config_cust_kernel_imgsensor` 追加 6 个名字（详见 BRINGUP.md §6）
 4. **lm3644 注册残留**：`mgk_64.bzl:1361` 给 mt6895 注册了 lm3644（xaga 用 KTD2687 不用 LM3644，保留无害，可删）
 5. **触控 fw**：nt36672c fw 文件需放入 vendor 分区对应路径
-6. **真机验证未做**：psy 对齐后充电流程、xaga_global 变体、mtk-master-charger kABI/模块加载顺序（见 STATUS.md §6）
+6. **进系统验证**（2026-08-11）：197 ko 模块加载已通；剩余 = 启动模式（boot mode 2 recovery，见 STATUS.md §6.7）+ 充电流程 / xaga_global 变体（见 STATUS.md §6.6）
 
 ## 提交历史要点
 
@@ -121,8 +123,9 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 - `1409327` + `5829818` 全量平台模块构建（118 → 123 ko）/ `a377ba2` 审计修复
 - `7f75af8` + `f3e8e80` 6 颗 camera sensor / `e321232` + `1aadba1` KTD2687 闪光灯 / `4b2d268` Pump Express（2026-08-07）
 - `270467e` README + 设备名修正；完整新旧 hash 对照见 STATUS.md §9
-- `17f5d4c`（2026-08-10）恢复 MTK DRM 模块依赖链（197 ko、0 undefined）+ `xaga-drm-restore.md` 文档；`build.sh` 135→197 断言 + 打包阶段 `llvm-strip --strip-debug`
-- `build.sh` 一键构建脚本（clean → 配置 → in-tree 模块 → 197 个 .ko）
+- `17f5d4c`（2026-08-10）恢复 MTK DRM 模块依赖链（197 ko、0 undefined）+ `xaga-drm-restore.md` 文档
+- **2026-08-11 真机 init 链修复（8 commits）**：`32c3adf` 去 4 对重复导出模块（→193 OOT）+ `c5113ed` 打包 4 个 in-tree 依赖（→197）+ `99a5feb` gateic 复合模块改名 + `84e1aaf` mmqos DTS 6.12 化 + `dc99de2` build.sh 进度可视化 + `f8313fa` dramc NULL 守卫 + `3b9b285` 禁用 mmc1 + `a05b916` ufshci disable-mcq —— **真机 197 ko 全部加载成功**（详见 STATUS.md §10 expdb 诊断史）
+- `build.sh` 一键构建脚本（clean → 配置 → in-tree 模块 → 193 个 .ko，OOT 断言；vendor_boot 打包 197 含 4 in-tree）
 
 ## 许可
 
