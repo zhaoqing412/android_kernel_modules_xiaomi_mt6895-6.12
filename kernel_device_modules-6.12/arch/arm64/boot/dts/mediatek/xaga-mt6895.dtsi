@@ -29,6 +29,15 @@ this file is only for attribution of xaga
 	status = "disabled";
 };
 
+/* xaga is USB2.0 only (no USB3, single port via usb0). The 6.12 mtu3 on the
+ * absent usb1 (ssusb1@11211000) fails probe with 'device enable failed -110'
+ * and the concurrent otg mode-switch then Oopses in ssusb_host_exit_v2 ->
+ * SPM hwrscs timeout -> WDT reboot (real-device, 2026-08-11). 5.10 tolerated
+ * the failure; 6.12 OOT mtu3 does not. Keep usb1 off. */
+&ssusb1 {
+	status = "disabled";
+};
+
 &odm {
 	simtray {
 		compatible = "xiaomi,simtray-status";
