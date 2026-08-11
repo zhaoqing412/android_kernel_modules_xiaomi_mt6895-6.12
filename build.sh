@@ -463,13 +463,34 @@ PYEOF
     # ssusb_host_exit_v2 on the first mode switch (2026-08-11). There is no
     # symbol dependency between the two, so the topological sort puts mtu3
     # first alphabetically.
+    #
+    # xaga: the OTG role-switch chain (mt6375 charger / tcpc / extcon) must
+    # also insmod BEFORE mtu3: fastbootd binds the UDC and pulls up in
+    # USB_ROLE_DEVICE, but in OTG mode mtu3 only activates the gadget on a
+    # role switch (mtu3_gadget_start only mtu3_start()s for PERIPHERAL).
+    # The typec/tcpc driver detects the attach and drives usb_role_switch
+    # to DEVICE; if it probes after fastbootd, the pullup stays inactive
+    # and recovery falls back to 'reboot,userrequested,fastboot'
+    # (2026-08-11).
     python3 - <<'PYEOF' > modules.load.tmp
 import sys
 mods = [l.strip() for l in open('modules.load') if l.strip()]
-if 'xhci-mtk-hcd-v2' in mods and 'mtu3' in mods:
-    mods.remove('xhci-mtk-hcd-v2')
-    mods.insert(mods.index('mtu3'), 'xhci-mtk-hcd-v2')
-sys.stdout.write('\n'.join(mods) + '\n')
+# these must insmod BEFORE mtu3 (in this exact order); anything else keeps
+# its topological-sort position relative to the remaining modules
+before = ['xhci-mtk-hcd-v2', 'mt6375', 'mt6375-auxadc', 'mt6375-adc',
+          'charger_class', 'mtk_charger_algorithm_class', 'mt6375-charger',
+          'mtk_charger_framework', 'tcpc_class', 'extcon-mtk-usb',
+          'tcpc_mt6375', 'tcpci_late_sync', 'mtk_chg_type_det',
+          'adapter_class', 'mtk_pd_adapter', 'mtk_pd_charging',
+          'rt_pd_manager', 'pd_cp_manager', 'pd_dbg_info']
+present = [m for m in before if m in mods]
+rest = [m for m in mods if m not in present]
+# re-insert 'present' (in before-order) right before mtu3's new position
+try:
+    idx = rest.index('mtu3')
+except ValueError:
+    idx = len(rest)
+sys.stdout.write('\n'.join(rest[:idx] + present + rest[idx:]) + '\n')
 PYEOF
     mv modules.load.tmp modules.load
     cd "$VD/vendor_ramdisk/rd"
