@@ -68,6 +68,12 @@ obj-y += drivers/tee/
 # xaga: platform module wiring (mtu3 exports ssusb_get_drvdata for ps5170)
 obj-y += drivers/usb/
 
+# xaga: USB PHYs (tphy/u2port0-u3port0, xsphy, ufs) - mtu3 needs
+# phy-mtk-tphy for its `phys = <&u2port0>, <&u3port0>` refs; without a PHY
+# driver mtu3 defers -> no UDC -> fastbootd "couldn't find an available
+# UDC" -> recovery auto-reboots (real-device, 2026-08-11)
+obj-y += drivers/phy/
+
 obj-y += drivers/gpu/drm/mediatek/
 
 obj-y += drivers/input/misc/

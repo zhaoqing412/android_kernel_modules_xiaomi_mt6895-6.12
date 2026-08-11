@@ -954,6 +954,13 @@ int logstore_reset(struct notifier_block *nb, unsigned long action, void *data)
 		return 0;
 
 	pr_info("reboot reason: %s\n", (char *)data);
+	/* xaga: sram_header can be NULL when the sram sig check failed during
+	 * init (log_store_sram_init sets it NULL on BUFF_ERROR) - a later
+	 * kernel_restart then derefs NULL here -> Oops (real-device, reboot
+	 * path only; harmless to boot but noisy). alps ships this without the
+	 * guard. */
+	if (!sram_header)
+		return 0;
 	if (sram_header->reboot_count != 0 && !strcmp((char *)data, "shell"))
 		store_log_to_emmc_enable(false);
 #if IS_ENABLED(CONFIG_MTK_LOG_STORE_BOOTPROF)

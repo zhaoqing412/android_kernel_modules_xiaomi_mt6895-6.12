@@ -7,14 +7,14 @@
 #   1. kernel config      gki_defconfig + mgk_64_k612_defconfig + vendor/xaga.config
 #   2. kernel Image + Image.gz (gzip, per xaga packaging requirement)
 #   3. in-tree modules    (refreshes Module.symvers)
-#   4. out-of-tree modules -> 193 x .ko (make M=) + 4 in-tree deps in vendor_boot
+#   4. out-of-tree modules -> 196 x .ko (make M=) + 4 in-tree deps in vendor_boot
 #   5. DTS: mt6895.dtb (SoC base) + xaga.dtbo / xaga_global.dtbo (fdtoverlay check)
 #   6. boot_new.img       magiskboot -n: Image.gz kernel + 6.12 kernelsu in official boot
-#   7. vendor_boot_new.img mkbootimg: official ramdisk with 197 x 6.12 .ko (193 OOT + 4 in-tree), DTBO_TAG
+#   7. vendor_boot_new.img mkbootimg: official ramdisk with 197 x 6.12 .ko (196 OOT + 4 in-tree), DTBO_TAG
 #                        dtb slot, vrt name=[]/type=[platform], padded 64MB
 #   8. dtbo_new.img       DTOv1 single entry (xaga.dtbo), NOT padded
 #
-# --modules-only: compile modules only (config + in-tree + 193 .ko hard assert),
+# --modules-only: compile modules only (config + in-tree + 196 .ko hard assert),
 #                 no Image / DTS / packaging.
 #
 # Usage: ./build.sh [--modules-only] [--no-clean] [--skip=BOOT,VENDOR,DTBO]
@@ -291,13 +291,13 @@ kernel() {
 }
 
 # ---------------------------------------------------------------------------
-# 4. Modules: in-tree (Module.symvers) + out-of-tree 193 x .ko
+# 4. Modules: in-tree (Module.symvers) + out-of-tree 196 x .ko
 # ---------------------------------------------------------------------------
 modules() {
     log "4/8 in-tree modules (Module.symvers)"
     ( cd "$K" && make "${MAKE_CC[@]}" O="$OUT" ARCH=arm64 LLVM=1 -j"$JOBS" modules > "$WORK/inmod.log" 2>&1 )
 
-    log "4b/8 out-of-tree modules -> 193 x .ko (KBUILD_MODPOST_WARN=1)"
+    log "4b/8 out-of-tree modules -> 196 x .ko (KBUILD_MODPOST_WARN=1)"
     # progress: count .ko as they are produced; poll in background on a TTY
     if [ -t 1 ]; then
         make -C "$K" O="$OUT" ARCH=arm64 LLVM=1 KCONFIG_EXT_PREFIX="$M/" M="$M" \
@@ -307,12 +307,12 @@ modules() {
         local MCUR=0
         while kill -0 "$MPID" 2>/dev/null; do
             MCUR="$(find "$M" -name '*.ko' | wc -l)"
-            progress_bar "OOT modules" "$MCUR" 193
+            progress_bar "OOT modules" "$MCUR" 196
             sleep 2
         done
         wait "$MPID"
         MCUR="$(find "$M" -name '*.ko' | wc -l)"
-        progress_bar "OOT modules" "$MCUR" 193
+        progress_bar "OOT modules" "$MCUR" 196
         progress_clear
     else
         make -C "$K" O="$OUT" ARCH=arm64 LLVM=1 KCONFIG_EXT_PREFIX="$M/" M="$M" \
@@ -320,7 +320,7 @@ modules() {
             KBUILD_MODPOST_WARN=1 -j"$JOBS" modules > "$WORK/ootmod.log" 2>&1
     fi
     NKO="$(find "$M" -name '*.ko' | wc -l)"
-    [ "$NKO" -eq 193 ] || { echo "ERROR: expected 193 .ko, got $NKO" >&2; exit 1; }
+    [ "$NKO" -eq 196 ] || { echo "ERROR: expected 196 .ko, got $NKO" >&2; exit 1; }
     echo "$NKO .ko built"
 }
 
@@ -370,7 +370,7 @@ pack_boot() {
 }
 
 # ---------------------------------------------------------------------------
-# 7. vendor_boot_new.img: official ramdisk, 5.10 .ko removed, 197 x 6.12 .ko (193 OOT + 4 in-tree)
+# 7. vendor_boot_new.img: official ramdisk, 5.10 .ko removed, 197 x 6.12 .ko (196 OOT + 4 in-tree)
 # ---------------------------------------------------------------------------
 pack_vendor() {
     log "7/8 vendor_boot_new.img (no 5.10 modules, mkbootimg, padded 64MB)"
