@@ -69,6 +69,10 @@ obj-$(CONFIG_MTK_PBM) += pbm/
 obj-$(CONFIG_MTK_CCU) += ccu/src/
 # xaga: platform module wiring (extdev_io_class exports devm_extdev_io_device_register for rt5133-regulator)
 obj-$(CONFIG_EXTCON_MTK_USB) += extcon/
+# xaga: platform module wiring (xhci-mtk-hcd-v2 provides mtk-xhci driver;
+# mtu3's ssusb_get_host_rscs reads pdev->dev.driver of the xhci child node,
+# which stays NULL forever unless this module is built)
+obj-$(CONFIG_DEVICE_MODULES_USB_XHCI_MTK) += usb/
 obj-y += subpmic/
 obj-$(CONFIG_MEDIATEK_CPU_DVFS) += cpufreq_v2/
 obj-$(CONFIG_MTK_UNIFIED_POWER) += upower/
