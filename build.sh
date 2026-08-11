@@ -7,10 +7,10 @@
 #   1. kernel config      gki_defconfig + mgk_64_k612_defconfig + vendor/xaga.config
 #   2. kernel Image + Image.gz (gzip, per xaga packaging requirement)
 #   3. in-tree modules    (refreshes Module.symvers)
-#   4. out-of-tree modules -> 193 x .ko (make M=)
+#   4. out-of-tree modules -> 193 x .ko (make M=) + 4 in-tree deps in vendor_boot
 #   5. DTS: mt6895.dtb (SoC base) + xaga.dtbo / xaga_global.dtbo (fdtoverlay check)
 #   6. boot_new.img       magiskboot -n: Image.gz kernel + 6.12 kernelsu in official boot
-#   7. vendor_boot_new.img mkbootimg: official ramdisk with 193 x 6.12 .ko, DTBO_TAG
+#   7. vendor_boot_new.img mkbootimg: official ramdisk with 197 x 6.12 .ko (193 OOT + 4 in-tree), DTBO_TAG
 #                        dtb slot, vrt name=[]/type=[platform], padded 64MB
 #   8. dtbo_new.img       DTOv1 single entry (xaga.dtbo), NOT padded
 #
@@ -296,7 +296,7 @@ pack_boot() {
 }
 
 # ---------------------------------------------------------------------------
-# 7. vendor_boot_new.img: official ramdisk, 5.10 .ko removed, 193 x 6.12 .ko
+# 7. vendor_boot_new.img: official ramdisk, 5.10 .ko removed, 197 x 6.12 .ko (193 OOT + 4 in-tree)
 # ---------------------------------------------------------------------------
 pack_vendor() {
     log "7/8 vendor_boot_new.img (no 5.10 modules, mkbootimg, padded 64MB)"
@@ -313,6 +313,15 @@ pack_vendor() {
     # remove all 5.10 modules, install 6.12 ones
     find . -name '*.ko' -delete
     cp $(find "$M" -name '*.ko') lib/modules/
+    # xaga: OOT modules also need 4 in-tree (K tree) modules that are built
+    # as =m in 6.12 (not inside Image): drm_display_helper (drm_dp_* for
+    # mediatek-drm), drm_dma_helper (drm_gem_dma_vm_ops), and the IIO buffer
+    # pair (mt6375-adc). Official 5.10 ramdisk also ships kfifo_buf.ko.
+    cp "$OUT/drivers/gpu/drm/display/drm_display_helper.ko" \
+       "$OUT/drivers/gpu/drm/drm_dma_helper.ko" \
+       "$OUT/drivers/iio/buffer/industrialio-triggered-buffer.ko" \
+       "$OUT/drivers/iio/buffer/kfifo_buf.ko" \
+       lib/modules/
     # xaga: official 5.10 modules carry no DWARF (40MB vs our 130MB for the
     # same 198 modules). Drop debug sections, keep .symtab + __ksymtab so
     # modinfo/depmod/insmod all still work (2026-08-10).
