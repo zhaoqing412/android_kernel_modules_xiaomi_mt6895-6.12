@@ -5298,6 +5298,12 @@
 
 			bootmode = <&chosen>;
 
+			/* xaga UFS IP (0x10360000) is legacy-doorbell only; without this
+			 * cap ufshcd-core tries the MCQ path and fails with
+			 * "legacy doorbell mode not supported" -> no storage -> init
+			 * partition timeout -> Attempted to kill init (real-device).
+			 * Present in alps reference, lost in the 5.10 port. */
+			mediatek,ufs-disable-mcq;
 			mediatek,ufs-qos;
 		};
 
