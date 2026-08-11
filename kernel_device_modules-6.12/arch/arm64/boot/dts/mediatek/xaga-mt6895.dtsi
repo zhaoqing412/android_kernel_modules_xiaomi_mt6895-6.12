@@ -21,6 +21,14 @@ this file is only for attribution of xaga
 	mediatek,rev6-host = <3>;
 };
 
+/* xaga has no SD card slot (SIM only) - keep mmc1 off. cust_mt6895_msdc.dtsi
+ * enables it (base is disabled), and with no card the 6.12 mtk-mmc probe
+ * fails with cmd_tmo then crashes in cpu_latency_qos_update_request ->
+ * plist_del corruption (real-device BUG) during msdc1 runtime suspend. */
+&mmc1 {
+	status = "disabled";
+};
+
 &odm {
 	simtray {
 		compatible = "xiaomi,simtray-status";
