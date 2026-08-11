@@ -9359,7 +9359,6 @@
 			maximum-speed = "high-speed";
 			mediatek,force-vbus;
 			mediatek,clk-mgr;
-			mediatek,hw-req-ctrl;
 			mediatek,noise-still-tr;
 			mediatek,gen1-txdeemph;
 			mediatek,syscon-wakeup = <&pericfg_ao_clk 0x200 103>;
