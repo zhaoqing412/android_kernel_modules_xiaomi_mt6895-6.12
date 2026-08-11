@@ -376,22 +376,24 @@ pack_vendor() {
     log "7/8 vendor_boot_new.img (no 5.10 modules, mkbootimg, padded 64MB)"
     local VD="$WORK/vb"; mkdir -p "$VD"; cd "$VD"
     # magiskboot unpack on vendor_boot exits 3 (VBMETA handling) and may
-    # return BEFORE ramdisk.cpio is fully written (race, 2026-08-11: lz4 of
-    # the half-written file yields a 67-68MB cpio vs the full 80MB -> the
-    # system section incl. system/etc/recovery.fstab is silently dropped).
-    # Use the verified-full official lz4 stream directly for the ramdisk and
-    # keep magiskboot only for the dtb slot (dtb_container.bin is rebuilt
-    # from the SoC base below anyway).
+    # return BEFORE ramdisk.cpio is fully written (race, 2026-08-11). Worse,
+    # the extracted ramdisk.cpio / vendor_ramdisk_official.lz4 is the PURE
+    # lz4 stream missing the last 2,005B cpio TRAILER!!! tail - decompressing
+    # it yields a truncated 80MB cpio (liblogwrap.so 8,704B vs 19,440B,
+    # system/lib64 49 vs 72 entries) -> kernel initrd parsing reads wrong
+    # offsets -> "liblogwrap.so invalid shdr" (2026-08-11 real-device).
+    # Use the FULL vendor_ramdisk segment dd'd from the official vendor_boot
+    # (42,743,860B incl. TRAILER tail, decompresses to 88,036,352B).
     "$MAGISKBOOT" unpack -n -h "$OFFICIAL/vendor_boot.img" > "$WORK/vb_unpack.log" 2>&1 || true
     cd "$VD/vendor_ramdisk"
-    local VR_SRC="${VENDOR_RAMDISK_LZ4:-$IMG_DIR/building/tools/vendor_ramdisk_official.lz4}"
+    local VR_SRC="${VENDOR_RAMDISK_LZ4:-$IMG_DIR/building/tools/vendor_ramdisk_official_full.bin}"
     lz4 -d -f "$VR_SRC" vr.raw > /dev/null 2>&1 || true
-    # integrity gate: the official ramdisk is exactly 83886080B. Note the
-    # cpio TRAILER!!! is NOT at EOF (official ramdisk appends a second
-    # archive ~13MB after the first TRAILER) - size is the reliable check.
-    if [ "$(stat -c %s vr.raw 2>/dev/null || echo 0)" -ne 83886080 ]; then
+    # integrity gate: full official ramdisk decompresses to exactly
+    # 88,036,352B (80MB cpio + 7.2MB tail with the second TRAILER!!! at EOF);
+    # anything less means a truncated source
+    if [ "$(stat -c %s vr.raw 2>/dev/null || echo 0)" -ne 88036352 ]; then
         echo "ERROR: vendor ramdisk extraction incomplete ($(stat -c %s vr.raw 2>/dev/null) bytes)" >&2
-        echo "  source: $VR_SRC (expected 83886080B)" >&2
+        echo "  source: $VR_SRC (expected 88036352B)" >&2
         exit 1
     fi
     mkdir -p rd && cd rd
@@ -490,7 +492,7 @@ EOF
     local VRFILE="$VD/vr_new.cpio"
     if [ "$(cpio -it < "$VRFILE" 2>/dev/null | grep -c '^system/etc/recovery.fstab$')" -eq 0 ]; then
         echo "ERROR: vendor ramdisk missing system/etc/recovery.fstab (truncated unpack?)" >&2
-        echo "  ramdisk cpio: $(stat -c %s "$VRFILE") bytes; official full is 83886080" >&2
+        echo "  ramdisk cpio: $(stat -c %s "$VRFILE") bytes; official full is 88036352" >&2
         exit 1
     fi
     # the compressed vendor_ramdisk must be LEGACY lz4 (02 21 4c 18) - it is
