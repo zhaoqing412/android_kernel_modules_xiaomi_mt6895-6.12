@@ -6,12 +6,13 @@ endif
 
 subdir-ccflags-$(CONFIG_MTK_ENG_BUILD) += -DDBG_ENABLE
 
-# xaga: platform module wiring (alps BUILD.bazel: device-apc-common-legacy /
-# device-apc-common / device-apc-mt6895; exports register_devapc_vio_callback
-# etc. for clkchk-mt6895 / mtk-mminfra-debug)
-obj-$(CONFIG_DEVAPC_ARCH_COMMON) += device-apc-common-legacy.o
-device-apc-common-legacy-$(CONFIG_DEVAPC_ARCH_COMMON) += devapc-mtk-common.o
-
+# xaga: platform module wiring (alps BUILD.bazel: device-apc-common /
+# device-apc-mt6895; multi-ao exports register_devapc_vio_callback for
+# clkchk-mt6895 / mtk-mminfra-debug).
+# NOTE: device-apc-common-legacy (devapc-mtk-common.c) is NOT built - it is the
+# v1 interface for older SoCs (mt6768 etc.) and duplicates the
+# register_devapc_vio_callback export of multi-ao -> second insmod fails with
+# "exports duplicate symbol" -> init kill (expdb5 real-device panic).
 obj-$(CONFIG_DEVAPC_ARCH_MULTI) += device-apc-common.o
 device-apc-common-$(CONFIG_DEVAPC_ARCH_MULTI) += devapc-mtk-multi-ao.o
 

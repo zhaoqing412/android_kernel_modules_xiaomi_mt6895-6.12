@@ -48,8 +48,11 @@ mcDrvModule-y := \
 	raite_common.o \
 	raite_fe.o
 
-# add our ffa modules to kernel.
-obj-$(CONFIG_TRUSTONIC_TEE_SUPPORT) += mcDrvModule-ffa.o
+# xaga: mcDrvModule-ffa NOT built - the FF-A transport variant duplicates the
+# mc_*/teec_* exports of mcDrvModule (same mobicore_source, only ffa.o vs
+# ffa_dummy.o differs); official 5.10 xaga ships mcDrvModule.ko only, and
+# loading both -> "exports duplicate symbol" -> init kill.
+# obj-$(CONFIG_TRUSTONIC_TEE_SUPPORT) += mcDrvModule-ffa.o
 
 mcDrvModule-ffa-y := \
 	admin.o \

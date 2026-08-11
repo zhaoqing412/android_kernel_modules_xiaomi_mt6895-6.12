@@ -17,8 +17,12 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/vcp/include/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/vcp/rv/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/
 
-# xaga: platform module wiring (alps BUILD.bazel mtk-mmdebug-vcp-stub +
-# mtk-mmdebug-vcp; exports mmdebug_is_init_done for mtk-mmdvfs-v5)
+# xaga: mtk-mmdebug-vcp NOT built - the real VCP implementation duplicates the
+# mmdebug_is_init_done / mtk_mmdebug_status_dump_register_notifier exports of
+# mtk-mmdebug-vcp-stub (same header API), and in alps only the stub is
+# referenced by ko_deps (mmdvfs-debug / mtk-mmdvfs-v3). Loading both ->
+# "exports duplicate symbol" -> init kill. The stub is the mt6895 variant
+# (real vcp needs vcp core + IPI infra).
 obj-m += mtk-mmdebug-vcp-stub.o
-obj-m += mtk-mmdebug-vcp.o
+# obj-m += mtk-mmdebug-vcp.o
 
