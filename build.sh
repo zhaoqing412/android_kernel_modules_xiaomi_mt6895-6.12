@@ -354,11 +354,15 @@ pack_boot() {
     local BD="$WORK/boot"; mkdir -p "$BD"; cd "$BD"
     "$MAGISKBOOT" unpack -n -h "$OFFICIAL/boot.img" > "$WORK/boot_unpack.log" 2>&1
     cp "$OUT/arch/arm64/boot/Image.gz" kernel
-    # ramdisk is kept compressed by -n; decompress, swap kernelsu, recompress
-    lz4 -d -f ramdisk.cpio ramdisk.raw > /dev/null 2>&1 || true
+    # ramdisk is kept compressed by -n; decompress, swap kernelsu, recompress.
+    # IMPORTANT: the official boot ramdisk is LEGACY lz4 (magic 02 21 4c 18)
+    # and LK's decompressor expects legacy format - recompress with lz4 -l!
+    # Using standard lz4 (04 22 4d 18) yields "rootfs image is not initramfs
+    # (invalid magic)" -> VFS: Unable to mount root fs -> panic (2026-08-11).
+    lz4 -l -d -f ramdisk.cpio ramdisk.raw > /dev/null 2>&1 || true
     "$MAGISKBOOT" cpio ramdisk.raw "add 0755 kernelsu.ko $KERNELSU" \
         > "$WORK/boot_cpio.log" 2>&1
-    lz4 -9 -f ramdisk.raw ramdisk_new.lz4 > /dev/null 2>&1
+    lz4 -l -9 -f ramdisk.raw ramdisk_new.lz4 > /dev/null 2>&1
     cp ramdisk_new.lz4 ramdisk.cpio
     "$MAGISKBOOT" repack -n "$OFFICIAL/boot.img" > "$WORK/boot_repack.log" 2>&1
     cp new-boot.img "$OUT_IMG/boot_new.img"
