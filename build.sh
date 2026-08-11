@@ -455,7 +455,13 @@ sys.stdout.write('\n'.join(order) + '\n')
 PYEOF
     cd "$VD/vendor_ramdisk/rd"
     find . | cpio -o -H newc > "$VD/vr_new.cpio" 2>/dev/null || true
-    lz4 -9 -f "$VD/vr_new.cpio" "$VD/vr_new.lz4" > /dev/null 2>&1
+    # IMPORTANT: compress with lz4 -l (legacy, magic 02 21 4c 18) - the
+    # vendor_ramdisk is the kernel's initrd (/dev/ram), and both LK and the
+    # kernel expect the legacy format. Standard lz4 (04 22 4d 18) yields
+    # 'rootfs image is not initramfs (invalid magic)' -> VFS: Unable to
+    # mount root fs -> panic (2026-08-11). Decompress above uses standard
+    # lz4 -d (official stream is standard frame; -l decompress is unstable).
+    lz4 -l -9 -f "$VD/vr_new.cpio" "$VD/vr_new.lz4" > /dev/null 2>&1
 
     # dtb slot: DTBO_TAG container of the SoC base (matches official format)
     python3 "$MKDTBO" "$VD/dtb_container.bin" "$WORK/dts/mt6895.dtb" > /dev/null
@@ -485,6 +491,13 @@ EOF
     if [ "$(cpio -it < "$VRFILE" 2>/dev/null | grep -c '^system/etc/recovery.fstab$')" -eq 0 ]; then
         echo "ERROR: vendor ramdisk missing system/etc/recovery.fstab (truncated unpack?)" >&2
         echo "  ramdisk cpio: $(stat -c %s "$VRFILE") bytes; official full is 83886080" >&2
+        exit 1
+    fi
+    # the compressed vendor_ramdisk must be LEGACY lz4 (02 21 4c 18) - it is
+    # the kernel's initrd; standard format (04 22 4d 18) -> VFS mount fail
+    if [ "$(od -A n -t x1 -N 4 "$VD/vr_new.lz4" 2>/dev/null | tr -d ' \n')" != "02214c18" ]; then
+        echo "ERROR: vr_new.lz4 is not legacy lz4 (kernel initrd format)" >&2
+        echo "  head: $(od -A n -t x1 -N 4 "$VD/vr_new.lz4" 2>/dev/null) (want 02 21 4c 18)" >&2
         exit 1
     fi
     cp "$VD/vendor_boot_new.img" "$OUT_IMG/vendor_boot_new.img"
