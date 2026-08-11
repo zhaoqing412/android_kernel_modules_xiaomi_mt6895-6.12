@@ -5290,7 +5290,13 @@
 			power-domains = <&scpsys MT6895_POWER_DOMAIN_UFS0_SHUTDOWN>;
 
 			vcc-supply = <&mt6363_vemc>;
-			vccq-supply = <&mt6363_vufs12>;
+			/* Disable vcc/vccq2 to give control to spm to handle lpm state
+			 * (alps 6.12 reference). Keeping vccq-supply (VUFS12) lets
+			 * ufshcd enable the rail and trips the PMIC OC protection
+			 * (aee_aed.poffreason=OC: VUFS12) -> reset loop on real
+			 * device (2026-08-11). */
+			/* vccq-supply = <&mt6363_vufs12>; */
+			/* vccq2-supply = <&mt6363_vufs18>; */
 
 			resets = <&ufsaocfg_rst 0>, <&ufspdncfg_rst 0>,
 			   <&ufspdncfg_rst 1>;
