@@ -553,6 +553,8 @@ int mtk_dramc_get_steps_freq(unsigned int step)
 
 	dramc_dev_ptr =
 		(struct dramc_dev_t *)platform_get_drvdata(dramc_pdev);
+	if (!dramc_dev_ptr)
+		return -1;
 
 	if (step < dramc_dev_ptr->freq_cnt)
 		return dramc_dev_ptr->freq_step[step];
@@ -1022,6 +1024,8 @@ unsigned int mtk_dramc_get_data_rate(void)
 
 	dramc_dev_ptr =
 		(struct dramc_dev_t *)platform_get_drvdata(dramc_pdev);
+	if (!dramc_dev_ptr)
+		return 0;
 
 	fmeter_dev_ptr = (struct fmeter_dev_t *)dramc_dev_ptr->fmeter_dev_ptr;
 	if (!fmeter_dev_ptr)
@@ -1067,6 +1071,8 @@ unsigned int mtk_dramc_get_mr4(unsigned int ch)
 
 	dramc_dev_ptr =
 		(struct dramc_dev_t *)platform_get_drvdata(dramc_pdev);
+	if (!dramc_dev_ptr)
+		return 0;
 
 	mr4_dev_ptr = (struct mr4_dev_t *)dramc_dev_ptr->mr4_dev_ptr;
 	if (!mr4_dev_ptr)
@@ -1095,6 +1101,8 @@ unsigned int mtk_dramc_get_ddr_type(void)
 		return 0;
 	dramc_dev_ptr =
 		(struct dramc_dev_t *)platform_get_drvdata(dramc_pdev);
+	if (!dramc_dev_ptr)
+		return 0;
 
 	return dramc_dev_ptr->dram_type;
 }
