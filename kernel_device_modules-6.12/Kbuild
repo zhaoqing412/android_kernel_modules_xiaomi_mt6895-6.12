@@ -111,4 +111,9 @@ obj-y += drivers/media/virtio/
 
 obj-y += drivers/video/backlight/
 
+# xaga: AP watchdog - without mtk_wdt.ko nothing kicks the LK-armed hardware
+# watchdog, so any hang (e.g. recovery display init failure) resets the board
+# 31s later (AP_WDT reboot loop, real-device 2026-08-12)
+obj-y += drivers/watchdog/
+
 endif

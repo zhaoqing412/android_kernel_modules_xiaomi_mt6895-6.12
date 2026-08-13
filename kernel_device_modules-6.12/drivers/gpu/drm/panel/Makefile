@@ -40,3 +40,20 @@ mediatek-drm-gateic-y := mtk_drm_panel_i2c.o \
 	mtk_drm_gateic_rt4801h.o \
 	mtk_drm_gateic_rt4831a.o \
 	mtk_drm_gateic.o
+
+# xaga: MTK LCM framework driver - registers the dsi/dpi/dbi panel drivers
+# (mtk_drm_panel_dsi_driver etc.) that panel-* lcm modules hook into. Without
+# it the DSI host never finds a panel -> mediatek-drm components never bind ->
+# no drm dev -> recovery "timeout wait for graphics" -> hang -> AP_WDT reboot
+# loop (real-device 2026-08-12). alps builds it on mt6895 (removed only for
+# mt6768/mt6893/mt6765); module name matches alps mgk_64.bzl.
+obj-m += mediatek-drm-panel-drv.o
+mediatek-drm-panel-drv-y := mtk_drm_panel_drv.o \
+	mtk_drm_panel_drv_dsi.o \
+	mtk_drm_panel_drv_dpi.o \
+	mtk_drm_panel_drv_dbi.o \
+	mtk_drm_panel_helper.o \
+	mtk_drm_panel_helper_dsi.o \
+	mtk_drm_panel_helper_dpi.o \
+	mtk_drm_panel_helper_dbi.o \
+	mtk_round_corner/mtk_drm_rc.o

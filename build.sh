@@ -7,14 +7,14 @@
 #   1. kernel config      gki_defconfig + mgk_64_k612_defconfig + vendor/xaga.config
 #   2. kernel Image + Image.gz (gzip, per xaga packaging requirement)
 #   3. in-tree modules    (refreshes Module.symvers)
-#   4. out-of-tree modules -> 197 x .ko (make M=) + 4 in-tree deps in vendor_boot
+#   4. out-of-tree modules -> 200 x .ko (make M=) + 4 in-tree deps in vendor_boot
 #   5. DTS: mt6895.dtb (SoC base) + xaga.dtbo / xaga_global.dtbo (fdtoverlay check)
 #   6. boot_new.img       magiskboot -n: Image.gz kernel + 6.12 kernelsu in official boot
-#   7. vendor_boot_new.img mkbootimg: official ramdisk with 197 x 6.12 .ko (197 OOT + 4 in-tree), DTBO_TAG
+#   7. vendor_boot_new.img mkbootimg: official ramdisk with 200 x 6.12 .ko (200 OOT + 4 in-tree), DTBO_TAG
 #                        dtb slot, vrt name=[]/type=[platform], padded 64MB
 #   8. dtbo_new.img       DTOv1 single entry (xaga.dtbo), NOT padded
 #
-# --modules-only: compile modules only (config + in-tree + 197 .ko hard assert),
+# --modules-only: compile modules only (config + in-tree + 200 .ko hard assert),
 #                 no Image / DTS / packaging.
 #
 # Usage: ./build.sh [--modules-only] [--no-clean] [--skip=BOOT,VENDOR,DTBO]
@@ -291,13 +291,13 @@ kernel() {
 }
 
 # ---------------------------------------------------------------------------
-# 4. Modules: in-tree (Module.symvers) + out-of-tree 197 x .ko
+# 4. Modules: in-tree (Module.symvers) + out-of-tree 200 x .ko
 # ---------------------------------------------------------------------------
 modules() {
     log "4/8 in-tree modules (Module.symvers)"
     ( cd "$K" && make "${MAKE_CC[@]}" O="$OUT" ARCH=arm64 LLVM=1 -j"$JOBS" modules > "$WORK/inmod.log" 2>&1 )
 
-    log "4b/8 out-of-tree modules -> 197 x .ko (KBUILD_MODPOST_WARN=1)"
+    log "4b/8 out-of-tree modules -> 200 x .ko (KBUILD_MODPOST_WARN=1)"
     # progress: count .ko as they are produced; poll in background on a TTY
     if [ -t 1 ]; then
         make -C "$K" O="$OUT" ARCH=arm64 LLVM=1 KCONFIG_EXT_PREFIX="$M/" M="$M" \
@@ -307,12 +307,12 @@ modules() {
         local MCUR=0
         while kill -0 "$MPID" 2>/dev/null; do
             MCUR="$(find "$M" -name '*.ko' | wc -l)"
-            progress_bar "OOT modules" "$MCUR" 197
+            progress_bar "OOT modules" "$MCUR" 200
             sleep 2
         done
         wait "$MPID"
         MCUR="$(find "$M" -name '*.ko' | wc -l)"
-        progress_bar "OOT modules" "$MCUR" 197
+        progress_bar "OOT modules" "$MCUR" 200
         progress_clear
     else
         make -C "$K" O="$OUT" ARCH=arm64 LLVM=1 KCONFIG_EXT_PREFIX="$M/" M="$M" \
@@ -320,7 +320,7 @@ modules() {
             KBUILD_MODPOST_WARN=1 -j"$JOBS" modules > "$WORK/ootmod.log" 2>&1
     fi
     NKO="$(find "$M" -name '*.ko' | wc -l)"
-    [ "$NKO" -eq 197 ] || { echo "ERROR: expected 197 .ko, got $NKO" >&2; exit 1; }
+    [ "$NKO" -eq 200 ] || { echo "ERROR: expected 200 .ko, got $NKO" >&2; exit 1; }
     echo "$NKO .ko built"
 }
 
@@ -370,7 +370,7 @@ pack_boot() {
 }
 
 # ---------------------------------------------------------------------------
-# 7. vendor_boot_new.img: official ramdisk, 5.10 .ko removed, 197 x 6.12 .ko (197 OOT + 4 in-tree)
+# 7. vendor_boot_new.img: official ramdisk, 5.10 .ko removed, 200 x 6.12 .ko (200 OOT + 4 in-tree)
 # ---------------------------------------------------------------------------
 pack_vendor() {
     log "7/8 vendor_boot_new.img (no 5.10 modules, mkbootimg, padded 64MB)"
@@ -428,6 +428,42 @@ pack_vendor() {
     done
     sed -i "s|$VER/||g" modules.dep   # flat layout: strip version-dir prefix
     rm -rf "$VER"
+    # xaga: first-stage init (libmodprobe) orders insmod by modules.dep
+    # dependency graph (topological + alphabetical tie-break), NOT by
+    # modules.load. mediatek-drm has no *symbol* deps on mtk_iommu or
+    # mtk-scpsys-mt6895, so libmodprobe alphabetically loads it first; but
+    # dispsys_config's DT deps (power-domains scpsys, iommus disp_iommu)
+    # then are not yet registered -> probe waits forever -> no drm dev ->
+    # recovery graphics timeout (real-device 2026-08-12). Inject pseudo
+    # deps so libmodprobe loads them first.
+    python3 - <<'PYEOF'
+dep_path = 'modules.dep'
+with open(dep_path) as f:
+    lines = f.readlines()
+out = []
+for line in lines:
+    # dispsys_config depends on iommu/scpsys/smi (DT deps, not symbols)
+    if line.startswith('mediatek-drm.ko:'):
+        deps = line.rstrip('\n').split(':', 1)[1]
+        extra = ['mtk_iommu.ko', 'mtk-scpsys-mt6895.ko', 'mtk-smi.ko']
+        add = [d for d in extra if d not in deps.split()]
+        if add:
+            line = line.rstrip('\n') + (' ' if deps else '') + ' '.join(add) + '\n'
+    # extcon-mtk-usb resolves the UDC's role switch via tcpc; without a
+    # symbol dep libmodprobe loads it (e) before tcpc_mt6375 (t), so
+    # mtk_usb_extcon_tcpc_init fails (-ENODEV, no retry) -> mtu3 UDC stays
+    # inactive -> USB gadget never enumerates (g_serial ttyGS0 invisible,
+    # fastbootd no UDC). Force tcpc before extcon (real-device 2026-08-12).
+    if line.startswith('extcon-mtk-usb.ko:'):
+        deps = line.rstrip('\n').split(':', 1)[1]
+        extra = ['tcpc_mt6375.ko', 'tcpc_class.ko']
+        add = [d for d in extra if d not in deps.split()]
+        if add:
+            line = line.rstrip('\n') + (' ' if deps else '') + ' '.join(add) + '\n'
+    out.append(line)
+with open(dep_path, 'w') as f:
+    f.writelines(out)
+PYEOF
     # xaga: order modules.load by dependency (modules.dep) so first-stage
     # insmod never hits "Unknown symbol" - alphabetical order loads e.g.
     # cache-parity (c) before mrdump (m) which it depends on (2026-08-10).
@@ -481,6 +517,13 @@ except ValueError:
 sys.stdout.write('\n'.join(rest[:idx] + present + rest[idx:]) + '\n')
 PYEOF
     mv modules.load.tmp modules.load
+    # xaga: keep modules.load.recovery in sync - recovery first-stage init
+    # (libmodprobe) reads modules.load.recovery, NOT modules.load, so the
+    # dependency-ordered list must be replicated or recovery loads modules in
+    # plain alphabetical order and e.g. mtk_iommu/mtk-scpsys-mt6895 land AFTER
+    # mediatek-drm -> dispsys_config probe waits on iommu/power-domain that are
+    # not yet loaded -> no drm dev -> recovery graphics timeout (2026-08-12).
+    cp modules.load modules.load.recovery
     cd "$VD/vendor_ramdisk/rd"
     find . | cpio -o -H newc > "$VD/vr_new.cpio" 2>/dev/null || true
     # IMPORTANT: compress with lz4 -l (legacy, magic 02 21 4c 18) - the
