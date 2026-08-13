@@ -82,31 +82,20 @@
 };
 
 &mtkfb {
-	pinctrl-names = "lcm_rst_out1_gpio", "lcm_rst_out0_gpio",
-		"mode_te_te", "lcm_dvdd_en1_gpio",
-		"lcm_dvdd_en0_gpio","lcm_cam_en1_gpio",
-		"lcm_cam_en0_gpio";
-	pinctrl-0 = <&mtkfb_pins_lcm_rst_out1_gpio>;
-	pinctrl-1 = <&mtkfb_pins_lcm_rst_out0_gpio>;
-	pinctrl-2 = <&mtkfb_pins_lcm_dsi_te>;
-	pinctrl-3 = <&mtkfb_pins_lcm_dvdd_en1>;
-	pinctrl-4 = <&mtkfb_pins_lcm_dvdd_en0>;
-	pinctrl-5 = <&mtkfb_pins_lcm_cam_en1>;
-	pinctrl-6 = <&mtkfb_pins_lcm_cam_en0>;
+	/* xaga: pinctrl-* removed - same fw_devlink pio-child supplier blocking
+	 * as dispsys_config (see comment there); mtkfb itself doesn't probe a
+	 * pinctrl-driven device in 6.12.
+	 */
 	status = "okay";
 };
 &dispsys_config {
-	pinctrl-names =
-		"lcm_rst_out1_gpio", "lcm_rst_out0_gpio",
-		"mode_te_te", "lcm_dvdd_en1_gpio",
-		"lcm_dvdd_en0_gpio";
-	pinctrl-0 = <&mtkfb_pins_lcm_rst_out1_gpio>;
-	pinctrl-1 = <&mtkfb_pins_lcm_rst_out0_gpio>;
-	pinctrl-2 = <&mtkfb_pins_lcm_dsi_te>;
-	pinctrl-3 = <&mtkfb_pins_lcm_dvdd_en1>;
-	pinctrl-4 = <&mtkfb_pins_lcm_dvdd_en0>;
-	pinctrl-5 = <&mtkfb_pins_lcm_cam_en1>;
-	pinctrl-6 = <&mtkfb_pins_lcm_cam_en0>;
+	/* xaga: all pinctrl-* removed - the DRM master driver (mtk_drm_drv.c)
+	 * never uses pinctrl; backlight/power GPIOs are owned by leds-mtk-disp and
+	 * the panel driver. On 6.12 fw_devlink treats every pinctrl-N phandle as a
+	 * supplier that must probe as a device; these &pio child nodes never do,
+	 * so dispsys_config was blocked forever (links_ret=-517) -> no DRM master
+	 * -> recovery graphics timeout (real-device 2026-08-12).
+	 */
 	status = "okay";
 };
 
@@ -115,7 +104,14 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	panel1@0 {
-		compatible = "l16_42_02_0a_dsc_vdo,lcm";
+		/* xaga: panel1@0 = l16_36 (real panel). Stock xagaforge 5.10 has
+		 * panel1@0=l16_42 and relies on LK rewriting dsi_out to the detected
+		 * panel (l16_36); on 6.12 LK's "set dsi panel index to dtb" fails, so
+		 * dsi_out stays on panel_in1 - make panel_in1 the real panel so the
+		 * kernel probes l16_36 without depending on the LK rewrite (real
+		 * device 2026-08-13, display size 0x0 + atomic oops).
+		 */
+		compatible = "l16_36_02_0b_dsc_vdo,lcm";
 		reg = <0>;
 		reset-gpios = <&pio 41 0>;
 		dvdd-gpios = <&pio 118 0>;
@@ -130,7 +126,7 @@
 		};
 	};
 	panel2@0 {
-		compatible = "l16_36_02_0b_dsc_vdo,lcm";
+		compatible = "l16_42_02_0a_dsc_vdo,lcm";
 		reg = <1>;
 		reset-gpios = <&pio 41 0>;
 		dvdd-gpios = <&pio 118 0>;
@@ -146,6 +142,14 @@
 	};
 	ports {
 		port {
+			/* xaga: dsi_out -> panel_in1 (l16_42) matches the stock
+			 * xagaforge 5.10 board file. LK's disp_lcm_fill_lcm_dts_phandle
+			 * rewrites dsi_out to the detected panel (l16_36 = panel2); a
+			 * pre-set panel_in2 target made LK's "set dsi panel index to
+			 * dtb" fail on device -> panel never probed -> crtc had no
+			 * timing (display size 0x0) -> atomic oops in
+			 * mtk_dsi_connector_duplicate_state (real device 2026-08-13).
+			 */
 			dsi_out: endpoint {
 				remote-endpoint = <&panel_in1>;
 			};
