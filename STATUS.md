@@ -56,7 +56,7 @@ xaga/kernel_xiaomi_mt6895-6.12/
 | INPUT_AW8697_HAPTIC | =m | 线性马达 |
 | MTK_VIDEO_KTD2687 | =m | 闪光灯 |
 | CUSTOM_KERNEL_IMGSENSOR | 6 颗 | sensor 名列表（s5khm2/s5k4h7/ov16a1/s5kgw1/gc02m1/ov02b10） |
-| XAGA_MARKER_WRITER | =m | boot-stage marker（XAGR 环写 log_store 0x7ffbf000（minirdump 触发 mrdump 重启），挂死定位，lineage_xaga 读端读） |
+| XAGA_MARKER_WRITER | =m | boot-stage marker（XAGR 环写 log_store 0x7ffbf000（minirdump 触发 mrdump 重启），挂死定位；**读取 = 直接看 expdb 转储**，lineage_xaga 读端代码仅备用） |
 
 ## 4. 构建状态
 

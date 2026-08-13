@@ -75,7 +75,8 @@
 - 写端：K 树 `drivers/misc/xaga-marker-writer.c` + `include/linux/xaga_marker.h`
 - 钩子：K 树 `kernel/printk/printk.c`（vprintk_emit 顶部）+ `arch/arm64/kernel/setup.c`
   （setup_arch 头调 `xaga_marker_early_init()`）
-- 读端（备用，非必需）：lineage_xaga `drivers/misc/xaga-marker.c`
+- **读取方式 = 直接看 expdb 转储**（LK PL_LOG_STORE 把 log_store 区内容恢复记录进 expdb，重启后 dump expdb 分区即得环文本，无需任何读端代码）
+- 读端代码（仅备用/参考）：lineage_xaga `drivers/misc/xaga-marker.c`
 - 构建接线：移植树 `build.sh`（config sed + 模块断言）+ `arch/arm64/configs/vendor/xaga.config`
 - **补丁集（2026-08-11 导出）**：`xaga/patches-lk-log/`（5 个 git format-patch，
   含 README）——K 树写端链路 + smccc 配套，可从 OPPO 基线 `c5d442d1d` 顺序 `git am`

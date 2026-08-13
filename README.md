@@ -85,7 +85,7 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 板级 defconfig 片段：`arch/arm64/configs/vendor/xaga.config`
 板级 DTS：`arch/arm64/boot/dts/mediatek/xaga.dts`（overlay 于 `mt6895.dts` SoC 基座）
 
-## 已移植内容（自 5.10 ESK / 官方）
+## 已移植内容（自 5.10 官方 / 社区基线）
 
 **驱动（均已注册进 kleaf 的 `kernel/kleaf/mgk_64.bzl` + BUILD.bazel）**：
 
@@ -111,7 +111,7 @@ CONFIG_MODULE_SIG_KEY 需为绝对 pem 路径
 
 ## 特性
 
-- **挂死定位（xaga-marker）**：`CONFIG_XAGA_MARKER_WRITER=y`（**内置内核**，源码在 OPPO 内核树 `drivers/misc/xaga-marker-writer.c`；模块版已删——从未写入），在 **arm64 setup_arch 头部**映射 log_store 保留区 0x7ffbf000 为 XAGR 环（minirdump 0x48170000 不能写：触发 MTK mrdump 立即重启，2026-08-09 实测），**每个 printk()（vprintk_emit 钩子）镜像进环**，启动任何阶段挂死环尾部即最后一段内核打印；WDT 复位后 DRAM 保留，由 **lineage_xaga 内核的 xaga-marker 读端**下次启动 dmesg 打印（替代已弃用的 xaga_oops_log/oops 分区方案，2026-08-09；"setup_arch 前"不可行——arm64 paging_init 前该区无映射，early_ioremap 即最早途径）
+- **挂死定位（xaga-marker）**：`CONFIG_XAGA_MARKER_WRITER=y`（**内置内核**，源码在 OPPO 内核树 `drivers/misc/xaga-marker-writer.c`；模块版已删——从未写入），在 **arm64 setup_arch 头部**映射 log_store 保留区 0x7ffbf000 为 XAGR 环（minirdump 0x48170000 不能写：触发 MTK mrdump 立即重启，2026-08-09 实测），**每个 printk()（vprintk_emit 钩子）镜像进环**，启动任何阶段挂死环尾部即最后一段内核打印；WDT 复位后 DRAM 保留，**读取方式 = 直接看 expdb 转储**（LK PL_LOG_STORE 恢复 log_store 区内容进 expdb，重启后 dump expdb 分区即得环文本；lineage_xaga 的 xaga-marker 读端代码仅为备用，非必需，替代已弃用的 xaga_oops_log/oops 分区方案，2026-08-09；"setup_arch 前"不可行——arm64 paging_init 前该区无映射，early_ioremap 即最早途径）
 - 产物镜像（boot/vendor_boot/dtbo）：见 `xaga/images/out/`（打包产物；构建中间产物在 `xaga/images/building/`）
 
 ## 已知缺口 / 待用户环境处理
