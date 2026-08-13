@@ -3,10 +3,8 @@
 > Redmi Note 11T Pro / POCO X4 GT / Redmi K50i (xaga, MT6895 / Dimensity 8100)
 > 6.12 MTK kernel_device_modules 移植树。目标:编译出可开机的内核 + DTBO + 模块,
 > 在真机上完成从"亮屏进系统"到"充电功能"的 bring-up。
-> 状态基准:commit `a05b916`（2026-08-11，已推送 origin/main）。历史经 rebase，旧 hash 见 STATUS.md §9。
-> **真机进度（2026-08-11）**: 197 个内核模块已全部加载成功（`Loaded 197 kernel modules took 707 ms`），
-> 启动链（UFS → init 首阶段 → 模块加载）全通；当前阻塞 = LK boot mode 2（recovery）导致 init 第二阶段
-> 缺 system 库（§2.4）。
+> 状态基准:commit `30c80ea`（2026-08-13，已推送 origin/main）。历史经 rebase，旧 hash 见 STATUS.md §9。
+> **真机进度（2026-08-13）**: 显示链路根因（PWM0/SPR0 compatible）闭环后，**编译产物可进入 recovery 且显示正常**（开机过程 LK→内核早期会花屏，进 recovery 后正常，仅描述未修复）。**进系统（正常 Android boot）需要 blob 支持**（TEE/gz/mcupm/sspm 固件、vendor 分区专有二进制等，见 STATUS.md §6.8）。
 
 ---
 

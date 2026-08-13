@@ -1,8 +1,12 @@
-# xaga 内核日志捕获方法（LK log_store 恢复 + XAGR 环）
+# xaga 内核日志捕获方法（LK log_store 恢复 + XAGR 环 + oops 分区 kmsg_dumper）
 
 > 真机验证状态：2026-08-10 实测通过——6.12 内核把 printk 镜像进 log_store 保留区的
 > XAGR 环，LK 在下次启动时把 log_store 区内容恢复记录到 expdb，内核日志随 expdb
 > 重新出现（含 MIRROR:n 心跳证明镜像存活）。
+> **2026-08-13 新增第二通道**：oops 分区（`/dev/block/sdc81`）kmsg_dumper
+> （`xaga-dumpregs`，K 树内置 `CONFIG_XAGA_DUMPREGS=y`）——崩溃时把完整 dmesg
+> （XGAD 头 + 512KiB）写入 oops 分区，`dd if=/dev/block/sdc81 bs=4096 skip=1` 读取，
+> 不依赖 LK 恢复机制（见下文 "oops 分区 kmsg_dumper"）。
 
 ## 一句话原理
 
@@ -76,3 +80,21 @@
 - **补丁集（2026-08-11 导出）**：`xaga/patches-lk-log/`（5 个 git format-patch，
   含 README）——K 树写端链路 + smccc 配套，可从 OPPO 基线 `c5d442d1d` 顺序 `git am`
   应用；`git am` 验证与 K 树 HEAD `84a4857b1` 逐字节一致
+
+## oops 分区 kmsg_dumper（2026-08-13 定型，第二通道）
+
+- 写端：K 树 `drivers/misc/xaga-dumpregs.c`（内置，`CONFIG_XAGA_DUMPREGS=y`，
+  由 xaga.config 设置）。注册 `kmsg_dumper`（`max_reason=KMSG_DUMP_OOPS`，
+  oops + panic 均触发），die notifier 里主动 `kmsg_dump_desc()`（早于 mrdump
+  淹没日志），把**完整 dmesg（上限 512KiB）**经 panic-safe 轮询 bio 写入
+  `/dev/block/sdc81`（oops 分区，16MB）。
+- 布局：sdc81 头部 4096B = 64B `XGAD` 头（magic/version/reason/len/ts）+ 空；
+  日志文本从 byte 4096 起（整页 4096B 对齐——UFS 拒绝非 4KB 对齐 bio，
+  oops 上下文写入链已修复：kzalloc 缓冲 / virt_addr_valid / 每页一 bio /
+  IRQ 窗口）。
+- 读取：`dd if=/dev/block/sdc81 bs=1 count=64 | xxd`（XGAD 头）、
+  `dd if=/dev/block/sdc81 bs=4096 skip=1 | head -c 20000`（dmesg 文本）。
+- 分区打开：delayed_work 200ms 轮询 `/dev/block/by-name/oops` →
+  `/dev/block/sdc81`（devtmpfs 自动建节点，不依赖 init）。
+- 与 XAGR 环互补：XAGR 环（log_store→expdb）覆盖早期/挂死；oops 分区
+  覆盖崩溃时完整 dmesg（含 oops 栈、模块加载序列、崩溃前最后日志）。
