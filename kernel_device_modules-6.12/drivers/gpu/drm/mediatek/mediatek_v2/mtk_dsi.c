@@ -16692,6 +16692,9 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 	unsigned int alias;
 
 	DDPINFO("%s+\n", __func__);
+	/* xaga probe: confirm mtk_dsi_probe invoked (debug 2026-08-12) */
+	dev_info(dev, "xaga-probe: mtk_dsi_probe enter, node %s\n",
+		 dev->of_node->full_name);
 	dsi = devm_kzalloc(dev, sizeof(*dsi), GFP_KERNEL);
 	if (!dsi)
 		return -ENOMEM;

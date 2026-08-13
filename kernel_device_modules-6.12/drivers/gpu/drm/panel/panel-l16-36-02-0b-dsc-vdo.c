@@ -1396,6 +1396,9 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 	struct device_node *backlight;
 	int ret;
 	pr_debug("l16_36_02_0b_dsc_vdo %s+\n", __func__);
+	/* xaga probe: confirm lcm_probe invoked + node (debug 2026-08-12) */
+	pr_info("xaga-probe: l16_36 lcm_probe enter, node %s\n",
+		dev->of_node->full_name);
 	dsi_node = of_get_parent(dev->of_node);
 	if (dsi_node) {
 		endpoint = of_graph_get_next_endpoint(dsi_node, NULL);

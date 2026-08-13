@@ -12860,6 +12860,9 @@ static int mtk_drm_probe(struct platform_device *pdev)
 
 	disp_dbg_probe();
 	PanelMaster_probe();
+	/* xaga probe: confirm mtk_drm_probe is invoked (debug 2026-08-12) */
+	dev_info(dev, "xaga-probe: mtk_drm_probe enter, node %s\n",
+		 dev->of_node->full_name);
 	DDPINFO("%s+\n", __func__);
 
 	//drm_debug = 0x1F; /* DRIVER messages */
@@ -12871,6 +12874,10 @@ static int mtk_drm_probe(struct platform_device *pdev)
 
 	mtk_ddp_get_mmsys_data(private->data->mmsys_id, &(private->reg_data),
 		&(private->ovlsys_data), &(private->dispsys_data));
+
+	/* xaga probe: confirm probe passes mmsys lookup (debug 2026-08-12) */
+	pr_info("xaga-probe: mtk_drm_probe after mmsys, mmsys_id %d\n",
+		private->data->mmsys_id);
 
 	if (IS_ERR(private->reg_data)) {
 		ret = PTR_ERR(private->config_regs);
@@ -12943,6 +12950,10 @@ static int mtk_drm_probe(struct platform_device *pdev)
 	else
 		ret = mtk_disp_get_dispsys_reg_mt6991(pdev, private, dispsys_num);
 
+	/* xaga probe: dispsys reg step (debug 2026-08-12) */
+	pr_info("xaga-probe: get_dispsys_reg ret=%d dispsys_num=%d\n",
+		ret, dispsys_num);
+
 	if (ret)
 		return ret;
 
@@ -12952,6 +12963,10 @@ static int mtk_drm_probe(struct platform_device *pdev)
 		ret = private->data->get_ovlsys_reg(pdev, private, dispsys_num);
 	else
 		ret = mtk_disp_get_ovlsys_reg_mt6991(pdev, private, dispsys_num);
+
+	/* xaga probe: ovlsys reg step (debug 2026-08-12) */
+	pr_info("xaga-probe: get_ovlsys_reg ret=%d ovlsys_num=%d\n",
+		ret, ovlsys_num);
 
 	if (ret)
 		return ret;
@@ -13151,6 +13166,8 @@ SKIP_MMLSYS_CONFIG:
 	}
 #endif
 	/* Iterate over sibling DISP function blocks */
+	/* xaga probe: reached component match phase (debug 2026-08-12) */
+	pr_info("xaga-probe: mtk_drm_probe before component loop\n");
 	for_each_child_of_node(dev->of_node->parent, node) {
 		const struct of_device_id *of_id;
 		enum mtk_ddp_comp_type comp_type;
@@ -13584,9 +13601,15 @@ static int __init mtk_drm_init(void)
 	int i;
 
 	DDPINFO("%s+\n", __func__);
+	/* xaga probe: confirm each driver registers (debug 2026-08-12) */
+	pr_info("xaga-probe: mtk_drm_init register %s (%d/%d)\n",
+		mtk_drm_drivers[0]->driver.name, 0,
+		(int)ARRAY_SIZE(mtk_drm_drivers));
 	for (i = 0; i < ARRAY_SIZE(mtk_drm_drivers); i++) {
 		DDPINFO("%s register %s driver\n",
 			__func__, mtk_drm_drivers[i]->driver.name);
+		pr_info("xaga-probe: mtk_drm_init reg %d name %s\n", i,
+			mtk_drm_drivers[i]->driver.name);
 		ret = platform_driver_register(mtk_drm_drivers[i]);
 		if (ret < 0) {
 			DDPPR_ERR("Failed to register %s driver: %d\n",
