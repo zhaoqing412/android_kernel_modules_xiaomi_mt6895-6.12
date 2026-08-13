@@ -17,6 +17,15 @@ xaga（Redmi Note 11T Pro / POCO X4 GT / Redmi K50i，Dimensity 8100 / MT6895）
 - `BRINGUP.md` — 开机 bring-up 指南（构建步骤、上电顺序、充电/显示/触摸对齐）
 - 本文件 — 仓库概览、已移植内容、已知缺口
 
+## 源码来源
+
+部分源码来自以下公开仓库（在本工作区 `xaga/baselines/` 有对应参考基线）：
+
+- **[XagaForge/android_kernel_xiaomi_mt6895](https://github.com/XagaForge/android_kernel_xiaomi_mt6895)**（社区 GKI 5.10 内核，xaga）——板级 DTS 与小米驱动的移植来源（panel-l16、触摸/充电/触觉等 OOT 驱动、xaga 板级配置），对应本地基线 `xaga/baselines/kernel/xagaforge`。
+- **[ramabondanp/alps-kernel_device_modules-6.12](https://github.com/ramabondanp/alps-kernel_device_modules-6.12)**（MTK alps 6.12 OOT 模块树）——MTK 平台模块 / DRM 依赖链的对齐依据（模块依赖关系、`BUILD.bazel`/`mgk_64.bzl` 映射、平台保留性判断），对应本地基线 `xaga/baselines/modules/alps-kernel_device_modules-6.12`。
+
+其余基座：OPPO 6.12 内核与模块树（`android_kernel_oddo_mt6895`）、小米官方 5.10 内核/模块基线、lineage_xaga（5.10 源码）。各来源的许可证见各自仓库与本章"许可"。
+
 ## 构建
 
 本树依赖完整的 MTK/AOSP 环境（kleaf `build/` 规则 + clang 预编译 + alps manifest 的 `vendor/mediatek` 等 sibling 项目），**本仓库单独无法构建**。构建配方要点（详见 BRINGUP.md §1）：
