@@ -249,4 +249,8 @@ extern u32 mtk_set_mmmc_rg(u32 hw, u32 id, u32 offset, u32 value, u32 mask);
 extern int mtk_hrt_issue_flag_set(bool is_hrt_issue);
 extern int mtk_dsi_fifo_mon_trigger_start_set(bool is_trig_start);
 
+/* xaga (2026-08-15): exported for the crtc-level DSI re-init fallback
+ * (LK did not init the DSI engine; force a full preconfig + panel init). */
+int mtk_preconfig_dsi_enable(struct mtk_dsi *dsi);
+
 #endif

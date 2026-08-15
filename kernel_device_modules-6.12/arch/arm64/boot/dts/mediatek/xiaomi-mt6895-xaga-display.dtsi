@@ -103,15 +103,20 @@
 	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
+	/* xaga (2026-08-15): restore the stock 5.10 official panel layout.
+	 * panel1@0 = l16_42 (reg 0), panel2@0 = l16_36 (reg 1), dsi_out ->
+	 * panel_in1, exactly like xaga 5.10 (lineage_xaga/xagaforge). LK's
+	 * disp_lcm_fill_lcm_dts_phandle (expdb: "get panel node:
+	 * /soc/dsi/panel2/port/endpoint") hard-codes its write-back target to
+	 * panel2 - so panel2 MUST be the real panel (l16_36) for the LK
+	 * rewrite to end up pointing dsi_out at l16_36. The earlier 6.12
+	 * experiments that swapped panel1/panel2 (l16_36 first) or deleted
+	 * panel2@0 both broke this: swap made a successful LK write target
+	 * l16_42 (wrong panel), deletion made the write fail entirely, and
+	 * either path left the kernel with the wrong/no dsi->panel on some
+	 * boots -> intermittent black screen (CMDQ wait FRAME_DONE timeout). */
 	panel1@0 {
-		/* xaga: panel1@0 = l16_36 (real panel). Stock xagaforge 5.10 has
-		 * panel1@0=l16_42 and relies on LK rewriting dsi_out to the detected
-		 * panel (l16_36); on 6.12 LK's "set dsi panel index to dtb" fails, so
-		 * dsi_out stays on panel_in1 - make panel_in1 the real panel so the
-		 * kernel probes l16_36 without depending on the LK rewrite (real
-		 * device 2026-08-13, display size 0x0 + atomic oops).
-		 */
-		compatible = "l16_36_02_0b_dsc_vdo,lcm";
+		compatible = "l16_42_02_0a_dsc_vdo,lcm";
 		reg = <0>;
 		reset-gpios = <&pio 41 0>;
 		dvdd-gpios = <&pio 118 0>;
@@ -126,7 +131,7 @@
 		};
 	};
 	panel2@0 {
-		compatible = "l16_42_02_0a_dsc_vdo,lcm";
+		compatible = "l16_36_02_0b_dsc_vdo,lcm";
 		reg = <1>;
 		reset-gpios = <&pio 41 0>;
 		dvdd-gpios = <&pio 118 0>;
@@ -142,14 +147,6 @@
 	};
 	ports {
 		port {
-			/* xaga: dsi_out -> panel_in1 (l16_42) matches the stock
-			 * xagaforge 5.10 board file. LK's disp_lcm_fill_lcm_dts_phandle
-			 * rewrites dsi_out to the detected panel (l16_36 = panel2); a
-			 * pre-set panel_in2 target made LK's "set dsi panel index to
-			 * dtb" fail on device -> panel never probed -> crtc had no
-			 * timing (display size 0x0) -> atomic oops in
-			 * mtk_dsi_connector_duplicate_state (real device 2026-08-13).
-			 */
 			dsi_out: endpoint {
 				remote-endpoint = <&panel_in1>;
 			};

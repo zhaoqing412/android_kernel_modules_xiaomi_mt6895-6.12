@@ -1605,6 +1605,9 @@ static int mtu3_probe(struct platform_device *pdev)
 	struct ssusb_mtk *ssusb;
 	int ret = -ENOMEM;
 
+	/* xaga-usb probe: mtu3 entry (2026-08-14) */
+	dev_info(dev, "xaga-usb: mtu3 probe enter node=%s\n", node->full_name);
+
 	/* all elements are set to ZERO as default value */
 	ssusb = devm_kzalloc(dev, sizeof(*ssusb), GFP_KERNEL);
 	if (!ssusb)

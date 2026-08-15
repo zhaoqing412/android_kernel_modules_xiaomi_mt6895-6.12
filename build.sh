@@ -151,17 +151,8 @@ else
 fi
 
 # 27 include dirs for out-of-tree module builds (verbatim from 2026-08-08)
-INC="-I$M/include -I$M/include/soc/mediatek -I$M/drivers/clk/mediatek \
--I$M/drivers/gpu/mediatek/gpufreq -I$M/drivers/misc/mediatek/typec/tcpc/inc \
--I$M/drivers/misc/mediatek/mtk-interconnect -I$M/drivers/misc/mediatek/include \
--I$M/drivers/misc/mediatek/include/mt-plat -I$M/drivers/misc/mediatek/mminfra \
--I$M/drivers/misc/mediatek/power_throttling -I$M/drivers/misc/mediatek/dcm \
--I$M/drivers/misc/mediatek/dcm/include -I$M/drivers/misc/mediatek/mdpm \
--I$M/drivers/misc/mediatek/aee/mrdump -I$M/drivers/iommu/arm/arm-smmu-v3 \
--I$M/drivers/ufs -I$M/drivers/iommu -I$M/drivers/memory -I$M/drivers/usb/mtu3 \
--I$K/drivers/devfreq -I$K/drivers/mmc/host -I$K/drivers/tty/serial/8250 \
--I$K/drivers/dma -I$K/drivers/ufs/host -I$K/drivers/ufs/core \
--I$K/drivers/usb/typec -I$K/kernel"
+INC="-I/media/zhaoqing/builder/kernel/xaga/TEST/kernel_xiaomi_mt6895-6.12/kernel_device_modules-6.12/drivers/gpu/mediatek/gpueb -I/media/zhaoqing/builder/kernel/xaga/TEST/kernel_xiaomi_mt6895-6.12/kernel_device_modules-6.12/drivers/misc/mediatek/blocktag -I$M -I$M/drivers -I$M/include -I$M/include/soc/mediatek -I$M/drivers/clk/mediatek -I$M/drivers/gpu/mediatek/gpufreq -I$M/drivers/gpu/mediatek/gpueb/include -I$M/drivers/gpu/mediatek/mt-plat -I$M/drivers/misc/mediatek/typec/tcpc/inc -I$M/drivers/misc/mediatek/mtk-interconnect -I$M/drivers/misc/mediatek/include -I$M/drivers/misc/mediatek/include/mt-plat -I$M/drivers/misc/mediatek/mminfra -I$M/drivers/misc/mediatek/power_throttling -I$M/drivers/misc/mediatek/dcm -I$M/drivers/misc/mediatek/dcm/include -I$M/drivers/misc/mediatek/mdpm -I$M/drivers/misc/mediatek/aee/mrdump -I$M/drivers/misc/mediatek/aee/aed -I$M/drivers/misc/mediatek/mcupm/include -I$M/drivers/misc/mediatek/pbm -I$M/drivers/misc/mediatek/sda/include -I$M/drivers/misc/mediatek/mdp -I$M/drivers/misc/mediatek/smi -I$M/drivers/misc/mediatek/mmdvfs -I$M/drivers/misc/mediatek/qos -I$M/drivers/misc/mediatek/mm_monitor -I$M/drivers/misc/mediatek/mmp -I$M/drivers/misc/mediatek/vcp/rv -I$M/drivers/misc/mediatek/vcp/rv_v2 -I$M/drivers/misc/mediatek/vcp/include -I$M/drivers/misc/mediatek/iommu -I$M/drivers/iommu/arm/arm-smmu-v3 -I$M/drivers/ufs -I$M/drivers/iommu -I$M/drivers/memory -I$M/drivers/usb/mtu3 -I$M/drivers/char/rpmb -I$M/drivers/char/rpmb/core -I$M/drivers/char/rpmb/drrpmb_gp/public -I$M/drivers/mmc/host -I$M/drivers/power/supply -I$M/drivers/tee/gud/700/MobiCoreDriver -I$M/drivers/tee/gud/700/MobiCoreDriver/public -I$M/drivers/dma-buf/heaps -I$M/drivers/media/platform/mtk-vcodec -I$M/drivers/gpu/drm/mediatek/dpc -I$M/drivers/gpu/mediatek/gpufreq/v2 -I$M/drivers/gpu/mediatek/gpufreq -I$K/drivers/devfreq -I$K/drivers/mmc/host -I$K/drivers/tty/serial/8250 -I$K/drivers/dma -I$K/drivers/ufs/host -I$K/drivers/ufs/core -I$K/drivers/usb/typec -I$K/kernel -I$K/include -I$M/drivers/misc/mediatek/slbc"
+
 
 # ---------------------------------------------------------------------------
 # Preflight: build tools, paths, clang env (clang_build_fix.sh style)
@@ -254,6 +245,7 @@ config() {
         -e 's|^CONFIG_KASAN=y|# CONFIG_KASAN is not set|' \
         -e 's|^CONFIG_KASAN_HW_TAGS=y|# CONFIG_KASAN_HW_TAGS is not set|' \
         -e 's|^CONFIG_MTK_ECCCI_DRIVER=m|# CONFIG_MTK_ECCCI_DRIVER is not set|' \
+        -e 's|^CONFIG_CMDLINE="\(.*\)"$|CONFIG_CMDLINE="\1 console=ttyGS0,115200"|' \
         "$OUT/.config"
     ( cd "$K" && make "${MAKE_CC[@]}" O="$OUT" ARCH=arm64 LLVM=1 olddefconfig > "$WORK/config2.log" 2>&1 )
     sed -i "s|^CONFIG_MODULE_SIG_KEY=.*|CONFIG_MODULE_SIG_KEY=\"$PEM\"|" "$OUT/.config"

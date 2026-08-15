@@ -5729,6 +5729,17 @@
 
 			#clock-cells = <1>;
 			power-domains = <&scpsys MT6895_POWER_DOMAIN_DISP>;
+			/* xaga (2026-08-14): MIPI TX PHY power management. The 6.12
+			 * display driver mtk_drm_get_pd_device() looks up "dsi_phy0"/
+			 * "dsi_phy1"/"side_dispsys" in pd-names; without them the MIPI
+			 * TX PHY never gets pm_runtime-managed (genpd notifier
+			 * registration fails) -> no DSI signal -> DSI0 never produces
+			 * FRAME_DONE -> CMDQ SW timeout -> black screen. mt6895 has a
+			 * single mipi_tx_config0, so both dsi_phy entries point at it.
+			 * Format mirrors mt6991 dispsys_config. */
+			pd-others = <&disp_mutex0>, <&mipi_tx_config0>,
+				<&mipi_tx_config0>;
+			pd-names = "side_dispsys", "dsi_phy0", "dsi_phy1";
 			clocks = <&mmsys0_config_clk CLK_MM0_DISP_MUTEX0>,
 				<&mmsys1_config_clk CLK_MM1_DISP_MUTEX0>,
 				<&mmsys0_config_clk CLK_MM0_APB_BUS>,
@@ -6507,7 +6518,7 @@
 
 		disp_spr1: disp_spr@14414000 {
 			compatible = "mediatek,disp_spr1",
-					"mediatek,mt6895-disp-SPR";
+					"mediatek,mt6895-disp-spr";
 			reg = <0 0x14414000 0 0x1000>;
 			interrupts = <GIC_SPI 364 IRQ_TYPE_LEVEL_HIGH 0>;
 			clocks = <&mmsys1_config_clk CLK_MM1_DISP_SPR0>;
@@ -9550,10 +9561,10 @@
 				clocks = <&clk26m>;
 				clock-names = "ref";
 				#phy-cells = <1>;
-                		/*mediatek,efuse-intr = <0x26>;*/
-                		/*mediatek,eye-vrt = <2>;*/
-                		/*mediatek,eye-vrt-host = <2>;*/
-                		/*mediatek,discth= <0xb>;*/
+				mediatek,efuse-intr = <0x26>;
+				mediatek,eye-vrt = <2>;
+				mediatek,eye-vrt-host = <2>;
+				mediatek,discth= <0xb>;
 			};
 		};
 

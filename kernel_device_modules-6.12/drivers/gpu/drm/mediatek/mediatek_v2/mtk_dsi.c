@@ -5205,7 +5205,7 @@ static void mtk_output_en_doze_switch(struct mtk_dsi *dsi)
 	dsi->doze_enabled = doze_enabled;
 }
 
-static int mtk_preconfig_dsi_enable(struct mtk_dsi *dsi)
+int mtk_preconfig_dsi_enable(struct mtk_dsi *dsi)
 {
 	int ret;
 	struct mtk_panel_ext *ext = mtk_dsi_get_panel_ext(&dsi->ddp_comp);
@@ -5253,6 +5253,8 @@ static int mtk_preconfig_dsi_enable(struct mtk_dsi *dsi)
 }
 
 /***********************Msync 2.0 function start************************/
+EXPORT_SYMBOL_GPL(mtk_preconfig_dsi_enable);
+
 static void mtk_dsi_init_vfp_early_stop(struct mtk_dsi *dsi,
 				struct cmdq_pkt *handle, struct mtk_ddp_comp *comp)
 {
@@ -16692,9 +16694,6 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 	unsigned int alias;
 
 	DDPINFO("%s+\n", __func__);
-	/* xaga probe: confirm mtk_dsi_probe invoked (debug 2026-08-12) */
-	dev_info(dev, "xaga-probe: mtk_dsi_probe enter, node %s\n",
-		 dev->of_node->full_name);
 	dsi = devm_kzalloc(dev, sizeof(*dsi), GFP_KERNEL);
 	if (!dsi)
 		return -ENOMEM;

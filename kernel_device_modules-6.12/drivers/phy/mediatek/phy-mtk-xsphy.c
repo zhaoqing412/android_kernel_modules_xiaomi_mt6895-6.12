@@ -2443,45 +2443,45 @@ static void phy_parse_property(struct mtk_xsphy *xsphy,
 	case PHY_TYPE_USB2:
 		if (device_property_read_u32(dev, "mediatek,efuse-intr",
 					 &inst->efuse_intr) || inst->efuse_intr < 0)
-			inst->efuse_intr = -EINVAL;
+			inst->efuse_intr = 0;
 		if (device_property_read_u32(dev, "mediatek,efuse-term",
 					 &inst->efuse_term_cal) || inst->efuse_term_cal < 0)
-			inst->efuse_term_cal = -EINVAL;
+			inst->efuse_term_cal = 0;
 		if (device_property_read_u32(dev, "mediatek,eye-src",
 					 &inst->eye_src) || inst->eye_src < 0)
-			inst->eye_src =	-EINVAL;
+			inst->eye_src = 0;
 		if (device_property_read_u32(dev, "mediatek,eye-vrt",
 					 &inst->eye_vrt) || inst->eye_vrt < 0)
-			inst->eye_vrt = -EINVAL;
+			inst->eye_vrt = 0;
 		if (device_property_read_u32(dev, "mediatek,eye-term",
 					 &inst->eye_term) || inst->eye_term < 0)
-			inst->eye_term = -EINVAL;
+			inst->eye_term = 0;
 		if (device_property_read_u32(dev, "mediatek,discth",
 					 &inst->discth) || inst->discth < 0)
-			inst->discth = -EINVAL;
+			inst->discth = 0;
 		if (device_property_read_u32(dev, "mediatek,rx-sqth",
 					 &inst->rx_sqth) || inst->rx_sqth < 0)
-			inst->rx_sqth = -EINVAL;
+			inst->rx_sqth = 0;
 		if (device_property_read_u32(dev, "mediatek,host-rx-sqth",
 					 &inst->host_rx_sqth) || inst->host_rx_sqth < 0)
-			inst->host_rx_sqth = -EINVAL;
+			inst->host_rx_sqth = 0;
 
 		if (device_property_read_u32(dev, "mediatek,rx-sqd",
 					 &inst->rx_sqd) || inst->rx_sqd < 0)
-			inst->rx_sqd = -EINVAL;
+			inst->rx_sqd = 0;
 		if (device_property_read_u32(dev, "mediatek,host-rx-sqd",
 					 &inst->host_rx_sqd) || inst->host_rx_sqd < 0)
-			inst->host_rx_sqd = -EINVAL;
+			inst->host_rx_sqd = 0;
 
 		if (device_property_read_u32(dev, "mediatek,rev6",
 					 &inst->rev6) || inst->rev6 < 0)
-			inst->rev6 = -EINVAL;
+			inst->rev6 = 0;
 		if (device_property_read_u32(dev, "mediatek,hsrx-vref-sel",
 					&inst->hsrx_vref_sel) || inst->hsrx_vref_sel < 0)
-			inst->hsrx_vref_sel = -EINVAL;
+			inst->hsrx_vref_sel = 0;
 		if (device_property_read_u32(dev, "mediatek,fs-cr",
 					&inst->fs_cr) || inst->fs_cr < 0)
-			inst->fs_cr = -EINVAL;
+			inst->fs_cr = 0;
 		if (device_property_read_string(dev, "mediatek,intr-ofs",
 					 &ofs_str) || kstrtoint(ofs_str, 10, &inst->intr_ofs) < 0)
 			inst->intr_ofs = -(P2AR_RG_INTR_CAL_MASK + 1);
@@ -2496,22 +2496,22 @@ static void phy_parse_property(struct mtk_xsphy *xsphy,
 			inst->host_term_ofs = -(P2ARA_RG_TERM_CAL_MASK + 1);
 		if (device_property_read_u32(dev, "mediatek,pll-fbksel",
 				 &inst->pll_fbksel) || inst->pll_fbksel < 0)
-			inst->pll_fbksel = -EINVAL;
+			inst->pll_fbksel = 0;
 		if (device_property_read_u32(dev, "mediatek,pll-posdiv",
 				 &inst->pll_posdiv) || inst->pll_posdiv < 0)
-			inst->pll_posdiv = -EINVAL;
+			inst->pll_posdiv = 0;
 		if (device_property_read_u32(dev, "mediatek,eye-src-host",
 					 &inst->eye_src_host) || inst->eye_src_host < 0)
-			inst->eye_src_host = -EINVAL;
+			inst->eye_src_host = 0;
 		if (device_property_read_u32(dev, "mediatek,eye-vrt-host",
 					 &inst->eye_vrt_host) || inst->eye_vrt_host < 0)
-			inst->eye_vrt_host = -EINVAL;
+			inst->eye_vrt_host = 0;
 		if (device_property_read_u32(dev, "mediatek,eye-term-host",
 					 &inst->eye_term_host) || inst->eye_term_host < 0)
-			inst->eye_term_host = -EINVAL;
+			inst->eye_term_host = 0;
 		if (device_property_read_u32(dev, "mediatek,rev6-host",
 					&inst->rev6_host) || inst->rev6_host < 0)
-			inst->rev6_host = -EINVAL;
+			inst->rev6_host = 0;
 		if (!device_property_read_u32_array(dev, "mediatek,lpm-parameter",
 			inst->lpm_para, PHY_PLL_PARA_CNT))
 			inst->lpm_quirk = true;
@@ -2540,22 +2540,22 @@ static void phy_parse_property(struct mtk_xsphy *xsphy,
 	case PHY_TYPE_USB3:
 		if (device_property_read_u32(dev, "mediatek,efuse-intr",
 					 &inst->efuse_intr) || inst->efuse_intr < 0)
-			inst->efuse_intr = -EINVAL;
+			inst->efuse_intr = 0;
 		if (device_property_read_u32(dev, "mediatek,efuse-tx-imp",
 					 &inst->efuse_tx_imp) || inst->efuse_tx_imp < 0)
-			inst->efuse_tx_imp = -EINVAL;
+			inst->efuse_tx_imp = 0;
 		if (device_property_read_u32(dev, "mediatek,efuse-rx-imp",
 					 &inst->efuse_rx_imp) || inst->efuse_rx_imp < 0)
-			inst->efuse_rx_imp = -EINVAL;
+			inst->efuse_rx_imp = 0;
 		if (device_property_read_u32(dev, "mediatek,tx-lctxcm1",
 					 &inst->tx_lctxcm1) || inst->tx_lctxcm1 < 0)
-			inst->tx_lctxcm1 = -EINVAL;
+			inst->tx_lctxcm1 = 0;
 		if (device_property_read_u32(dev, "mediatek,tx-lctxc0",
 					 &inst->tx_lctxc0) || inst->tx_lctxc0 < 0)
-			inst->tx_lctxc0 = -EINVAL;
+			inst->tx_lctxc0 = 0;
 		if (device_property_read_u32(dev, "mediatek,tx-lctxcp1",
 					 &inst->tx_lctxcp1) || inst->tx_lctxcp1 < 0)
-			inst->tx_lctxcp1 = -EINVAL;
+			inst->tx_lctxcp1 = 0;
 		inst->u3_rx_fix = device_property_read_bool(dev, "mediatek,u3-rx-fix");
 		inst->u3_gen2_hqa = device_property_read_bool(dev, "mediatek,u3-gen2-hqa");
 		inst->u3_sw_efuse = device_property_read_bool(dev, "mediatek,u3-sw-efuse");
@@ -3227,6 +3227,9 @@ static int mtk_xsphy_probe(struct platform_device *pdev)
 	struct resource res;
 	int port, retval, i;
 
+	/* xaga-usb probe: xsphy entry (2026-08-14) */
+	dev_info(dev, "xaga-usb: xsphy probe enter node=%s\n", np->full_name);
+
 	xsphy = devm_kzalloc(dev, sizeof(*xsphy), GFP_KERNEL);
 	if (!xsphy)
 		return -ENOMEM;
@@ -3356,7 +3359,7 @@ static int mtk_xsphy_probe(struct platform_device *pdev)
 		/* Get optional property ippc address */
 		retval = of_address_to_resource(child_np, 1, &res);
 		if (retval) {
-			dev_info(dev, "failed to get ippc resource(id-%d)\n",
+			dev_dbg(dev, "failed to get ippc resource(id-%d)\n",
 				port);
 		} else {
 			inst->ippc_base = devm_ioremap(dev, res.start,

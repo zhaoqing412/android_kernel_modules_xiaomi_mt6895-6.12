@@ -896,6 +896,9 @@ static int xhci_mtk_probe(struct platform_device *pdev)
 	struct device_node *offload_node;
 	struct xhci_vendor_ops *ops;
 	int ret = -ENODEV;
+
+	/* xaga-usb probe: xhci entry (2026-08-14) */
+	dev_info(dev, "xaga-usb: xhci probe enter node=%s\n", node->full_name);
 	int wakeup_irq;
 	int irq;
 

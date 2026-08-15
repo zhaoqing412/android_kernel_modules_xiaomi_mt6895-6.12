@@ -45,6 +45,32 @@
 #include <soc/mediatek/smi.h>
 #include "mtk_drm_fb.h"
 
+/* xaga (2026-08-15): SMI data-path self recovery. On a frame underflow
+ * with SMI requests hung (GREQ_LAYER_CNT > threshold, seen as OVL1
+ * "2048 reqs are smi hang" on the 6.12 port -> DSI buffer underrun ->
+ * permanent grey screen), schedule a crtc-level recovery that re-runs
+ * the ESD-recovery path (mtk_drm_esd_recover: crtc disable + re-config +
+ * refresh). The recovery runs on a workqueue because it must not execute
+ * in IRQ context. */
+extern int mtk_drm_esd_recover(struct drm_crtc *crtc);
+
+#define XAGA_SMI_HANG_THRESHOLD	1024
+static struct work_struct xaga_smi_recovery_work;
+static struct drm_crtc *xaga_smi_recovery_crtc;
+static bool xaga_smi_recovery_pending;
+static bool xaga_smi_recovery_inited;
+
+static void xaga_smi_recovery_work_fn(struct work_struct *work)
+{
+	struct drm_crtc *crtc = xaga_smi_recovery_crtc;
+
+	xaga_smi_recovery_pending = false;
+	if (!crtc || !crtc->dev)
+		return;
+	pr_err("xaga: SMI hang detected, triggering display recovery\n");
+	mtk_drm_esd_recover(crtc);
+}
+
 int mtk_dprec_mmp_dump_ovl_layer(struct mtk_plane_state *plane_state);
 
 #define REG_FLD(width, shift)                                                  \
@@ -1129,6 +1155,22 @@ static irqreturn_t mtk_disp_ovl_irq_handler(int irq, void *dev_id)
 				smi_cnt = readl(ovl->regs + DISP_REG_OVL_GREQ_LAYER_CNT);
 			DDPPR_ERR("[IRQ] %s: frame underflow! %u reqs are smi hang, cnt=%d\n",
 				  mtk_dump_comp_str(ovl), smi_cnt, priv->underflow_cnt);
+			/* xaga: display data path starving (underflow). Two flavours seen
+			 * on device: SMI requests hung (smi_cnt > 0, GREQ_LAYER_CNT) and
+			 * plain no-data underflow (smi_cnt == 0 but underflow_cnt climbing
+			 * fast, e.g. OVL/RDMA without frames). Either way the screen is
+			 * stuck grey until the crtc is re-armed, so schedule the ESD-style
+			 * recovery. One-shot per pend; never run in IRQ context. */
+			if ((smi_cnt > 0 || priv->underflow_cnt > 16) &&
+			    mtk_crtc && !xaga_smi_recovery_pending) {
+				xaga_smi_recovery_crtc = &mtk_crtc->base;
+				if (!xaga_smi_recovery_inited) {
+					INIT_WORK(&xaga_smi_recovery_work, xaga_smi_recovery_work_fn);
+					xaga_smi_recovery_inited = true;
+				}
+				xaga_smi_recovery_pending = true;
+				schedule_work(&xaga_smi_recovery_work);
+			}
 		}
 		priv->underflow_cnt++;
 		if (mtk_crtc && (mtk_crtc->last_aee_trigger_ts == 0 ||
@@ -6741,3 +6783,4 @@ struct platform_driver mtk_disp_ovl_driver = {
 			.of_match_table = mtk_disp_ovl_driver_dt_match,
 		},
 };
+

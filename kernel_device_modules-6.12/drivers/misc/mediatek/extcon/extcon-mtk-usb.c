@@ -404,6 +404,10 @@ static int mtk_extcon_tcpc_notifier(struct notifier_block *nb,
 		mtk_usb_extcon_set_vbus(extcon, vbus_on);
 		break;
 	case TCP_NOTIFY_TYPEC_STATE:
+		/* xaga-usb probe: tcpc state event (2026-08-14) */
+		dev_info(dev, "xaga-usb: tcpc state %d->%d\n",
+			 noti->typec_state.old_state,
+			 noti->typec_state.new_state);
 		dev_info(dev, "old_state=%d, new_state=%d\n",
 				noti->typec_state.old_state,
 				noti->typec_state.new_state);
@@ -495,8 +499,20 @@ static void mtk_usb_extcon_detect_cable(struct work_struct *work)
 		gpiod_get_value_cansleep(extcon->vbus_gpiod) : id;
 
 	/* check if vbus detect by charger */
-	if (extcon->usb_psy)
-		vbus = 0;
+	if (extcon->usb_psy) {
+		union power_supply_propval tval;
+
+		/* query the charger's USB online state (recovery: often 0 even
+		 * with a PC connected - vbus is present but online lags) */
+		if (!power_supply_get_property(extcon->usb_psy,
+					POWER_SUPPLY_PROP_ONLINE, &tval))
+			vbus = tval.intval;
+	}
+
+	/* xaga: no id/vbus gpios - default to device role (vbus present) so
+	 * the UDC activates; the tcpc notifier later corrects host/attach. */
+	if (!extcon->vbus_gpiod && !vbus)
+		vbus = 1;
 
 	if (!id)
 		role = USB_ROLE_HOST;
@@ -504,6 +520,10 @@ static void mtk_usb_extcon_detect_cable(struct work_struct *work)
 		role = USB_ROLE_DEVICE;
 	else
 		role = USB_ROLE_NONE;
+
+	/* xaga-usb probe: detect_cable state (2026-08-14) */
+	dev_info(extcon->dev, "xaga-usb: detect_cable id=%d vbus=%d role=%s\n",
+		 id, vbus, usb_role_string(role));
 
 	dev_dbg(extcon->dev, "id %d, vbus %d, set role: %s\n",
 			id, vbus, usb_role_string(role));
@@ -680,6 +700,9 @@ static int mtk_usb_extcon_probe(struct platform_device *pdev)
 #endif
 	int ret;
 
+	/* xaga-usb probe: extcon entry (2026-08-14) */
+	dev_info(dev, "xaga-usb: extcon probe enter node=%s\n", dev->of_node->full_name);
+
 	extcon = devm_kzalloc(&pdev->dev, sizeof(*extcon), GFP_KERNEL);
 	if (!extcon)
 		return -ENOMEM;
@@ -749,6 +772,13 @@ static int mtk_usb_extcon_probe(struct platform_device *pdev)
 #endif
 
 	platform_set_drvdata(pdev, extcon);
+
+	/* xaga: with no id/vbus gpios, mtk_usb_extcon_gpio_init() bails with
+	 * -ENODEV before INIT_DELAYED_WORK(wq_detcable), so the initial role
+	 * is never set and the UDC stays inactive (g_serial never enumerates).
+	 * (Re-)init the work and always schedule the initial cable detect. */
+	INIT_DELAYED_WORK(&extcon->wq_detcable, mtk_usb_extcon_detect_cable);
+	queue_delayed_work(system_power_efficient_wq, &extcon->wq_detcable, 0);
 
 	return 0;
 }

@@ -3438,9 +3438,6 @@ static int cmdq_probe(struct platform_device *pdev)
 	int err, i, smi_cnt, num_values = 0;
 	struct gce_plat *plat_data;
 	u32 hwid;
-	/* xaga probe: cmdq_probe invoked for gce (debug 2026-08-12) */
-	pr_info("xaga-probe: cmdq_probe %s\n",
-		dev_name(dev) ? dev_name(dev) : "?");
 #ifndef CMDQ_SKIP_BY_CMDQ_BUILT
 	struct of_phandle_args args;
 #if !IS_ENABLED(CONFIG_VIRTIO_CMDQ)

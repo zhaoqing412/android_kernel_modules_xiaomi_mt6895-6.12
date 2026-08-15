@@ -2438,7 +2438,9 @@ static int mt6375_tcpc_probe(struct platform_device *pdev)
 	int ret;
 	struct mt6375_tcpc_data *ddata;
 
-	dev_info(&pdev->dev, "probe: %s\n", __func__);
+	/* xaga-usb probe: tcpc entry (2026-08-14) */
+	dev_info(&pdev->dev, "xaga-usb: tcpc probe enter node=%s\n",
+		 pdev->dev.of_node->full_name);
 
 	ddata = devm_kzalloc(&pdev->dev, sizeof(*ddata), GFP_KERNEL);
 	if (!ddata)
