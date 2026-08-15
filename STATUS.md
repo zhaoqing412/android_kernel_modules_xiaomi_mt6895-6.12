@@ -212,6 +212,28 @@ xaga/kernel_xiaomi_mt6895-6.12/
 
 **诊断要点**：expdb 抓取的内核日志从 setup_arch 头开始（XAGR ring armed），模块加载序列 + panic 尾部完整可见；`grep -aE "Kernel panic|Unable to handle|exports duplicate|Unknown symbol"` 即可定位每轮失败点。
 
+### 08-15 黑屏排查轮次（8 轮，最终回退 16:33 checkpoint）
+
+> 背景：08-13 recovery 显示正常后，继续刷机出现**黑屏回归**（背光亮、无画面）。排查确认 **LK 始终未初始化 DSI**（`DSI_STATE_DBG6-9` 全 0；LK `set dsi panel index to dtb failed` / `SLEEPOUT_DONE` 轮询超时；expdb 实证 LK 每 boot 写 `videolfb - islcmfound = 1`），而 probe 无条件假定 "DSI0 enabled in LK"（`output_en=true, clk_refcnt=1`）→ preconfig 被跳过、poweron 短路 → DSI 引擎从未启动 → CMDQ 等 `FRAME_DONE`(313) 超时 → 黑屏。16:33 前已有 first_enable 强制 DSI re-init fallback，未闭环；16:33 后继续深挖 8 轮逐层定位，最终**未闭环，回退 16:33 checkpoint 留档**（改动已提交，可随时恢复）。
+
+| 轮 | 现象 | 根因（代码级确认） | 处理 |
+|---|---|---|---|
+| 16 | re-init 时 `Failed to set data rate: -16`(EBUSY) | probe 的 `phy_power_on` 使 mipi_tx PLL 保持 prepared（时钟注册 `CLK_SET_RATE_GATE`）；**MTK 魔改 CCF `clk_core_rate_is_protected` 返回 `protect_count`（上游是 `>1`）**→ PLL prepared 时 `clk_set_rate` 一律 EBUSY | 先 `clk_disable_unprepare(hs_clk)` 再 poweron（已回退） |
+| 17 | preconfig 里 `mtk_dsi_ps_control_vact` / `mtk_dsi_config_vdo_timing` NULL deref（0x7d8） | DRM-init first_enable 时 `encoder->crtc` 未赋值（首次 atomic commit 才有） | `dcrtc` 回退到 `comp->mtk_crtc`（已回退） |
+| 18 | `mtk_ddp_connect_dual_pipe_path` NULL deref（0x5c = `comp->id`） | 6.12 OPPO 树把 `DLO_ASYNC0-7/DLI_ASYNC0-7` 从 `MTK_DISP_VIRTUAL` 改为真类型（MT6991/93 离散路径专用）；MT6895 无此硬件 → `priv->ddp_comp[107]` NULL → 双管道 ctx 留 NULL | 类型表改回 `MTK_DISP_VIRTUAL`（与 5.10 一致；已回退） |
+| 19 | engine_start 后 DSI_STATE 仍 0，CMDQ 继续等 313 | **LK 未初始化时引擎根本没启动**：engine_start 只做了 poweron（时钟/PLL/PHY）+ DSI_EN，缺 **VDO 模式选择 + `DSI_START` 脉冲**（VDO 模式需 `DSI_MODE_CTRL` 选模式 + `DSI_START` 0→1） | engine_start 补 `_mtk_dsi_set_mode` + `mtk_dsi_start`（已回退） |
+| 20 | 同上 | **MTCMOS 开启时序**：first_enable 里 `mtk_drm_top_clk_prepare_enable`+`mtk_crtc_ddp_prepare` 在 `first_enable_ddp_config` **之后**（正常设计靠 LK 已开电源）→ DRM-init 阶段写 DSI 寄存器全部无效（DSI_STATE 读 0/总线垃圾） | first_enable 里 engine_start 前提前开电源（已回退） |
+| 21 | 同上 | **mutex/路径从未配置**：正常由 LK 配（MUTEX EN/SOF=0x41、OVL EN、RDMA/DSC、crossbar——见 5.10 dumpregs 参考）；kernel 的 `mtk_crtc_connect_default_path`+`mtk_crtc_config_default_path` 只在首次 atomic commit 才执行 → first_enable 等 FRAME_DONE 时管线无数据源 | first_enable 里补 LK 复刻（connect+config，已回退） |
+| 22 | atomic 的 `mtk_dsi_exit_ulps` 卡 2s 后 fail | LK 未初始化 → PHY 未进 ULPS → `SLEEPOUT_DONE` 不来 → `wait_dsi_wq(..., 2*HZ)` 超时，拖垮 atomic commit（NST_LOCK 超时） | engine_start/preconfig 里跳过或缩短（已回退） |
+| 23 | 结论 | **LK 未初始化 DSI 时，kernel 必须完整复刻 LK 的管线初始化**（MTCMOS → DSI 引擎 → mutex/路径 → FRAME_DONE），涉及 first_enable/engine_start/preconfig 多处重构，未闭环 | **回退 16:33 checkpoint 并提交留档** |
+
+**checkpoint（2026-08-15 16:33，构建完产物时的状态）**：
+
+- **M 树**（本仓库）：`7b9cb8f`（rebase 到远程 main 后 `64a634b`）—— *xaga: display bring-up checkpoint (recovery bootable, DSI re-init fallback)*。含 16:33 前全部未提交改动：first_enable DSI re-init fallback、灰屏 SMI 自恢复（`mtk_disp_ovl`）、`mtk_drm_esd_recover` 导出、DTS/panel、g_serial console（`console=ttyGS0`）、OOT 构建 INC（200 ko）。**推送 origin/main 待网络恢复**（GnuTLS 到 github 握手被网络阻断）。
+- **K 树**（`../android_kernel_oddo_mt6895`）：`20b279ed9` → **已推送 github `xaga-6.12`**（快进 `6dce1808b..20b279ed9`）—— kmsg2usb oops 分区门、g_serial console、probe/defer traces、xaga-dumpregs 移除。
+
+**后续方向（若继续黑屏）**：以 `64a634b` 为基线按 "LK 复刻" 思路推进：① first_enable 里 engine_start 前先 `mtk_drm_top_clk_prepare_enable`+`mtk_crtc_ddp_prepare`（开 MTCMOS）；② engine_start 完整启动引擎（VDO 模式 + `DSI_START` + 跳过 exit_ulps）；③ 补 `mtk_crtc_connect_default_path`+`mtk_crtc_config_default_path`（mutex/路径）；④ probe LK 交接误标的 `panel->prepared/enabled` 重置 → 对照 5.10 dumpregs（DSI START/MODE/TXRX、MUTEX EN/SOF、OVL EN）逐层验证。
+
 ## 11. 相关文档索引
 
 | 文档 | 角色 | 何时看 |

@@ -2,6 +2,7 @@
 
 > 移植状态总览见 [STATUS.md](STATUS.md)（基准 commit `30c80ea`，2026-08-13，已推送 origin/main；历史经 rebase，旧 hash 见 STATUS.md §9）
 > **真机进度（2026-08-13）**: 显示链路根因（PWM0/SPR0 compatible）闭环后，**编译产物可进入 recovery 且显示正常**（开机过程 LK→内核早期会花屏，进 recovery 后正常，仅描述未修复）。**进系统（正常 Android boot）需要 blob 支持**——本仓库只含内核 + GPL 模块源码，完整系统还需小米/MTK 专有 blob（TEE/gz/mcupm/sspm 固件、vendor 分区专有二进制等），详见 STATUS.md §6.7/§6.8/§10
+> **2026-08-15 checkpoint**: 后续刷机出现 recovery 黑屏回归（LK 始终未初始化 DSI），深挖 8 轮（PLL -EBUSY / 双管道 DLO/DLI / 引擎未启动 / MTCMOS 时序 / mutex 未配置等）后**回退到 16:33 构建完产物时的状态并提交**（M 树 7b9cb8f / rebase 64a634b，K 树 20b279ed9 → github xaga-6.12），排查全过程与后续"LK 复刻"方向见 STATUS.md §10（08-15 轮次）
 
 xaga（Redmi Note 11T Pro / POCO X4 GT / Redmi K50i，Dimensity 8100 / MT6895）的 **Android 6.12 内核模块移植树**。
 
