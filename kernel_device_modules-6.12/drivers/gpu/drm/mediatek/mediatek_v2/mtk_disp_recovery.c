@@ -279,8 +279,12 @@ static void esd_check_done_cb(struct cmdq_cb_data data)
 	mtk_ddp_comp_io_cmd(output_comp, NULL, CONNECTOR_READ_EPILOG,
 					NULL);
 	CRTC_MMP_MARK(index, esd_check, 2, 8);
+#ifdef CONFIG_MI_DISP_ESD_CHECK
+	ret = mtk_ddp_comp_io_cmd(output_comp, NULL, MI_DISP_ESD_CHECK_CMP, NULL);
+#else
 	ret = mtk_ddp_comp_io_cmd(output_comp, NULL, ESD_CHECK_CMP,
 					 (void *)mtk_crtc);
+#endif
 	mtk_vidle_user_power_release(DISP_VIDLE_USER_CRTC);
 	CRTC_MMP_MARK(index, esd_check, 2, ret);
 
@@ -424,8 +428,12 @@ int _mtk_esd_check_read(struct drm_crtc *crtc)
 		/* Record Vblank start timestamp */
 		mtk_vblank_config_rec_start(mtk_crtc, cmdq_handle, ESD_CHECK);
 
+#ifdef CONFIG_MI_DISP_ESD_CHECK
+		mtk_ddp_comp_io_cmd(output_comp, cmdq_handle, MI_DISP_ESD_CHECK_READ, NULL);
+#else
 		mtk_ddp_comp_io_cmd(output_comp, cmdq_handle, ESD_CHECK_READ,
 				    (void *)mtk_crtc);
+#endif
 
 		cmdq_pkt_set_event(cmdq_handle,
 				   mtk_crtc->gce_obj.event[EVENT_CABC_EOF]);
