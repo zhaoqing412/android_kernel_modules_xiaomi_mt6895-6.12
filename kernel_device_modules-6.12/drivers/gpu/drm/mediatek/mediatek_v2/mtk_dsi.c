@@ -43,6 +43,10 @@
 #endif
 
 #include "mtk_drm_ddp_comp.h"
+#ifdef CONFIG_MI_DISP
+#include "mi_disp/mi_disp_feature.h"
+#endif
+
 #include "mtk_drm_crtc.h"
 #include "mtk_drm_drv.h"
 #include "mtk_drm_helper.h"
@@ -16078,6 +16082,16 @@ static int mtk_dsi_bind(struct device *dev, struct device *master, void *data)
 		goto err_unregister;
 	}
 
+#ifdef CONFIG_MI_DISP
+	ret = mi_disp_feature_attach_display(dsi,
+				MI_DISP_PRIMARY, MI_INTF_DSI);
+	if (ret) {
+		pr_err("failed to attach %s display(%s intf)\n",
+				get_disp_id_name(MI_DISP_PRIMARY),
+				get_disp_intf_type_name(MI_INTF_DSI));
+	}
+#endif
+
 	priv = drm->dev_private;
 	mipi_tx->sw_ver = priv->sw_ver;
 	if (dsi->ext && dsi->ext->params && dsi->ext->params->dconfig_mipi_chg_en) {
@@ -16120,6 +16134,10 @@ static void mtk_dsi_unbind(struct device *dev, struct device *master,
 
 	if (dsi->is_slave)
 		return;
+
+#ifdef CONFIG_MI_DISP
+	mi_disp_feature_detach_display(dsi, MI_DISP_PRIMARY, MI_INTF_DSI);
+#endif
 
 	mtk_dsi_destroy_conn_enc(dsi);
 	mipi_dsi_host_unregister(&dsi->host);
