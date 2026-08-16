@@ -9623,6 +9623,7 @@
 			#clock-cells = <0>;
 			#phy-cells = <0>;
 			clock-output-names = "mipi_tx0_pll";
+			power-domains = <&scpsys MT6895_POWER_DOMAIN_DISP>;
 		};
 	};
 
