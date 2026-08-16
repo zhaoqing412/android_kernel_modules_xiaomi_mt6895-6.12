@@ -17425,6 +17425,13 @@ void mtk_drm_crtc_first_enable(struct drm_crtc *crtc)
 					DDPPR_ERR("%s: panel enable failed\n",
 						__func__);
 			}
+			/*
+			 * Start DSI only after the panel has been prepared/enabled.
+			 * Starting earlier (inside preconfig) can push VDO data before
+			 * the panel init sequence completes -> random tearing/garbage in
+			 * the upper part of the screen.
+			 */
+			mtk_dsi_start_engine(dsi);
 		} else {
 			DDPPR_ERR("%s: DSI preconfig failed\n", __func__);
 		}

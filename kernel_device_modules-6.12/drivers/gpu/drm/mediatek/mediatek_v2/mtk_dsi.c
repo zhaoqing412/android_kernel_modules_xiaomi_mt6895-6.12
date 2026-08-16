@@ -5264,18 +5264,18 @@ int mtk_preconfig_dsi_enable(struct mtk_dsi *dsi)
 		check_stopstate(NULL);
 	mtk_dsi_clk_hs_mode(dsi, 1);
 
-	/*
-	 * Start the DSI engine here. mtk_preconfig_dsi_enable() is also used
-	 * from mtk_drm_crtc_first_enable() where the normal later
-	 * DSI_START_VDO_MODE path has not run yet; without this the first
-	 * FRAME_DONE never arrives and CMDQ waits on event 313 forever.
-	 */
+	return 0;
+}
+
+void mtk_dsi_start_engine(struct mtk_dsi *dsi)
+{
+	if (!dsi)
+		return;
 	mtk_dsi_start(dsi);
 	if (dsi->slave_dsi)
 		mtk_dsi_start(dsi->slave_dsi);
-
-	return 0;
 }
+EXPORT_SYMBOL_GPL(mtk_dsi_start_engine);
 
 /***********************Msync 2.0 function start************************/
 EXPORT_SYMBOL_GPL(mtk_preconfig_dsi_enable);

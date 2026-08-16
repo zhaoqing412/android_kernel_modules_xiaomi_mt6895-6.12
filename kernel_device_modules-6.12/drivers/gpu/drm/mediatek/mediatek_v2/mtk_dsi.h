@@ -345,5 +345,6 @@ extern int mtk_dsi_fifo_mon_trigger_start_set(bool is_trig_start);
 /* xaga (2026-08-15): exported for the crtc-level DSI re-init fallback
  * (LK did not init the DSI engine; force a full preconfig + panel init). */
 int mtk_preconfig_dsi_enable(struct mtk_dsi *dsi);
+void mtk_dsi_start_engine(struct mtk_dsi *dsi);
 
 #endif
