@@ -5248,6 +5248,9 @@ int mtk_preconfig_dsi_enable(struct mtk_dsi *dsi)
 				mtk_dsi_config_vdo_timing(dsi->slave_dsi);
 			mtk_dsi_config_vdo_timing(dsi);
 		}
+		mtk_dsi_set_mode(dsi);
+		if (dsi->slave_dsi)
+			mtk_dsi_set_mode(dsi->slave_dsi);
 	}
 
 	mtk_dsi_cmdq_size_sel(dsi);
@@ -5260,6 +5263,16 @@ int mtk_preconfig_dsi_enable(struct mtk_dsi *dsi)
 	if (is_bdg_supported())
 		check_stopstate(NULL);
 	mtk_dsi_clk_hs_mode(dsi, 1);
+
+	/*
+	 * Start the DSI engine here. mtk_preconfig_dsi_enable() is also used
+	 * from mtk_drm_crtc_first_enable() where the normal later
+	 * DSI_START_VDO_MODE path has not run yet; without this the first
+	 * FRAME_DONE never arrives and CMDQ waits on event 313 forever.
+	 */
+	mtk_dsi_start(dsi);
+	if (dsi->slave_dsi)
+		mtk_dsi_start(dsi->slave_dsi);
 
 	return 0;
 }
