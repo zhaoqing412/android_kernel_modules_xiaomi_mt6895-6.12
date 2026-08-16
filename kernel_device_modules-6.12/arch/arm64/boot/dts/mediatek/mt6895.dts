@@ -1193,6 +1193,8 @@
 				<GIC_SPI 201 IRQ_TYPE_LEVEL_HIGH 0>;
 			dma-channels = <4>;
 			dma-channel-mask = <63>;
+			clocks = <&infracfg_ao_clk CLK_IFRAO_CQ_DMA>;
+			clock-names = "cqdma";
 		};
 
 		apdma: dma-controller@11300800 {
@@ -3339,6 +3341,7 @@
 		gpueb: gpueb@13c00000 {
 			compatible = "mediatek,gpueb";
 			gpueb-support = <1>;
+			ghpm-support = <0>;
 			gpueb-logger-support = <0>;
 			mbox-count = <1>;
 			mbox-size = <160>; /* slots */
@@ -3385,18 +3388,32 @@
 				"IPI_ID_GPUMPU",
 				"IPI_ID_FAST_DVFS";
 
-			reg = <0 0x13c40000 0 0x22000>,
+			reg =
+				<0 0x13c40000 0 0x22000>,
+				<0 0x13c5fd1c 0 0x64>,
+				<0 0x13c60600 0 0x200>,
+				<0 0x13c60300 0 0x100>,
+				<0 0x13c60400 0 0x200>,
 				<0 0x13c5fd80 0 0x280>,
+				<0 0x13c62008 0 0x4>,
 				<0 0x13c62004 0 0x4>,
 				<0 0x13c62074 0 0x4>,
 				<0 0x13c62000 0 0x4>,
-				<0 0x13c62078 0 0x4>;
-			reg-names = "gpueb_base",
-						"mbox0_base",
-						"mbox0_set",
-						"mbox0_clr",
-						"mbox0_send",
-						"mbox0_recv";
+				<0 0x13c62078 0 0x4>,
+				<0 0x1c001eb8 0 0x4>;
+			reg-names =
+				"gpueb_base",
+				"gpueb_gpr_base",
+				"gpueb_cfgreg_base",
+				"gpueb_intc_base",
+				"gpueb_dma_base",
+				"mbox0_base",
+				"mbox0_init", /* dummy input for mtk_mbox_probe */
+				"mbox0_set",
+				"mbox0_clr",
+				"mbox0_send",
+				"mbox0_recv",
+				"mfg0_pwr_con";
 
 			interrupts = <GIC_SPI 516 IRQ_TYPE_LEVEL_HIGH 0>;
 			interrupt-names = "mbox0";
@@ -4890,7 +4907,7 @@
 						&apu_iommu0_bank3 &apu_iommu0_bank4>;
 			interrupts = <GIC_SPI 547 IRQ_TYPE_LEVEL_HIGH 0>;
 			power-domains = <&scpsys MT6895_POWER_DOMAIN_APU>;
-			mediatek,apu_power = <&apusys_rv>;
+			mediatek,apu-power = <&apusys_rv>;
 			#iommu-cells = <1>;
 		};
 
@@ -4930,7 +4947,7 @@
 						&apu_iommu1_bank3 &apu_iommu1_bank4>;
 			interrupts = <GIC_SPI 552 IRQ_TYPE_LEVEL_HIGH 0>;
 			power-domains = <&scpsys MT6895_POWER_DOMAIN_APU>;
-			mediatek,apu_power = <&apusys_rv>;
+			mediatek,apu-power = <&apusys_rv>;
 			#iommu-cells = <1>;
 		};
 		apusys_reviser@1903c000 {
@@ -5705,11 +5722,11 @@
 					"mediatek,mt6895-disp-pwm0";
 			reg = <0 0x1100e000 0 0x1000>;
 			interrupts = <GIC_SPI 215 IRQ_TYPE_LEVEL_HIGH 0>;
-//			#pwm-cells = <2>;
-			//clocks = <&infracfg_ao_clk CLK_IFRAO_DISP_PWM>,
-				//<&topckgen_clk CLK_TOP_DISP_PWM_SEL>,
-				//<&topckgen_clk CLK_TOP_OSC_D4>;
-//			clock-names = "main", "mm", "pwm_src";
+			#pwm-cells = <2>;
+			clocks = <&pericfg_ao_clk CLK_PERAOP_0_DISP>,
+				<&topckgen_clk CLK_TOP_DISP_PWM_SEL>,
+				<&topckgen_clk CLK_TOP_OSC_D4>;
+			clock-names = "main", "mm", "pwm_src";
 		};
 
 		dispsys_config: dispsys_config@14000000 {
@@ -6157,6 +6174,7 @@
 			clocks = <&mmsys0_config_clk CLK_MM0_DISP_POSTMASK0>;
 			mediatek,smi-id = <0>;
 			iommus = <&disp_iommu M4U_LARB0_PORT0>;/*M4U_PORT_L0_DISP_POSTMASK0*/
+			dma-ranges = <0x0 0x0 0x0 0x0 0x4 0x0>;
 		};
 
 		disp_dither0: disp_dither@14010000 {
@@ -6482,6 +6500,7 @@
 			clocks = <&mmsys1_config_clk CLK_MM1_DISP_POSTMASK0>;
 			mediatek,smi-id = <20>;
 			iommus = <&disp_iommu M4U_LARB20_PORT0>;/*M4U_PORT_L20_DISP_POSTMASK0*/
+			dma-ranges = <0x0 0x0 0x0 0x0 0x4 0x0>;
 		};
 
 		disp_dither1: disp_dither@14410000 {
@@ -9158,7 +9177,7 @@
 			mutex-comps = "rdma0", "rdma1", "hdr0", "hdr1", "aal0", "aal1",
 				"rsz0", "rsz1", "tdshp0", "tdshp1", "color0", "color1",
 				"wrot0", "wrot1",
-				"dli_async0", "dli_async1", "dlo_async0", "dlo_async1",
+				"dli-async0", "dli-async1", "dlo-async0", "dlo-async1",
 				"rsz2", "rsz3", "wrot2", "wrot3";
 			rdma0 = <MML_RDMA0 0 0>;
 			rdma1 = <MML_RDMA1 0 1>;

@@ -38,6 +38,17 @@ this file is only for attribution of xaga
 	status = "disabled";
 };
 
+/* xaga has no DisplayPort output - keep the DP TX and DP INTF blocks
+ * disabled so the 6.12 dp_tx/dp_intf drivers do not probe and spam
+ * missing-reg/clock errors. */
+&dp_tx {
+	status = "disabled";
+};
+
+&dp_intf {
+	status = "disabled";
+};
+
 &odm {
 	simtray {
 		compatible = "xiaomi,simtray-status";

@@ -82,20 +82,31 @@
 };
 
 &mtkfb {
-	/* xaga: pinctrl-* removed - same fw_devlink pio-child supplier blocking
-	 * as dispsys_config (see comment there); mtkfb itself doesn't probe a
-	 * pinctrl-driven device in 6.12.
-	 */
+	pinctrl-names = "lcm_rst_out1_gpio", "lcm_rst_out0_gpio",
+		"mode_te_te", "lcm_dvdd_en1_gpio",
+		"lcm_dvdd_en0_gpio","lcm_cam_en1_gpio",
+		"lcm_cam_en0_gpio";
+	pinctrl-0 = <&mtkfb_pins_lcm_rst_out1_gpio>;
+	pinctrl-1 = <&mtkfb_pins_lcm_rst_out0_gpio>;
+	pinctrl-2 = <&mtkfb_pins_lcm_dsi_te>;
+	pinctrl-3 = <&mtkfb_pins_lcm_dvdd_en1>;
+	pinctrl-4 = <&mtkfb_pins_lcm_dvdd_en0>;
+	pinctrl-5 = <&mtkfb_pins_lcm_cam_en1>;
+	pinctrl-6 = <&mtkfb_pins_lcm_cam_en0>;
 	status = "okay";
 };
 &dispsys_config {
-	/* xaga: all pinctrl-* removed - the DRM master driver (mtk_drm_drv.c)
-	 * never uses pinctrl; backlight/power GPIOs are owned by leds-mtk-disp and
-	 * the panel driver. On 6.12 fw_devlink treats every pinctrl-N phandle as a
-	 * supplier that must probe as a device; these &pio child nodes never do,
-	 * so dispsys_config was blocked forever (links_ret=-517) -> no DRM master
-	 * -> recovery graphics timeout (real-device 2026-08-12).
-	 */
+	pinctrl-names =
+		"lcm_rst_out1_gpio", "lcm_rst_out0_gpio",
+		"mode_te_te", "lcm_dvdd_en1_gpio",
+		"lcm_dvdd_en0_gpio";
+	pinctrl-0 = <&mtkfb_pins_lcm_rst_out1_gpio>;
+	pinctrl-1 = <&mtkfb_pins_lcm_rst_out0_gpio>;
+	pinctrl-2 = <&mtkfb_pins_lcm_dsi_te>;
+	pinctrl-3 = <&mtkfb_pins_lcm_dvdd_en1>;
+	pinctrl-4 = <&mtkfb_pins_lcm_dvdd_en0>;
+	pinctrl-5 = <&mtkfb_pins_lcm_cam_en1>;
+	pinctrl-6 = <&mtkfb_pins_lcm_cam_en0>;
 	status = "okay";
 };
 
