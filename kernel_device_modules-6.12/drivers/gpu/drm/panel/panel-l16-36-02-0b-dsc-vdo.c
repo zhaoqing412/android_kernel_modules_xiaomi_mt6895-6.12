@@ -16,6 +16,7 @@
 #include <video/of_videomode.h>
 #include <video/videomode.h>
 #include <linux/module.h>
+#include <linux/vmalloc.h>
 #include <linux/of_platform.h>
 #include <linux/of_graph.h>
 #include <linux/platform_device.h>
@@ -1196,8 +1197,8 @@ static int lcm_led_i2c_reg_op(char *buffer, int op, int count)
 		pr_err("%s,buffer is null\n", __func__);
 		return ret;
 	}
-	pr_debug("%s,reg_val is %s reg_addr = %s\n", __func__, buffer, reg_addr);
-	pr_debug("pr_debug%s,reg_val is %s reg_addr = %s\n", __func__, buffer, reg_addr);
+	pr_debug("%s,reg_val is %s reg_addr = %c\n", __func__, buffer, reg_addr);
+	pr_debug("pr_debug%s,reg_val is %s reg_addr = %c\n", __func__, buffer, reg_addr);
 	if (op == KTZ8863A_REG_READ) {
 		for (i = 0; i < count; i++) {
 			ret = ktz8863a_reg_read_bytes(reg_addr, reg_val);

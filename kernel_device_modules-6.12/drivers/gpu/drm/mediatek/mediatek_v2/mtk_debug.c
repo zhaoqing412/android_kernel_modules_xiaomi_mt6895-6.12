@@ -1564,8 +1564,12 @@ static void mtk_ddic_send_cb(struct cmdq_cb_data data)
 }
 
 int mtk_ddic_dsi_send_cmd(struct mtk_ddic_dsi_msg *cmd_msg,
-			bool blocking)
+			bool blocking, bool queueing)
 {
+	/* xaga: mi_disp port uses the 5.10 3-arg API. 6.12 implementation is
+	 * synchronous/committed; queueing is accepted for source compatibility.
+	 */
+	(void)queueing;
 	struct drm_crtc *crtc;
 	struct mtk_drm_crtc *mtk_crtc;
 	struct mtk_drm_private *private;
@@ -1737,6 +1741,7 @@ static void set_cwb_info_buffer(struct drm_crtc *crtc, int format)
 			cwb_info->buffer[i].addr_va);
 	}
 }
+EXPORT_SYMBOL(mtk_ddic_dsi_send_cmd);
 
 int mtk_ddic_dsi_read_cmd(struct mtk_ddic_dsi_msg *cmd_msg)
 {
@@ -1818,6 +1823,7 @@ int mtk_ddic_dsi_read_cmd(struct mtk_ddic_dsi_msg *cmd_msg)
 
 	return ret;
 }
+EXPORT_SYMBOL(mtk_ddic_dsi_read_cmd);
 
 void ddic_dsi_send_cmd_test(unsigned int case_num)
 {
@@ -1952,7 +1958,7 @@ void ddic_dsi_send_cmd_test(unsigned int case_num)
 		}
 	}
 
-	ret = mtk_ddic_dsi_send_cmd(cmd_msg, true);
+	ret = mtk_ddic_dsi_send_cmd(cmd_msg, true, false);
 	if (ret != 0) {
 		DDPPR_ERR("mtk_ddic_dsi_send_cmd error\n");
 		goto  done;
@@ -2021,7 +2027,7 @@ void ddic_dsi_send_switch_pgt(unsigned int cmd_num, u8 addr,
 		}
 	}
 
-	ret = mtk_ddic_dsi_send_cmd(cmd_msg, true);
+	ret = mtk_ddic_dsi_send_cmd(cmd_msg, true, false);
 	if (ret != 0) {
 		DDPPR_ERR("mtk_ddic_dsi_send_cmd error\n");
 		goto  done;

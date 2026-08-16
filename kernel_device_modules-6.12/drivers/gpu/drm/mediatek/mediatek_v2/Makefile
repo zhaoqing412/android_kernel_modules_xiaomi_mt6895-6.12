@@ -184,7 +184,7 @@ obj-$(CONFIG_DRM_MEDIATEK_HDMI) += mediatek-drm-hdmi.o
 
 #mediatek-drm-$(CONFIG_DRM_FBDEV_EMULATION) += mtk_drm_fbdev.o
 
-#obj-$(CONFIG_DEVICE_MODULES_DRM_MEDIATEK) += mediatek-drm.o
+obj-$(CONFIG_DEVICE_MODULES_DRM_MEDIATEK) += mediatek-drm.o
 
 # xaga: platform module wiring (alps BUILD.bazel mediatek-drm; exports
 # mtkfb_set_backlight_level / mtk_dp_* / get_panel_dead_flag etc. for
@@ -266,6 +266,10 @@ mediatek-drm-y := mtk_drm_drv.o \
 		  mtk_dp.o \
 		  mtk_dp_hal.o \
 		  mtk_dp_debug.o
+
+ifeq ($(CONFIG_MI_DISP), y)
+include $(src)/mi_disp/Makefile
+endif
 
 obj-$(CONFIG_DEVICE_MODULES_DRM_MEDIATEK) += mediatek-drm.o
 

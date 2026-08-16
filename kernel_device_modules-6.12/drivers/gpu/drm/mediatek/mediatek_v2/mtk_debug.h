@@ -112,7 +112,7 @@ int mtkfb_is_force_partial_roi(void);
 int mtkfb_force_partial_y_offset(void);
 int mtkfb_force_partial_height(void);
 
-int mtk_ddic_dsi_send_cmd(struct mtk_ddic_dsi_msg *cmd_msg, bool blocking);
+int mtk_ddic_dsi_send_cmd(struct mtk_ddic_dsi_msg *cmd_msg, bool blocking, bool queueing);
 int mtk_ddic_dsi_read_cmd(struct mtk_ddic_dsi_msg *cmd_msg);
 int mtk_mbrain2disp_register_hrt_cb(hrt_notify_callback func);
 int mtk_mbrain2disp_unregister_hrt_cb(hrt_notify_callback func);

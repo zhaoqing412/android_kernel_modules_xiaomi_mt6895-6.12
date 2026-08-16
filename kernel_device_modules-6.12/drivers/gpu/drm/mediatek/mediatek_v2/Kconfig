@@ -91,4 +91,5 @@ config MTK_SE_SUPPORT
 	  you should enable this option. Otherwise, it can be left disabled to
 	  reduce the driver's footprint.
 
+source "$(KCONFIG_EXT_PREFIX)drivers/gpu/drm/mediatek/mediatek_v2/mi_disp/Kconfig"
 source "$(KCONFIG_EXT_PREFIX)drivers/gpu/drm/mediatek/mediatek_v2/mtk_drm_edp/Kconfig"
