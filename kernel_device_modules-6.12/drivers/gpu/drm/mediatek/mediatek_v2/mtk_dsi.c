@@ -16589,6 +16589,7 @@ static const struct mtk_dsi_driver_data mt6895_dsi_driver_data = {
 	.dsi_buffer = true,
 	.buffer_unit = 18,
 	.sram_unit = 18,
+	.keep_hs_eotp = true,
 	.max_vfp = 0x1ffe,
 	.mmclk_by_datarate = mtk_dsi_set_mmclk_by_datarate_V2,
 };
