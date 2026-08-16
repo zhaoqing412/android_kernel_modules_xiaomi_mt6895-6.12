@@ -5841,7 +5841,20 @@
 				"disp_token_disp_va_end0",
 				"disp_token_disp_va_start2",
 				"disp_token_disp_va_end2",
-				"disp_gpio_te1";
+				"disp_gpio_te1",
+				"disp_token_stream_dirty1",
+				"disp_token_stream_eof1",
+				"disp_token_esd_eof1",
+				"disp_token_stream_block1",
+				"disp_token_cabc_eof1",
+				"disp_token_vfp_period1",
+				"disp_token_disp_va_start1",
+				"disp_token_disp_va_end1",
+				"disp_rdma0_eof1",
+				"disp_wdma0_eof1",
+				"disp_wdma1_eof1",
+				"disp_dsi0_targetline0",
+				"disp_dsi0_targetline1";
 
 			gce-events = <&gce CMDQ_EVENT_MMSYS_STREAM_DONE_ENG_EVENT_0>,
 				<&gce CMDQ_EVENT_MMSYS1_DP_INTF0_FRAME_DONE>,
@@ -5865,7 +5878,20 @@
 				<&gce CMDQ_SYNC_TOKEN_DISP_VA_END>,
 				<&gce CMDQ_SYNC_TOKEN_DISP_VA_START>,
 				<&gce CMDQ_SYNC_TOKEN_DISP_VA_END>,
-				<&gce CMDQ_EVENT_GCE_EVENT_DSI1_TE_I>;
+				<&gce CMDQ_EVENT_GCE_EVENT_DSI1_TE_I>,
+				<&gce CMDQ_SYNC_TOKEN_CONFIG_DIRTY>,
+				<&gce CMDQ_SYNC_TOKEN_STREAM_EOF>,
+				<&gce CMDQ_SYNC_TOKEN_ESD_EOF>,
+				<&gce CMDQ_SYNC_TOKEN_STREAM_BLOCK>,
+				<&gce CMDQ_SYNC_TOKEN_CABC_EOF>,
+				<&gce CMDQ_SYNC_TOKEN_VFP_PERIOD>,
+				<&gce CMDQ_SYNC_TOKEN_DISP_VA_START>,
+				<&gce CMDQ_SYNC_TOKEN_DISP_VA_END>,
+				<&gce CMDQ_EVENT_MMSYS1_DISP_RDMA0_FRAME_DONE>,
+				<&gce CMDQ_EVENT_MMSYS1_DISP_WDMA0_FRAME_DONE>,
+				<&gce CMDQ_EVENT_MMSYS1_DISP_WDMA1_FRAME_DONE>,
+				<&gce CMDQ_EVENT_MMSYS_DSI0_TARGET_LINE>,
+				<&gce CMDQ_EVENT_MMSYS1_DSI0_TARGET_LINE>;
 
 			helper-name = "MTK_DRM_OPT_STAGE",
 				"MTK_DRM_OPT_USE_CMDQ",

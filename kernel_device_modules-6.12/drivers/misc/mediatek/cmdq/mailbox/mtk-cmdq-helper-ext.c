@@ -1069,7 +1069,9 @@ s32 cmdq_dev_get_event(struct device *dev, const char *name)
 
 	index = of_property_match_string(dev->of_node, "gce-event-names", name);
 	if (index < 0) {
-		cmdq_err("no gce-event-names property or no such event:%s",
+		/* Most display events are optional per-SoC; missing ones should not
+		 * spam the console. Callers fall back to an invalid event id. */
+		dev_dbg(dev, "no gce-event-names property or no such event:%s\n",
 			name);
 		return index;
 	}
