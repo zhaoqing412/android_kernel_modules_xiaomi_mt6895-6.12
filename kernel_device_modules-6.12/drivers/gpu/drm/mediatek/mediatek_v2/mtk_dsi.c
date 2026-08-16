@@ -16576,7 +16576,7 @@ static const struct mtk_dsi_driver_data mt6895_dsi_driver_data = {
 	.dsi_buffer = true,
 	.buffer_unit = 18,
 	.sram_unit = 18,
-	.max_vfp = 0xffe,
+	.max_vfp = 0x1ffe,
 	.mmclk_by_datarate = mtk_dsi_set_mmclk_by_datarate_V2,
 };
 
@@ -16901,26 +16901,6 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 			goto error;
 	}
 
-	u32 dsi_state_dbg6, dsi_state_dbg7, dsi_state_dbg8, dsi_state_dbg9;
-	bool lk_dsi_enabled;
-
-	dsi_state_dbg6 = readl(dsi->regs + DSI_STATE_DBG6(dsi->driver_data));
-	dsi_state_dbg7 = readl(dsi->regs + DSI_STATE_DBG7(dsi->driver_data));
-	dsi_state_dbg8 = readl(dsi->regs + DSI_STATE_DBG8(dsi->driver_data));
-	dsi_state_dbg9 = readl(dsi->regs + DSI_STATE_DBG9(dsi->driver_data));
-	lk_dsi_enabled = dsi_state_dbg6 || dsi_state_dbg7 ||
-			 dsi_state_dbg8 || dsi_state_dbg9;
-
-	dev_info(dev, "DSI_STATE_DGB6-9[0x%x 0x%x 0x%x 0x%x]%s\n",
-		dsi_state_dbg6, dsi_state_dbg7, dsi_state_dbg8,
-		dsi_state_dbg9, lk_dsi_enabled ? " (LK DSI on)" : " (LK DSI off)");
-
-	dev_info(dev, "DSI DEBUG log [0x%x 0x%x 0x%x 0x%x]\n",
-		readl(dsi->regs + DSI_INTSTA),
-		readl(dsi->regs + DSI_INTEN),
-		readl(dsi->regs + DSI_MODE_CTRL(dsi->driver_data)),
-		readl(dsi->regs + dsi->driver_data->reg_cmdq0_ofs));
-
 	dsi->phy = devm_phy_get(dev, "dphy");
 	if (IS_ERR(dsi->phy)) {
 		ret = PTR_ERR(dsi->phy);
@@ -16986,6 +16966,33 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 	if (disp_helper_get_stage() == DISP_HELPER_STAGE_NORMAL)
 		pm_runtime_get_sync(dev);
 #endif
+
+	/*
+	 * Read DSI state after pm_runtime_get_sync() so the display power
+	 * domain is on and the register values reflect what LK actually left
+	 * behind. If LK initialized DSI (state regs non-zero) we keep the
+	 * handoff; if all zero, first_enable must run the full preconfig.
+	 */
+	u32 dsi_state_dbg6, dsi_state_dbg7, dsi_state_dbg8, dsi_state_dbg9;
+	bool lk_dsi_enabled;
+
+	dsi_state_dbg6 = readl(dsi->regs + DSI_STATE_DBG6(dsi->driver_data));
+	dsi_state_dbg7 = readl(dsi->regs + DSI_STATE_DBG7(dsi->driver_data));
+	dsi_state_dbg8 = readl(dsi->regs + DSI_STATE_DBG8(dsi->driver_data));
+	dsi_state_dbg9 = readl(dsi->regs + DSI_STATE_DBG9(dsi->driver_data));
+	lk_dsi_enabled = dsi_state_dbg6 || dsi_state_dbg7 ||
+			 dsi_state_dbg8 || dsi_state_dbg9;
+	dsi->lk_dsi_enabled = lk_dsi_enabled;
+
+	dev_info(dev, "DSI_STATE_DGB6-9[0x%x 0x%x 0x%x 0x%x]%s\n",
+		dsi_state_dbg6, dsi_state_dbg7, dsi_state_dbg8,
+		dsi_state_dbg9, lk_dsi_enabled ? " (LK DSI on)" : " (LK DSI off)");
+
+	dev_info(dev, "DSI DEBUG log [0x%x 0x%x 0x%x 0x%x]\n",
+		readl(dsi->regs + DSI_INTSTA),
+		readl(dsi->regs + DSI_INTEN),
+		readl(dsi->regs + DSI_MODE_CTRL(dsi->driver_data)),
+		readl(dsi->regs + dsi->driver_data->reg_cmdq0_ofs));
 
 	pwr_node = of_parse_phandle(dev->of_node, "pwr-handle", 0);
 

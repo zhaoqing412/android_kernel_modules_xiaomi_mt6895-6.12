@@ -224,6 +224,7 @@ struct mtk_dsi {
 	struct videomode vm;
 	int clk_refcnt;
 	bool output_en;
+	bool lk_dsi_enabled;
 	bool doze_enabled;
 	u32 irq_data;
 	wait_queue_head_t irq_wait_queue;

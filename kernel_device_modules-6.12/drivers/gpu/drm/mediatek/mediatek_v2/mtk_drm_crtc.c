@@ -17402,36 +17402,37 @@ void mtk_drm_crtc_first_enable(struct drm_crtc *crtc)
 	 * without frames -> the first-enable CMDQ wait-for-FRAME_DONE below
 	 * times out and the panel never gets display_on -> black screen.
 	 *
-	 * Probe unconditionally assumes "DSI0 enabled in LK" (output_en=true,
-	 * clk_refcnt=1), so mtk_output_dsi_enable() skips the whole preconfig
-	 * and mtk_dsi_poweron() short-circuits on clk_refcnt. On boots where
-	 * LK actually did not init the DSI engine (DSI_STATE_DBG6..9 == 0),
-	 * nothing ever starts it -> CMDQ waits FRAME_DONE forever -> black
-	 * screen (backlight still on). Detect that and force a full DSI
-	 * re-init: clear the LK handoff refcount, run the complete preconfig
+	 * mtk_dsi_probe now records lk_dsi_enabled from DSI_STATE_DBG6..9 and
+	 * only takes the LK handoff (output_en/clk_refcnt/panel prepared) when
+	 * LK really initialized the DSI engine. On LK-off boots nothing starts
+	 * DSI0 -> CMDQ waits FRAME_DONE forever -> black screen, so force a
+	 * full DSI re-init here: clear the refcount, run the complete preconfig
 	 * (poweron + PHY/PLL + VDO timing + interrupts), then prepare/enable
-	 * the panel (idempotent, safe to re-run on later atomic commits). */
+	 * the panel. On LK-on boots keep the handoff intact and do not reset
+	 * clk_refcnt: mtk_dsi_poweron() would call clk_set_rate() on an already
+	 * enabled hs_clk and get -EBUSY. */
 	if (output_comp && mtk_ddp_comp_get_type(output_comp->id) == MTK_DSI) {
 		struct mtk_dsi *dsi = container_of(output_comp, struct mtk_dsi,
 						   ddp_comp);
-		/* Force the DSI re-init unconditionally: probe assumed "LK enabled
-		 * DSI" (output_en=true, clk_refcnt=1), so preconfig was always
-		 * skipped; on LK-did-not-init boots the engine never started
-		 * (CMDQ waits FRAME_DONE -> black screen). Register-based detection
-		 * through output_comp->regs proved unreliable on device. Re-running
-		 * the full preconfig here is idempotent for working boots. */
-		dsi->clk_refcnt = 0;
-		dsi->output_en = false;
-		DDPPR_ERR("%s: xaga forcing DSI re-init (preconfig)\n", __func__);
-		if (mtk_preconfig_dsi_enable(dsi))
-			DDPPR_ERR("%s: DSI preconfig failed\n", __func__);
-		dsi->output_en = true;
-		dsi->clk_refcnt = 1;
-		if (dsi->panel) {
-			if (drm_panel_prepare(dsi->panel))
-				DDPPR_ERR("%s: panel prepare failed\n", __func__);
-			if (drm_panel_enable(dsi->panel))
-				DDPPR_ERR("%s: panel enable failed\n", __func__);
+		if (!dsi->lk_dsi_enabled) {
+			dsi->clk_refcnt = 0;
+			dsi->output_en = false;
+			DDPPR_ERR("%s: xaga forcing DSI re-init (preconfig)\n",
+				__func__);
+			if (mtk_preconfig_dsi_enable(dsi))
+				DDPPR_ERR("%s: DSI preconfig failed\n", __func__);
+			dsi->output_en = true;
+			dsi->clk_refcnt = 1;
+			if (dsi->panel) {
+				if (drm_panel_prepare(dsi->panel))
+					DDPPR_ERR("%s: panel prepare failed\n",
+						__func__);
+				if (drm_panel_enable(dsi->panel))
+					DDPPR_ERR("%s: panel enable failed\n",
+						__func__);
+			}
+		} else {
+			DDPINFO("%s: xaga keeping LK DSI handoff\n", __func__);
 		}
 	}
 
