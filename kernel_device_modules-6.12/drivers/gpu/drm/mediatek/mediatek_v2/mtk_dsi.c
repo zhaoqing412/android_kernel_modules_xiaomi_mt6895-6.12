@@ -16901,11 +16901,19 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 			goto error;
 	}
 
-	dev_info(dev, "DSI_STATE_DGB6-9[0x%x 0x%x 0x%x 0x%x]\n",
-		readl(dsi->regs + DSI_STATE_DBG6(dsi->driver_data)),
-		readl(dsi->regs + DSI_STATE_DBG7(dsi->driver_data)),
-		readl(dsi->regs + DSI_STATE_DBG8(dsi->driver_data)),
-		readl(dsi->regs + DSI_STATE_DBG9(dsi->driver_data)));
+	u32 dsi_state_dbg6, dsi_state_dbg7, dsi_state_dbg8, dsi_state_dbg9;
+	bool lk_dsi_enabled;
+
+	dsi_state_dbg6 = readl(dsi->regs + DSI_STATE_DBG6(dsi->driver_data));
+	dsi_state_dbg7 = readl(dsi->regs + DSI_STATE_DBG7(dsi->driver_data));
+	dsi_state_dbg8 = readl(dsi->regs + DSI_STATE_DBG8(dsi->driver_data));
+	dsi_state_dbg9 = readl(dsi->regs + DSI_STATE_DBG9(dsi->driver_data));
+	lk_dsi_enabled = dsi_state_dbg6 || dsi_state_dbg7 ||
+			 dsi_state_dbg8 || dsi_state_dbg9;
+
+	dev_info(dev, "DSI_STATE_DGB6-9[0x%x 0x%x 0x%x 0x%x]%s\n",
+		dsi_state_dbg6, dsi_state_dbg7, dsi_state_dbg8,
+		dsi_state_dbg9, lk_dsi_enabled ? " (LK DSI on)" : " (LK DSI off)");
 
 	dev_info(dev, "DSI DEBUG log [0x%x 0x%x 0x%x 0x%x]\n",
 		readl(dsi->regs + DSI_INTSTA),
@@ -16989,30 +16997,46 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 		dsi->ddp_comp.id == DDP_COMPONENT_DSI0) || dsi->is_slave) {
 #ifndef CONFIG_MTK_DISP_NO_LK
 		if (disp_helper_get_stage() == DISP_HELPER_STAGE_NORMAL) {
-			phy_power_on(dsi->phy);
-			/* only prepare dsi clk after vdisp api been attached */
-			if (!pwr_node) {
-				ret = clk_prepare_enable(dsi->engine_clk);
-				if (ret < 0)
-					DDPPR_ERR("%s Failed to enable engine clock: %d\n",
-						__func__, ret);
+			/*
+			 * xaga: only take the LK display handoff when LK actually
+			 * initialized DSI (state regs non-zero). When DSI_STATE_DBG6-9
+			 * are all zero, leave output_en/clk_refcnt/panel flags clear so
+			 * mtk_drm_crtc_first_enable runs the full DSI preconfig path.
+			 * Otherwise mtk_dsi_poweron() later calls clk_set_rate() on an
+			 * already-enabled hs_clk and gets -EBUSY, leaving DSI dead and
+			 * causing CMDQ timeouts (real-device 2026-08-16).
+			 */
+			if (lk_dsi_enabled) {
+				phy_power_on(dsi->phy);
+				/* only prepare dsi clk after vdisp api been attached */
+				if (!pwr_node) {
+					ret = clk_prepare_enable(dsi->engine_clk);
+					if (ret < 0)
+						DDPPR_ERR("%s Failed to enable engine clock: %d\n",
+							__func__, ret);
 
-				ret = clk_prepare_enable(dsi->digital_clk);
-				if (ret < 0)
-					DDPPR_ERR("%s Failed to enable digital clock: %d\n",
-						__func__, ret);
+					ret = clk_prepare_enable(dsi->digital_clk);
+					if (ret < 0)
+						DDPPR_ERR("%s Failed to enable digital clock: %d\n",
+							__func__, ret);
+				} else {
+					skip_clk_prepare = 1;
+				}
+
+				dsi->output_en = true;
+				if (dsi->panel) {
+					dsi->panel->prepared = true;
+					dsi->panel->enabled = true;
+				}
+				dsi->clk_refcnt = 1;
+				if (dsi->ext && dsi->ext->is_connected == -1)
+					dsi->ext->is_connected =
+						panel_connection_from_atag() & BIT(alias);
 			} else {
-				skip_clk_prepare = 1;
+				DDPPR_ERR("%s LK did not init DSI, skip handoff\n",
+					__func__);
 			}
 		}
-		dsi->output_en = true;
-		if (dsi->panel) {
-			dsi->panel->prepared = true;
-			dsi->panel->enabled = true;
-		}
-		dsi->clk_refcnt = 1;
-		if (dsi->ext && dsi->ext->is_connected == -1)
-			dsi->ext->is_connected = panel_connection_from_atag() & BIT(alias);
 #endif
 	}
 
