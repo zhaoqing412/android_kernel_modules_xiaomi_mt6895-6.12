@@ -14904,6 +14904,11 @@ static int mtk_dsi_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 					mipi_dsi_dcs_write_gce,
 					handle, *(int *)params);
 		}
+#ifdef CONFIG_MI_DISP
+		mi_disp_feature_event_notify_by_type(mi_get_disp_id("primary"),
+			MI_DISP_EVENT_51_BRIGHTNESS,
+			sizeof(*(int *)params), *(int *)params);
+#endif
 	}
 		break;
 	case DSI_SET_BL_AOD:
@@ -15228,8 +15233,18 @@ static int mtk_dsi_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 		struct mtk_drm_crtc *crtc = comp->mtk_crtc;
 		struct drm_crtc_state *old_state =
 		    (struct drm_crtc_state *)params;
+#ifdef CONFIG_MI_DISP
+		struct mtk_crtc_state *state =
+			to_mtk_crtc_state(crtc->base.state);
+#endif
 
 		mtk_dsi_timing_change(dsi, crtc, old_state);
+#ifdef CONFIG_MI_DISP
+		mi_disp_feature_event_notify_by_type(mi_get_disp_id("primary"),
+			MI_DISP_EVENT_FPS,
+			sizeof(state->prop_val[CRTC_PROP_DISP_MODE_IDX]),
+			state->prop_val[CRTC_PROP_DISP_MODE_IDX]);
+#endif
 	}
 		break;
 	case GET_PANEL_NAME:
