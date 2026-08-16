@@ -13024,7 +13024,7 @@ void mtk_dsi_set_mmclk_by_datarate_V2(struct mtk_dsi *dsi,
 			if (adjust_pixclk)
 				pixclk /= 2;
 
-			//pixclk = (pixclk_min > pixclk) ? pixclk_min : pixclk;
+			pixclk = (pixclk_min > pixclk) ? pixclk_min : pixclk;
 		} else {
 			//CMD mode
 			u32 ps_wc = 0, lpx = 0, hs_prpr = 0;
