@@ -514,6 +514,12 @@ static const char * const mtk_dsi_porch_str[] = {
 
 #define AS_UINT32(x) (*(u32 *)((void *)x))
 
+#ifdef CONFIG_MI_DISP_ESD_CHECK
+static int mi_mtk_dsi_esd_read(struct mtk_ddp_comp *comp, void *handle);
+static int mi_mtk_dsi_esd_cmp(struct mtk_ddp_comp *comp);
+#endif
+
+
 enum DSI_MODE_CON {
 	MODE_CON_CMD = 0,
 	MODE_CON_SYNC_PULSE_VDO,
@@ -15499,6 +15505,29 @@ static int mtk_dsi_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 		dual_te_init((struct drm_crtc *)params);
 	}
 		break;
+#ifdef CONFIG_MI_DISP_ESD_CHECK
+	case ESD_RESTORE_BACKLIGHT:
+	{
+		struct mtk_dsi *dsi = container_of(comp, struct mtk_dsi, ddp_comp);
+
+		panel_ext = mtk_dsi_get_panel_ext(comp);
+		if (panel_ext && panel_ext->funcs &&
+				panel_ext->funcs->esd_restore_backlight) {
+			panel_ext->funcs->esd_restore_backlight(dsi->panel);
+		}
+	}
+		break;
+	case MI_DISP_ESD_CHECK_READ:
+	{
+		mi_mtk_dsi_esd_read(comp, handle);
+	}
+		break;
+	case MI_DISP_ESD_CHECK_CMP:
+	{
+		return mi_mtk_dsi_esd_cmp(comp);
+	}
+		break;
+#endif
 	case DSI_GET_LINE_TIME_NS:
 	{
 		struct mtk_drm_crtc *mtk_crtc = comp->mtk_crtc;
@@ -17446,6 +17475,118 @@ static int dsi_dcs_read(struct mtk_dsi *dsi,
 
 	ret = mipi_dsi_dcs_read(dsi_device, cmd, data, len);
 
+	return ret;
+}
+
+static int mi_mtk_dsi_esd_read(struct mtk_ddp_comp *comp, void *handle)
+{
+	int i;
+	struct mtk_ddic_dsi_msg *cmd_msg_read = NULL, *cmd_msg_send = NULL;
+	u8 tx[ESD_CHECK_NUM] = {0};
+	struct mtk_dsi *dsi = container_of(comp, struct mtk_dsi, ddp_comp);
+	struct mtk_panel_params *params;
+	struct mtk_drm_crtc *mtk_crtc = comp->mtk_crtc;
+	struct mtk_drm_esd_ctx *esd_ctx = mtk_crtc->esd_ctx;
+
+	if (dsi->ext && dsi->ext->params) {
+		params = dsi->ext->params;
+	} else {
+		/* can't find panel ext information, stop esd read */
+		return 0;
+	}
+
+	cmd_msg_read = vmalloc(sizeof(struct mtk_ddic_dsi_msg));
+	if (unlikely(!cmd_msg_read)) {
+		pr_err("%s vmalloc mtk_ddic_dsi_msg is failed, return\n", __func__);
+		return 0;
+	}
+	memset(cmd_msg_read, 0, sizeof(struct mtk_ddic_dsi_msg));
+
+	if (dsi->ext->funcs && dsi->ext->funcs->get_esd_check_read_prepare_cmdmesg) {
+			cmd_msg_send = dsi->ext->funcs->get_esd_check_read_prepare_cmdmesg();
+		if (unlikely(!cmd_msg_send)) {
+			pr_err("%s get_esd_check_read_prepare_cmdmesg is failed, return\n", __func__);
+			vfree(cmd_msg_read);
+			return 0;
+		}
+	}
+
+	for (i = 0 ; i < ESD_CHECK_NUM ; i++) {
+		if (params->lcm_esd_check_table[i].cmd == 0)
+			break;
+
+		cmd_msg_read->type[i] = 0x06;
+		tx[i] = params->lcm_esd_check_table[i].cmd;
+		cmd_msg_read->tx_buf[i] = &tx[i];
+		cmd_msg_read->tx_len[i] = 1;
+		cmd_msg_read->rx_buf[i] = &esd_ctx->esd_read_result[i][0];
+		memset(cmd_msg_read->rx_buf[i], 0, params->lcm_esd_check_table[i].count);
+		cmd_msg_read->rx_len[i] = params->lcm_esd_check_table[i].count;
+	}
+
+	if (i > 0) {
+		cmd_msg_read->channel = 0;
+		cmd_msg_read->tx_cmd_num = i;
+		cmd_msg_read->rx_cmd_num = i;
+
+		if (cmd_msg_send) {
+			mtk_ddp_comp_io_cmd(comp, handle, DSI_SEND_DDIC_CMD, cmd_msg_send);
+		}
+		mtk_ddp_comp_io_cmd(comp, handle, DSI_READ_DDIC_CMD, cmd_msg_read);
+	}
+
+	vfree(cmd_msg_read);
+	if (cmd_msg_send)
+		vfree(cmd_msg_send);
+	return 0;
+}
+
+static int mi_mtk_dsi_esd_cmp(struct mtk_ddp_comp *comp)
+{
+	int i, j, ret = 0;
+	u32 chk_val;
+	struct mtk_dsi *dsi = container_of(comp, struct mtk_dsi, ddp_comp);
+	struct esd_check_item *lcm_esd_tb;
+	struct mtk_panel_params *params;
+	struct mtk_drm_crtc *mtk_crtc = comp->mtk_crtc;
+	struct mtk_drm_esd_ctx *esd_ctx = mtk_crtc->esd_ctx;
+
+	if (dsi->ext && dsi->ext->params)
+		params = dsi->ext->params;
+	else /* can't find panel ext information, stop esd read */
+		return 0;
+
+	if (dsi->doze_enabled)
+		params->lcm_esd_check_table[1].para_list[0] = 0xDC;
+	else
+		params->lcm_esd_check_table[1].para_list[0] = 0x9C;
+
+	for (i = 0; i < ESD_CHECK_NUM; i++) {
+		if (dsi->ext->params->lcm_esd_check_table[i].cmd == 0)
+			break;
+
+		lcm_esd_tb = &params->lcm_esd_check_table[i];
+
+		for (j = 0; j < lcm_esd_tb->count; j++) {
+			chk_val = esd_ctx->esd_read_result[i][j];
+
+			if (lcm_esd_tb->mask_list[0])
+				chk_val = chk_val & lcm_esd_tb->mask_list[0];
+
+			if (chk_val == lcm_esd_tb->para_list[j]) {
+				ret = 0;
+			} else {
+				DDPPR_ERR("[DSI]cmp fail: register:0x%x read(0x%x)!=expect(0x%x)\n",
+						lcm_esd_tb->cmd, chk_val, lcm_esd_tb->para_list[j]);
+				ret = -1;
+				break;
+			}
+		}
+		if (ret != 0)
+			break;
+	}
+
+	memset(esd_ctx->esd_read_result, 0, sizeof(esd_ctx->esd_read_result));
 	return ret;
 }
 

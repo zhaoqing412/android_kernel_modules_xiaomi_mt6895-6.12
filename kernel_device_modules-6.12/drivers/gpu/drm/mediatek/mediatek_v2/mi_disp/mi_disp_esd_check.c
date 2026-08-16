@@ -123,7 +123,7 @@ static int mtk_drm_esd_recover(struct drm_crtc *crtc)
 
 	mdelay(150);
 
-	mtk_drm_crtc_enable(crtc);
+	mtk_drm_crtc_enable(crtc, false);
 	mtk_crtc->qos_ctx->last_hrt_req = last_hrt_req;
 
 	CRTC_MMP_MARK(drm_crtc_index(crtc), esd_recovery, 0, 3);

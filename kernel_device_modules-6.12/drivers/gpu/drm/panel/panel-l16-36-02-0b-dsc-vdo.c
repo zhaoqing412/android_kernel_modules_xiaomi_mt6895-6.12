@@ -1470,7 +1470,25 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 		drm_panel_remove(&ctx->panel);
 #if defined(CONFIG_MTK_PANEL_EXT)
 	//mtk_panel_tch_handle_reg(&ctx->panel);
-	ret = mtk_panel_ext_create(dev, &ext_params, &ext_funcs, &ctx->panel);
+	#ifdef CONFIG_MI_DISP
+ext_params.err_flag_irq_gpio = of_get_named_gpio(
+dev->of_node, "mi,esd-err-irq-gpio", 0);
+of_property_read_u32_index(dev->of_node, "mi,esd-err-irq-gpio", 2,
+&ext_params.err_flag_irq_flags);
+ext_params_30hz.err_flag_irq_gpio = ext_params.err_flag_irq_gpio;
+ext_params_30hz.err_flag_irq_flags = ext_params.err_flag_irq_flags;
+ext_params_48hz.err_flag_irq_gpio = ext_params.err_flag_irq_gpio;
+ext_params_48hz.err_flag_irq_flags = ext_params.err_flag_irq_flags;
+ext_params_50hz.err_flag_irq_gpio = ext_params.err_flag_irq_gpio;
+ext_params_50hz.err_flag_irq_flags = ext_params.err_flag_irq_flags;
+ext_params_90hz.err_flag_irq_gpio = ext_params.err_flag_irq_gpio;
+ext_params_90hz.err_flag_irq_flags = ext_params.err_flag_irq_flags;
+ext_params_120hz.err_flag_irq_gpio = ext_params.err_flag_irq_gpio;
+ext_params_120hz.err_flag_irq_flags = ext_params.err_flag_irq_flags;
+ext_params_144hz.err_flag_irq_gpio = ext_params.err_flag_irq_gpio;
+ext_params_144hz.err_flag_irq_flags = ext_params.err_flag_irq_flags;
+#endif
+ret = mtk_panel_ext_create(dev, &ext_params, &ext_funcs, &ctx->panel);
 	if (ret < 0)
 		return ret;
 #endif

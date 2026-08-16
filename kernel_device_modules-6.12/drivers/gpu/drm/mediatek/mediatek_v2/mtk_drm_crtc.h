@@ -1184,6 +1184,10 @@ struct dbi_count_data {
  * @esd_ctx: ESD check task context
  * @qos_ctx: BW Qos task context
  */
+#ifdef CONFIG_MI_DISP_ESD_CHECK
+struct mi_esd_ctx;
+#endif
+
 struct mtk_drm_crtc {
 	struct drm_crtc base;
 	bool enabled;
@@ -1466,6 +1470,9 @@ struct mtk_drm_crtc {
 	 * mode (clear when AOD_CPU display a new frame).
 	 */
 	int scp_show_count;
+#ifdef CONFIG_MI_DISP_ESD_CHECK
+	struct mi_esd_ctx *mi_esd_ctx;
+#endif
 };
 
 enum BL_GAMMA_GAIN {

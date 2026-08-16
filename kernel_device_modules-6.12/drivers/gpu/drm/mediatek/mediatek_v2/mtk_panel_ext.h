@@ -661,6 +661,10 @@ struct mtk_panel_params {
 	/* update by ddic*/
 	unsigned int cur_skip_vblank;
 	unsigned int cur_te_duration;
+#ifdef CONFIG_MI_DISP
+	int err_flag_irq_gpio;
+	int err_flag_irq_flags;
+#endif
 };
 
 struct mtk_panel_ext {
@@ -861,10 +865,13 @@ struct mtk_panel_funcs {
 		struct mtk_dsi_cmd_option *cmd_opt);
 
 #ifdef CONFIG_MI_DISP
+#ifdef CONFIG_MI_DISP_ESD_CHECK
+void (*esd_restore_backlight)(struct drm_panel *panel);
+int (*esd_check_read_prepare)(struct drm_panel *panel);
+#else
 void (*esd_restore_backlight)(struct drm_panel *panel,
 		void *dsi_drv, dcs_write_gce cb, void *handle);
-
-int (*esd_check_read_prepare)(struct drm_panel *panel);
+#endif
 
 int (*panel_poweron)(struct drm_panel *panel);
 
