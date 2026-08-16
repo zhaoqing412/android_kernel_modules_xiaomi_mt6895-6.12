@@ -3720,7 +3720,14 @@ static int cmdq_probe(struct platform_device *pdev)
 	cmdq_util_controller->track_ctrl(cmdq, cmdq->base_pa, false, hwid);
 #endif
 	cmdq->prebuilt_clt = cmdq_mbox_create(&pdev->dev, 0);
-	cmdq->hw_trace_clt = cmdq_mbox_create(&pdev->dev, 1);
+	/*
+	 * hw_trace_clt is only used when hw-trace is built in. The gce DT node
+	 * normally has a single mboxes entry, so requesting channel index 1
+	 * unconditionally fails with -ENODEV and triggers a WARN stack dump.
+	 * Only create it when hw-trace is actually enabled.
+	 */
+	if (cmdq->hw_trace_built_in)
+		cmdq->hw_trace_clt = cmdq_mbox_create(&pdev->dev, 1);
 	if (cmdq->prebuilt_clt && cmdq->gce_vm && cmdq->hw_trace_built_in) {
 		struct cmdq_thread *thread = (struct cmdq_thread *)cmdq->prebuilt_clt->chan->con_priv;
 
@@ -4287,9 +4294,11 @@ s32 cmdq_mbox_set_hw_id(void *cmdq_mbox)
 		return -EINVAL;
 	cmdq->hwid = (u8)cmdq_util_get_hw_id(cmdq->base_pa);
 	cmdq_util_prebuilt_set_client(cmdq->hwid, cmdq->prebuilt_clt);
-	ret = cmdq_util_hw_trace_set_client(cmdq->hwid, cmdq->hw_trace_clt);
-	if (ret)
-		return ret;
+	if (cmdq->hw_trace_clt) {
+		ret = cmdq_util_hw_trace_set_client(cmdq->hwid, cmdq->hw_trace_clt);
+		if (ret)
+			return ret;
+	}
 	return 0;
 }
 
