@@ -16994,6 +16994,18 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 		readl(dsi->regs + DSI_MODE_CTRL(dsi->driver_data)),
 		readl(dsi->regs + dsi->driver_data->reg_cmdq0_ofs));
 
+#ifndef CONFIG_MTK_DISP_NO_LK
+	/*
+	 * The pm_runtime_get_sync() above is the reference that normally backs
+	 * the LK handoff. When LK did not init DSI, drop it again here so the
+	 * full preconfig in first_enable (mtk_dsi_poweron) is the only owner of
+	 * the runtime PM reference; otherwise poweroff would leave a leaked ref.
+	 */
+	if (disp_helper_get_stage() == DISP_HELPER_STAGE_NORMAL &&
+	    !lk_dsi_enabled)
+		pm_runtime_put_sync(dev);
+#endif
+
 	pwr_node = of_parse_phandle(dev->of_node, "pwr-handle", 0);
 
 	alias = mtk_ddp_comp_get_alias(dsi->ddp_comp.id);
