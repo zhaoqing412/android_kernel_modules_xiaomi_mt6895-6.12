@@ -29,6 +29,10 @@
 #include "mtk_dsi.h"
 #include "mtk_dsi_lpc.h"
 #include "mtk_disp_dbgtp.h"
+#ifdef CONFIG_MI_DISP_BOOST
+#include "mi_disp/mi_disp_boost.h"
+#endif
+
 
 #ifdef SHARE_WROT_SRAM
 #include "cmdq_helper_ext.h"
@@ -1144,8 +1148,16 @@ static void mtk_drm_cmd_mode_leave_idle(struct drm_crtc *crtc)
 
 	mtk_vidle_mminfra_on_off(true);
 
+#ifdef CONFIG_MI_DISP_BOOST
+	mi_disp_boost_enable();
+#endif
+
 	mtk_drm_idlemgr_enable_crtc(crtc);
 	lcm_fps_ctx_reset(crtc);
+
+#ifdef CONFIG_MI_DISP_BOOST
+	mi_disp_boost_disable();
+#endif
 
 	mtk_vidle_mminfra_on_off(false);
 	mtk_drm_adjust_cpu_latency(crtc, false);

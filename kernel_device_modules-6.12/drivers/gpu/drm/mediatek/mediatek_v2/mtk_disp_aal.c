@@ -2053,7 +2053,12 @@ static int disp_aal_write_cabc_to_reg(struct mtk_ddp_comp *comp,
 	else
 		cabc_gainlmt_tbl_00 = DISP_AAL_CABC_GAINLMT_TBL_00;
 
-	cmdq_pkt_write(handle, comp->cmdq_base, comp->regs_pa + DISP_AAL_CABC_00, 1 << 31, 1 << 31);
+	cmdq_pkt_write(handle, comp->cmdq_base, comp->regs_pa + DISP_AAL_CABC_00,
+#ifdef CONFIG_MI_DISP_CABC_REG_OFF
+		0 << 31, 1 << 31);
+#else
+		1 << 31, 1 << 31);
+#endif
 	cmdq_pkt_write(handle, comp->cmdq_base, comp->regs_pa + DISP_AAL_CABC_02, param->cabc_fltgain_force, 0x3ff);
 
 	gain = param->cabc_gainlmt;
