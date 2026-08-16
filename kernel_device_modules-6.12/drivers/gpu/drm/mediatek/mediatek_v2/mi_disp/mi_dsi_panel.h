@@ -53,6 +53,7 @@
 
 #include "mi_disp_feature.h"
 #include "mi_disp_notifier.h"
+#include "mtk_dsi.h"
 #include <uapi/drm/mi_disp.h>
 
 #ifdef CONFIG_MI_DISP_FOD_SYNC
@@ -84,16 +85,10 @@ struct dsi_cmd_desc {
 };
 
 /* Copy from mtk_dsi.c */
-struct t_condition_wq {
-	wait_queue_head_t wq;
-	atomic_t condition;
-};
+
 
 /* Copy from mtk_dsi.c */
-struct mtk_dsi_mgr {
-	struct mtk_dsi *master;
-	struct mtk_dsi *slave;
-};
+
 
 struct lcm {
 	struct device *dev;
@@ -133,160 +128,9 @@ struct lcm {
 	int peak_hdr_status;
 };
 
-struct mi_dsi_panel_cfg {
-	struct mtk_dsi *dsi;
 
-	/* xiaomi panel id */
-	u64 panel_id;
 
-	/* xiaomi feature values */
-	int feature_val[DISP_FEATURE_MAX];
 
-	/* bl_is_big_endian indicate brightness value
-	 * high byte to 1st parameter, low byte to 2nd parameter
-	 * eg: 0x51 { 0x03, 0xFF } ->
-	 * u8 payload[2] = { brightness >> 8, brightness & 0xff}
-	 */
-	bool bl_is_big_endian;
-	u32 last_bl_level;
-	u32 last_no_zero_bl_level;
-
-	/* indicate refresh frequency Fps gpio */
-	int disp_rate_gpio;
-
-	/* indicate esd check gpio and config irq */
-	int esd_err_irq_gpio;
-	int esd_err_irq;
-	int esd_err_irq_flags;
-	bool esd_err_enabled;
-
-	int hbm_brightness_flag;
-
-	bool in_fod_calibration;
-
-	u32 panel_on_dimming_delay;
-
-	u32 dimming_state;
-
-	u32 dc_type;
-	u32 dc_threshold;
-
-	u32 brightness_clone;
-	u32 real_brightness_clone;
-	u32 max_brightness_clone;
-	u32 factory_max_brightness;
-	u32 thermal_max_brightness_clone;
-	unsigned long thermal_state;
-
-	bool fod_backlight_flag;
-	bool fod_hbm_flag;
-	bool normal_hbm_flag;
-	bool dc_flag;
-	bool local_hbm_enabled;
-
-#ifdef CONFIG_MI_DISP_FOD_SYNC
-	bool bl_enable;
-	bool bl_wait_frame;
-	bool aod_wait_frame;
-#ifdef CONFIG_MI_DISP_DOZE_SUSPEND
-	bool fod_anim_flag;
-#endif
-#endif
-
-	enum crc_mode crc_state;
-	enum gir_mode gir_state;
-	u32 lhbm_ui_ready_delay_frame;
-	u32 lhbm_ui_ready_delay_frame_aod;
-	bool need_fod_animal_in_normal;
-
-};
-
-struct mtk_dsi {
-	/* Copy from mtk_dsi.c */
-	struct mtk_ddp_comp ddp_comp;
-	struct device *dev;
-	struct mipi_dsi_host host;
-	struct drm_encoder encoder;
-	struct drm_connector conn;
-	struct drm_panel *panel;
-	struct mtk_panel_ext *ext;
-	struct cmdq_pkt_buffer cmdq_buf;
-	struct drm_bridge *bridge;
-	struct phy *phy;
-	bool is_slave;
-	struct mtk_dsi *slave_dsi;
-	struct mtk_dsi *master_dsi;
-
-	void __iomem *regs;
-
-	struct clk *engine_clk;
-	struct clk *digital_clk;
-	struct clk *hs_clk;
-
-	u32 data_rate;
-	u32 d_rate;
-
-	unsigned long mode_flags;
-	enum mipi_dsi_pixel_format format;
-	unsigned int lanes;
-	struct videomode vm;
-	int clk_refcnt;
-	bool output_en;
-	bool doze_enabled;
-	u32 irq_data;
-	wait_queue_head_t irq_wait_queue;
-	struct mtk_dsi_driver_data *driver_data;
-
-	struct t_condition_wq enter_ulps_done;
-	struct t_condition_wq exit_ulps_done;
-	struct t_condition_wq te_rdy;
-	struct t_condition_wq frame_done;
-	unsigned int hs_trail;
-	unsigned int hs_prpr;
-	unsigned int hs_zero;
-	unsigned int lpx;
-	unsigned int ta_get;
-	unsigned int ta_sure;
-	unsigned int ta_go;
-	unsigned int da_hs_exit;
-	unsigned int cont_det;
-	unsigned int clk_zero;
-	unsigned int clk_hs_prpr;
-	unsigned int clk_hs_exit;
-	unsigned int clk_hs_post;
-
-	unsigned int vsa;
-	unsigned int vbp;
-	unsigned int vfp;
-	unsigned int hsa_byte;
-	unsigned int hbp_byte;
-	unsigned int hfp_byte;
-
-	bool mipi_hopping_sta;
-	bool panel_osc_hopping_sta;
-	unsigned int data_phy_cycle;
-	/* for Panel Master dcs read/write */
-	struct mipi_dsi_device *dev_for_PM;
-
-	/* Added by Xiaomi */
-	bool fod_backlight_flag;
-	bool fod_hbm_flag;
-	bool normal_hbm_flag;
-	bool dc_flag;
-	uint32_t dc_status;
-	struct mutex dsi_lock;
-	struct mi_dsi_panel_cfg mi_cfg;
-	int panel_event;
-	struct completion bl_wait_completion;
-	struct completion aod_wait_completion;
-	struct delayed_work gir_off_delayed_work;
-
-#ifdef CONFIG_MI_DISP_FOD_SYNC
-	struct mi_layer_state mi_layer_state;
-#endif
-	const char * display_type;
-	bool need_fod_animal_in_normal;
-};
 
 
 /* Enter/Exit DC_LUT info */

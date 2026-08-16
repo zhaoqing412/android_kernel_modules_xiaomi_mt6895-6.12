@@ -18,6 +18,12 @@
 #include "mtk_drm_crtc.h"
 #include "mtk_drm_ddp_comp.h"
 #include "mtk_panel_ext.h"
+#ifdef CONFIG_MI_DISP
+#include <linux/completion.h>
+#include <linux/workqueue.h>
+#include <uapi/drm/mi_disp.h>
+#endif
+
 #ifndef DRM_CMDQ_DISABLE
 #include <linux/soc/mediatek/mtk-cmdq-ext.h>
 #else
@@ -116,6 +122,71 @@ struct mtk_dsi_driver_data {
 	bool support_pu_con;
 };
 
+
+#ifdef CONFIG_MI_DISP
+struct mtk_dsi;
+
+struct mi_dsi_panel_cfg {
+struct mtk_dsi *dsi;
+
+/* xiaomi panel id */
+u64 panel_id;
+
+/* xiaomi feature values */
+int feature_val[DISP_FEATURE_MAX];
+
+bool bl_is_big_endian;
+u32 last_bl_level;
+u32 last_no_zero_bl_level;
+
+int disp_rate_gpio;
+
+int esd_err_irq_gpio;
+int esd_err_irq;
+int esd_err_irq_flags;
+bool esd_err_enabled;
+
+int hbm_brightness_flag;
+
+bool in_fod_calibration;
+
+u32 panel_on_dimming_delay;
+
+u32 dimming_state;
+
+u32 dc_type;
+u32 dc_threshold;
+
+u32 brightness_clone;
+u32 real_brightness_clone;
+u32 max_brightness_clone;
+u32 factory_max_brightness;
+u32 thermal_max_brightness_clone;
+unsigned long thermal_state;
+
+bool fod_backlight_flag;
+bool fod_hbm_flag;
+bool normal_hbm_flag;
+bool dc_flag;
+bool local_hbm_enabled;
+
+#ifdef CONFIG_MI_DISP_FOD_SYNC
+bool bl_enable;
+bool bl_wait_frame;
+bool aod_wait_frame;
+#ifdef CONFIG_MI_DISP_DOZE_SUSPEND
+bool fod_anim_flag;
+#endif
+#endif
+
+enum crc_mode crc_state;
+enum gir_mode gir_state;
+u32 lhbm_ui_ready_delay_frame;
+u32 lhbm_ui_ready_delay_frame_aod;
+bool need_fod_animal_in_normal;
+};
+#endif
+
 struct mtk_dsi {
 	struct mtk_ddp_comp ddp_comp;
 	struct device *dev;
@@ -208,6 +279,27 @@ struct mtk_dsi {
 	/* change te by ddic */
 	bool cur_panel_param_changed;
 	struct drm_display_mode max_vrefresh_mode;
+
+#ifdef CONFIG_MI_DISP
+/* Added by Xiaomi (unified struct) */
+bool fod_backlight_flag;
+bool fod_hbm_flag;
+bool normal_hbm_flag;
+bool dc_flag;
+uint32_t dc_status;
+struct mutex dsi_lock;
+struct mi_dsi_panel_cfg mi_cfg;
+int panel_event;
+struct completion bl_wait_completion;
+struct completion aod_wait_completion;
+struct delayed_work gir_off_delayed_work;
+#ifdef CONFIG_MI_DISP_FOD_SYNC
+struct mi_layer_state mi_layer_state;
+#endif
+const char *display_type;
+bool need_fod_animal_in_normal;
+#endif
+
 };
 
 enum dsi_porch_type;
