@@ -22392,6 +22392,10 @@ static void mtk_drm_crtc_atomic_flush(struct drm_crtc *crtc,
 
 	hdr_en = (bool)mtk_crtc_state->prop_val[CRTC_PROP_HDR_ENABLE];
 
+#ifdef CONFIG_MI_DISP_FOD_SYNC
+	mi_drm_crtc_update_layer_state(crtc);
+#endif
+
 	if (mtk_crtc->fake_layer.fake_layer_mask)
 		mtk_drm_crtc_enable_fake_layer(crtc, old_crtc_state);
 	else if (mtk_crtc->fake_layer.first_dis) {

@@ -736,6 +736,10 @@ int mtk_drm_esd_recover(struct drm_crtc *crtc)
 
 	CRTC_MMP_MARK(index, esd_recovery, 0, 4);
 
+#ifdef CONFIG_MI_DISP_ESD_CHECK
+	mtk_ddp_comp_io_cmd(output_comp, NULL, ESD_RESTORE_BACKLIGHT, NULL);
+#endif
+
 	mtk_crtc_hw_block_ready(crtc);
 
 	skip_refresh = mtk_crtc->is_mml || mtk_crtc->is_mml_dl || mtk_crtc->skip_check_trigger;
