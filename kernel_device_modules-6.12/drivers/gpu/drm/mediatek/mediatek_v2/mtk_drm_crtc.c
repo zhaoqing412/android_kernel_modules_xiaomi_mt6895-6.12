@@ -17419,17 +17419,19 @@ void mtk_drm_crtc_first_enable(struct drm_crtc *crtc)
 			dsi->output_en = false;
 			DDPPR_ERR("%s: xaga forcing DSI re-init (preconfig)\n",
 				__func__);
-			if (mtk_preconfig_dsi_enable(dsi))
+			if (!mtk_preconfig_dsi_enable(dsi)) {
+				dsi->output_en = true;
+				dsi->clk_refcnt = 1;
+				if (dsi->panel) {
+					if (drm_panel_prepare(dsi->panel))
+						DDPPR_ERR("%s: panel prepare failed\n",
+							__func__);
+					if (drm_panel_enable(dsi->panel))
+						DDPPR_ERR("%s: panel enable failed\n",
+							__func__);
+				}
+			} else {
 				DDPPR_ERR("%s: DSI preconfig failed\n", __func__);
-			dsi->output_en = true;
-			dsi->clk_refcnt = 1;
-			if (dsi->panel) {
-				if (drm_panel_prepare(dsi->panel))
-					DDPPR_ERR("%s: panel prepare failed\n",
-						__func__);
-				if (drm_panel_enable(dsi->panel))
-					DDPPR_ERR("%s: panel enable failed\n",
-						__func__);
 			}
 		} else {
 			DDPINFO("%s: xaga keeping LK DSI handoff\n", __func__);
