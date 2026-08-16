@@ -664,6 +664,8 @@ struct mtk_panel_params {
 #ifdef CONFIG_MI_DISP
 	int err_flag_irq_gpio;
 	int err_flag_irq_flags;
+	int bl_sync_enable;
+	int aod_delay_enable;
 #endif
 };
 
