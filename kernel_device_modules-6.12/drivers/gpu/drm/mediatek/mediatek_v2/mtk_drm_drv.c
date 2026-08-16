@@ -13595,6 +13595,13 @@ static int __init mtk_drm_init(void)
 	int ret;
 	int i;
 
+#ifdef CONFIG_MI_DISP
+	mi_disp_feature_init();
+#endif
+#ifdef CONFIG_MI_DISP_LOG
+	mi_disp_log_init();
+#endif
+
 	DDPINFO("%s+\n", __func__);
 	for (i = 0; i < ARRAY_SIZE(mtk_drm_drivers); i++) {
 		DDPINFO("%s register %s driver\n",

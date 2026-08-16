@@ -45,6 +45,8 @@
 #include "mtk_drm_ddp_comp.h"
 #ifdef CONFIG_MI_DISP
 #include "mi_disp/mi_disp_feature.h"
+#include "mi_disp/mi_disp_notifier.h"
+#include "mi_disp/mi_panel_ext.h"
 #endif
 
 #include "mtk_drm_crtc.h"
@@ -6064,6 +6066,9 @@ static void mtk_output_dsi_enable(struct mtk_dsi *dsi,
 	struct mtk_drm_private *priv = (crtc && crtc->dev)
 		? crtc->dev->dev_private : NULL;
 	unsigned int crtc_idx;
+#ifdef CONFIG_MI_DISP_NOTIFIER
+	int blank;
+#endif
 
 	DDPINFO("%s +\n", __func__);
 
@@ -6083,6 +6088,17 @@ static void mtk_output_dsi_enable(struct mtk_dsi *dsi,
 
 	/* usually inside NST_LOCK(atomic commit) or CRTC_LOCK(for esd recover) */
 	mtk_vidle_user_power_keep(DISP_VIDLE_USER_NST_LOCK);
+
+#ifdef CONFIG_MI_DISP_NOTIFIER
+	if (!new_doze_state) {
+		blank = MI_DISP_DPMS_ON;
+		g_notify_data.data = &blank;
+		g_notify_data.disp_id = MI_DISPLAY_PRIMARY;
+		mi_disp_notifier_call_chain(MI_DISP_DPMS_EVENT, &g_notify_data);
+		mi_disp_feature_event_notify_by_type(mi_get_disp_id("primary"),
+			MI_DISP_EVENT_POWER, sizeof(blank), blank);
+	}
+#endif
 
 	/* For fifo mon config need to config gce event */
 	if (priv->data->mmsys_id == MMSYS_MT6993)
@@ -6328,6 +6344,18 @@ static void mtk_output_dsi_enable(struct mtk_dsi *dsi,
 		&& dsi->ext && dsi->ext->is_connected == -1)
 		check_panel_connection(crtc, dsi);
 
+#ifdef CONFIG_MI_DISP_NOTIFIER
+	if (new_doze_state)
+		blank = MI_DISP_DPMS_LP1;
+	else
+		blank = MI_DISP_DPMS_ON;
+	g_notify_data.data = &blank;
+	g_notify_data.disp_id = MI_DISPLAY_PRIMARY;
+	mi_disp_notifier_call_chain(MI_DISP_DPMS_EVENT, &g_notify_data);
+	mi_disp_feature_event_notify_by_type(mi_get_disp_id("primary"),
+		MI_DISP_EVENT_POWER, sizeof(blank), blank);
+#endif
+
 	DDPINFO("%s -\n", __func__);
 
 	dsi->pending_switch = false;
@@ -6433,6 +6461,9 @@ static void mtk_output_dsi_disable(struct mtk_dsi *dsi, struct cmdq_pkt *cmdq_ha
 	struct mtk_drm_private *priv = crtc->dev->dev_private;
 	unsigned int crtc_idx = 0, tmp1 = 0, tmp2 = 0;
 	bool skip_panel_switch = mtk_dsi_skip_panel_switch(dsi);
+#ifdef CONFIG_MI_DISP_NOTIFIER
+	int blank;
+#endif
 
 	DDPINFO("%s+ doze_enabled:%d\n", __func__, new_doze_state);
 	if (!dsi->output_en)
@@ -6551,6 +6582,18 @@ SKIP_WAIT_FRAME_DONE:
 	dsi->output_en = false;
 	dsi->doze_enabled = new_doze_state;
 
+#ifdef CONFIG_MI_DISP_NOTIFIER
+	if (new_doze_state)
+		blank = MI_DISP_DPMS_LP2;
+	else
+		blank = MI_DISP_DPMS_POWERDOWN;
+	g_notify_data.data = &blank;
+	g_notify_data.disp_id = MI_DISPLAY_PRIMARY;
+	mi_disp_notifier_call_chain(MI_DISP_DPMS_EARLY_EVENT, &g_notify_data);
+	mi_disp_feature_event_notify_by_type(mi_get_disp_id("primary"),
+		MI_DISP_EVENT_POWER, sizeof(blank), blank);
+#endif
+
 	/* usually inside NST_LOCK(atomic commit) or CRTC_LOCK(for esd recover) */
 	mtk_vidle_user_power_release(DISP_VIDLE_USER_NST_LOCK);
 
@@ -6620,6 +6663,10 @@ static void mtk_dsi_encoder_disable(struct drm_encoder *encoder)
 	struct mtk_ddp_comp *comp = &dsi->ddp_comp;
 	int index = drm_crtc_index(crtc);
 	int data = MTK_DISP_BLANK_POWERDOWN;
+
+#ifdef CONFIG_MI_DISP_INPUT_HANDLER
+	mi_disp_input_handler_unregister(dsi, MI_DISP_PRIMARY, MI_INTF_DSI);
+#endif
 
 	if (disp_helper_get_stage() == DISP_HELPER_STAGE_BRING_UP) {
 		DDPMSG("%s force return for bringup\n", __func__);
@@ -6741,6 +6788,10 @@ static void mtk_dsi_encoder_enable(struct drm_encoder *encoder)
 
 	CRTC_MMP_EVENT_END(index, dsi_resume,
 			(unsigned long)dsi->output_en, 0);
+
+#ifdef CONFIG_MI_DISP_INPUT_HANDLER
+	mi_disp_input_handler_register(dsi, MI_DISP_PRIMARY, MI_INTF_DSI);
+#endif
 }
 
 static enum drm_connector_status
