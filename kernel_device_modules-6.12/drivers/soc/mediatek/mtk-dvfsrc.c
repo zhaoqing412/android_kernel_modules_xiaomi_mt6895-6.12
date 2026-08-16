@@ -1707,14 +1707,22 @@ static int mtk_dvfsrc_probe(struct platform_device *pdev)
 	dvfsrc->curr_opps = &dvfsrc->dvd->opps_desc[dvfsrc->dram_type];
 	platform_set_drvdata(pdev, dvfsrc);
 
-	ret = devm_request_threaded_irq(dvfsrc->dev, platform_get_irq(pdev, 0),
-					NULL, mtk_dvfsrc_irq_handler_thread,
-					IRQF_ONESHOT | IRQF_TRIGGER_NONE,
-					"dvfsrc", dvfsrc);
-	if (!ret) {
-		dvfsrc->irq_counter = 0;
-		dvfsrc_write(dvfsrc, DVFSRC_INT_EN, dvfsrc_read(dvfsrc, DVFSRC_INT_EN) | 0x2);
-		dev_info(dvfsrc->dev, "DVFSRC IRQ Enable\n");
+	/* DVFSRC IRQ is optional on mt6895: the DTS does not describe one, so
+	 * use platform_get_irq_optional() to avoid the noisy -ENXIO log from
+	 * platform_get_irq(). When present, enable the timeout handler.
+	 */
+	ret = platform_get_irq_optional(pdev, 0);
+	if (ret > 0) {
+		ret = devm_request_threaded_irq(dvfsrc->dev, ret,
+						NULL, mtk_dvfsrc_irq_handler_thread,
+						IRQF_ONESHOT | IRQF_TRIGGER_NONE,
+						"dvfsrc", dvfsrc);
+		if (!ret) {
+			dvfsrc->irq_counter = 0;
+			dvfsrc_write(dvfsrc, DVFSRC_INT_EN,
+				     dvfsrc_read(dvfsrc, DVFSRC_INT_EN) | 0x2);
+			dev_info(dvfsrc->dev, "DVFSRC IRQ Enable\n");
+		}
 	}
 
 	dvfsrc->regulator = platform_device_register_data(dvfsrc->dev,
