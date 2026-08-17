@@ -17178,7 +17178,6 @@ void mtk_crtc_first_enable_ddp_config(struct mtk_drm_crtc *mtk_crtc)
 			     mtk_crtc->gce_obj.event[EVENT_CMD_EOF]);
 	cmdq_pkt_clear_event(cmdq_handle,
 			     mtk_crtc->gce_obj.event[EVENT_VDO_EOF]);
-	mtk_crtc_wait_frame_done(mtk_crtc, cmdq_handle, DDP_FIRST_PATH, 0);
 
 	/*1. Show LK logo only */
 	mtk_crtc_all_layer_off(mtk_crtc, cmdq_handle);
@@ -17397,45 +17396,16 @@ void mtk_drm_crtc_first_enable(struct drm_crtc *crtc)
 	if (output_comp)
 		mtk_ddp_comp_io_cmd(output_comp, NULL, SET_MMCLK_BY_DATARATE, &en);
 
-	/* xaga (2026-08-14/16): LK does not reliably init the DSI/panel on this
-	 * device. The DSI_STATE_DBG6-9 values read in probe can look live
-	 * (0xf0084db5) and then be 0 during first_enable, so probe never takes
-	 * the LK handoff. Force a full DSI re-init here on every boot so DSI0 is
-	 * actually running before the first-enable CMDQ waits for FRAME_DONE.
+	/*
+	 * xaga (2026-08-16): Do NOT force DSI preconfig here. Running
+	 * mtk_preconfig_dsi_enable() before the OVL/RDMA/MUTEX path is configured
+	 * makes DSI start/exit ULPS while the upstream modules cannot feed data,
+	 * which shows up as "DSI0: buffer underrun" and random flicker.
 	 *
-	 * encoder.crtc is not wired up yet at this point in the atomic enable
-	 * sequence, but mtk_preconfig_dsi_enable() -> mtk_dsi_ps_control_vact()
-	 * dereferences dsi->encoder.crtc; set it to the crtc being enabled so
-	 * the preconfig does not NULL-deref (seen on device at +0x1c4). */
-	if (output_comp && mtk_ddp_comp_get_type(output_comp->id) == MTK_DSI) {
-		struct mtk_dsi *dsi = container_of(output_comp, struct mtk_dsi,
-						   ddp_comp);
-		dsi->encoder.crtc = crtc;
-		dsi->clk_refcnt = 0;
-		dsi->output_en = false;
-		DDPPR_ERR("%s: xaga forcing DSI re-init (preconfig)\n", __func__);
-		if (!mtk_preconfig_dsi_enable(dsi)) {
-			dsi->output_en = true;
-			dsi->clk_refcnt = 1;
-			if (dsi->panel) {
-				if (drm_panel_prepare(dsi->panel))
-					DDPPR_ERR("%s: panel prepare failed\n",
-						__func__);
-				if (drm_panel_enable(dsi->panel))
-					DDPPR_ERR("%s: panel enable failed\n",
-						__func__);
-			}
-			/*
-			 * Start DSI only after the panel has been prepared/enabled.
-			 * Starting earlier (inside preconfig) can push VDO data before
-			 * the panel init sequence completes -> random tearing/garbage in
-			 * the upper part of the screen.
-			 */
-			mtk_dsi_start_engine(dsi);
-		} else {
-			DDPPR_ERR("%s: DSI preconfig failed\n", __func__);
-		}
-	}
+	 * The standard mtk_dsi_encoder_enable() -> mtk_output_dsi_enable() path
+	 * runs after the CRTC/data path is enabled and will initialize the DSI
+	 * at the correct time.
+	 */
 
 	/*Need to move here to prevent cmdq time for first config*/
 	mtk_crtc_gce_event_config(crtc);
@@ -17471,6 +17441,39 @@ void mtk_drm_crtc_first_enable(struct drm_crtc *crtc)
 		mtk_crtc_ddp_prepare(mtk_crtc);
 
 		mtk_crtc_disable_unused_clk(crtc);
+
+		/*
+		 * xaga (2026-08-16): Initialize DSI only after the display path has
+		 * been configured and prepared. Running mtk_preconfig_dsi_enable()
+		 * before OVL/RDMA/MUTEX are ready makes DSI exit ULPS/start VDO with
+		 * no upstream data -> DSI0 buffer underrun -> flicker. Doing it here
+		 * matches the normal encoder-enable ordering while still ensuring the
+		 * lateinit first-enable path actually starts DSI.
+		 */
+		if (output_comp && mtk_ddp_comp_get_type(output_comp->id) == MTK_DSI) {
+			struct mtk_dsi *dsi = container_of(output_comp,
+							   struct mtk_dsi,
+							   ddp_comp);
+
+			dsi->encoder.crtc = crtc;
+			dsi->clk_refcnt = 0;
+			dsi->output_en = false;
+			if (!mtk_preconfig_dsi_enable(dsi)) {
+				dsi->output_en = true;
+				dsi->clk_refcnt = 1;
+				if (dsi->panel) {
+					if (drm_panel_prepare(dsi->panel))
+						DDPPR_ERR("%s: panel prepare failed\n",
+							__func__);
+					if (drm_panel_enable(dsi->panel))
+						DDPPR_ERR("%s: panel enable failed\n",
+							__func__);
+				}
+				mtk_dsi_start_engine(dsi);
+			} else {
+				DDPPR_ERR("%s: DSI preconfig failed\n", __func__);
+			}
+		}
 
 		/* 6. sodi config */
 		if (priv->data->sodi_config) {
