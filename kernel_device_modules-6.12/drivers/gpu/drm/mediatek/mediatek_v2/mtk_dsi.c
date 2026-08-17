@@ -17009,16 +17009,6 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 		readl(dsi->regs + DSI_MODE_CTRL(dsi->driver_data)),
 		readl(dsi->regs + dsi->driver_data->reg_cmdq0_ofs));
 
-#ifndef CONFIG_MTK_DISP_NO_LK
-	/*
-	 * The pm_runtime_get_sync() above normally backs the LK handoff. xaga
-	 * never takes that handoff (state is unreliable), so drop the probe ref
-	 * here; the full preconfig in first_enable takes its own runtime PM ref.
-	 */
-	if (disp_helper_get_stage() == DISP_HELPER_STAGE_NORMAL)
-		pm_runtime_put_sync(dev);
-#endif
-
 	pwr_node = of_parse_phandle(dev->of_node, "pwr-handle", 0);
 
 	alias = mtk_ddp_comp_get_alias(dsi->ddp_comp.id);
@@ -17029,15 +17019,31 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 		dsi->ddp_comp.id == DDP_COMPONENT_DSI0) || dsi->is_slave) {
 #ifndef CONFIG_MTK_DISP_NO_LK
 		if (disp_helper_get_stage() == DISP_HELPER_STAGE_NORMAL) {
-			/*
-			 * xaga: never take the LK DSI handoff. The state registers are
-			 * unreliable (seen 0xf0084db5 in probe and 0 in first_enable on
-			 * the same boot), so probe must not pre-enable PHY/clocks or mark
-			 * the panel prepared. mtk_drm_crtc_first_enable always runs the
-			 * full preconfig, which avoids the clk_set_rate(-EBUSY) path.
-			 */
-			DDPPR_ERR("%s xaga: skip LK DSI handoff (state unreliable)\n",
-				__func__);
+			phy_power_on(dsi->phy);
+			/* only prepare dsi clk after vdisp api been attached */
+			if (!pwr_node) {
+				ret = clk_prepare_enable(dsi->engine_clk);
+				if (ret < 0)
+					DDPPR_ERR("%s Failed to enable engine clock: %d\n",
+						__func__, ret);
+
+				ret = clk_prepare_enable(dsi->digital_clk);
+				if (ret < 0)
+					DDPPR_ERR("%s Failed to enable digital clock: %d\n",
+						__func__, ret);
+			} else {
+				skip_clk_prepare = 1;
+			}
+
+			dsi->output_en = true;
+			if (dsi->panel) {
+				dsi->panel->prepared = true;
+				dsi->panel->enabled = true;
+			}
+			dsi->clk_refcnt = 1;
+			if (dsi->ext && dsi->ext->is_connected == -1)
+				dsi->ext->is_connected =
+					panel_connection_from_atag() & BIT(alias);
 		}
 #endif
 	}

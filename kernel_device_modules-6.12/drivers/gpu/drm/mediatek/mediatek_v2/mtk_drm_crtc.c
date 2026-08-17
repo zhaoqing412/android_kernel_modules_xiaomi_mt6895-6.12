@@ -17396,17 +17396,6 @@ void mtk_drm_crtc_first_enable(struct drm_crtc *crtc)
 	if (output_comp)
 		mtk_ddp_comp_io_cmd(output_comp, NULL, SET_MMCLK_BY_DATARATE, &en);
 
-	/*
-	 * xaga (2026-08-16): Do NOT force DSI preconfig here. Running
-	 * mtk_preconfig_dsi_enable() before the OVL/RDMA/MUTEX path is configured
-	 * makes DSI start/exit ULPS while the upstream modules cannot feed data,
-	 * which shows up as "DSI0: buffer underrun" and random flicker.
-	 *
-	 * The standard mtk_dsi_encoder_enable() -> mtk_output_dsi_enable() path
-	 * runs after the CRTC/data path is enabled and will initialize the DSI
-	 * at the correct time.
-	 */
-
 	/*Need to move here to prevent cmdq time for first config*/
 	mtk_crtc_gce_event_config(crtc);
 
@@ -17441,39 +17430,6 @@ void mtk_drm_crtc_first_enable(struct drm_crtc *crtc)
 		mtk_crtc_ddp_prepare(mtk_crtc);
 
 		mtk_crtc_disable_unused_clk(crtc);
-
-		/*
-		 * xaga (2026-08-16): Initialize DSI only after the display path has
-		 * been configured and prepared. Running mtk_preconfig_dsi_enable()
-		 * before OVL/RDMA/MUTEX are ready makes DSI exit ULPS/start VDO with
-		 * no upstream data -> DSI0 buffer underrun -> flicker. Doing it here
-		 * matches the normal encoder-enable ordering while still ensuring the
-		 * lateinit first-enable path actually starts DSI.
-		 */
-		if (output_comp && mtk_ddp_comp_get_type(output_comp->id) == MTK_DSI) {
-			struct mtk_dsi *dsi = container_of(output_comp,
-							   struct mtk_dsi,
-							   ddp_comp);
-
-			dsi->encoder.crtc = crtc;
-			dsi->clk_refcnt = 0;
-			dsi->output_en = false;
-			if (!mtk_preconfig_dsi_enable(dsi)) {
-				dsi->output_en = true;
-				dsi->clk_refcnt = 1;
-				if (dsi->panel) {
-					if (drm_panel_prepare(dsi->panel))
-						DDPPR_ERR("%s: panel prepare failed\n",
-							__func__);
-					if (drm_panel_enable(dsi->panel))
-						DDPPR_ERR("%s: panel enable failed\n",
-							__func__);
-				}
-				mtk_dsi_start_engine(dsi);
-			} else {
-				DDPPR_ERR("%s: DSI preconfig failed\n", __func__);
-			}
-		}
 
 		/* 6. sodi config */
 		if (priv->data->sodi_config) {
