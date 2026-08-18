@@ -17396,20 +17396,44 @@ void mtk_drm_crtc_first_enable(struct drm_crtc *crtc)
 	if (output_comp)
 		mtk_ddp_comp_io_cmd(output_comp, NULL, SET_MMCLK_BY_DATARATE, &en);
 
+	/*
+	 * xaga: modules probe after clk_disable_unused, so the LK-started DSI
+	 * stream may already be gated by the time we get here. If probe did
+	 * not take the LK handoff (dsi->output_en false), initialize DSI now,
+	 * before mtk_crtc_first_enable_ddp_config() starts waiting for DSI0
+	 * FRAME_DONE (event 313). The self pattern enabled in
+	 * mtk_preconfig_dsi_enable keeps DSI fed until the first real frame
+	 * arrives.
+	 */
+	if (output_comp && mtk_ddp_comp_get_type(output_comp->id) == MTK_DSI) {
+		struct mtk_dsi *dsi = container_of(output_comp,
+						   struct mtk_dsi,
+						   ddp_comp);
+
+		if (!dsi->output_en) {
+			dsi->encoder.crtc = crtc;
+			dsi->clk_refcnt = 0;
+			if (!mtk_preconfig_dsi_enable(dsi)) {
+				dsi->output_en = true;
+				dsi->clk_refcnt = 1;
+				if (dsi->panel) {
+					if (drm_panel_prepare(dsi->panel))
+						DDPPR_ERR("%s: panel prepare failed\n",
+							__func__);
+					if (drm_panel_enable(dsi->panel))
+						DDPPR_ERR("%s: panel enable failed\n",
+							__func__);
+				}
+				mtk_dsi_start_engine(dsi);
+			} else {
+				DDPPR_ERR("%s: DSI preconfig failed\n",
+					__func__);
+			}
+		}
+	}
+
 	/*Need to move here to prevent cmdq time for first config*/
 	mtk_crtc_gce_event_config(crtc);
-
-	/* 2. start trigger loop first to keep gce alive */
-	if (mtk_crtc_with_trigger_loop(crtc)) {
-		if (mtk_crtc_with_sodi_loop(crtc) &&
-			(!mtk_crtc_is_frame_trigger_mode(crtc)))
-			mtk_crtc_start_sodi_loop(crtc);
-
-		if (mtk_crtc_with_event_loop(crtc))
-			mtk_crtc_start_event_loop(crtc);
-
-		mtk_crtc_start_trig_loop(crtc);
-	}
 
 	/*need enable hrt_bw for pan display, be aware should update BW after SRT BW */
 	if (mtk_drm_helper_get_opt(priv->helper_opt,
@@ -17442,6 +17466,18 @@ void mtk_drm_crtc_first_enable(struct drm_crtc *crtc)
 		}
 		if (priv->data->wla_config)
 			priv->data->wla_config(crtc->dev, NULL);
+	}
+
+	/* 2. start trigger loop after the data path and DSI are ready */
+	if (mtk_crtc_with_trigger_loop(crtc)) {
+		if (mtk_crtc_with_sodi_loop(crtc) &&
+			(!mtk_crtc_is_frame_trigger_mode(crtc)))
+			mtk_crtc_start_sodi_loop(crtc);
+
+		if (mtk_crtc_with_event_loop(crtc))
+			mtk_crtc_start_event_loop(crtc);
+
+		mtk_crtc_start_trig_loop(crtc);
 	}
 
 	mtk_crtc_vdisp_ao_config(crtc);

@@ -494,7 +494,7 @@ static const struct scp_domain_data scp_domain_data_mt6895[] = {
 			BUS_PROT_IGN(IFR_TYPE, 0x0C24, 0x0C28, 0x0C20, 0x0C2C,
 				MT6895_TOP_AXI_PROT_EN_MMSYS1_DISP_2ND),
 		},
-		.caps = MTK_SCPD_IS_PWR_CON_ON,
+		.caps = MTK_SCPD_IS_PWR_CON_ON | MTK_SCPD_ALWAYS_ON,
 	},
 	[MT6895_POWER_DOMAIN_DISP1] = {
 		.name = "disp1",
@@ -510,7 +510,7 @@ static const struct scp_domain_data scp_domain_data_mt6895[] = {
 			BUS_PROT_IGN(IFR_TYPE, 0x0C24, 0x0C28, 0x0C20, 0x0C2C,
 				MT6895_TOP_AXI_PROT_EN_MMSYS1_DISP1_2ND),
 		},
-		.caps = MTK_SCPD_IS_PWR_CON_ON,
+		.caps = MTK_SCPD_IS_PWR_CON_ON | MTK_SCPD_ALWAYS_ON,
 	},
 	[MT6895_POWER_DOMAIN_MM_INFRA] = {
 		.name = "mm_infra",

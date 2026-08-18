@@ -75,7 +75,7 @@
 #include "mtk_dsi.h"
 //#include "mtk_reg_disp_bdg.h"
 /* ************end bridge ic ************* */
-//#define DSI_SELF_PATTERN
+#define DSI_SELF_PATTERN
 
 int dbg_always_ultra;
 module_param(dbg_always_ultra, int, 0644);
@@ -5229,6 +5229,26 @@ int mtk_preconfig_dsi_enable(struct mtk_dsi *dsi)
 		DDPPR_ERR("failed to power on dsi\n");
 		return ret;
 	}
+
+	/*
+	 * xaga: the kernel is built as out-of-tree modules, so by the time DSI
+	 * probes, clk_disable_unused has already gated the LK-started DSI stream.
+	 * If an old stream is still partially running, stop it before rewriting
+	 * timing/registers; otherwise DSI0 underruns while the panel is still
+	 * consuming.
+	 */
+	mtk_dsi_stop(dsi);
+	if (dsi->slave_dsi)
+		mtk_dsi_stop(dsi->slave_dsi);
+
+#ifdef DSI_SELF_PATTERN
+	/* Use DSI self pattern as placeholder data until the first real frame
+	 * is available, so the VDO engine does not underrun immediately.
+	 */
+	mtk_dsi_self_pattern(dsi);
+	if (dsi->slave_dsi)
+		mtk_dsi_self_pattern(dsi->slave_dsi);
+#endif
 
 	mtk_dsi_enable(dsi);
 	mtk_dsi_phy_timconfig(dsi, NULL);
@@ -13218,6 +13238,8 @@ void mtk_dsi_set_mmclk_by_datarate_V2(struct mtk_dsi *dsi,
 		}
 
 		last_pixclk = mtk_drm_get_mmclk(&mtk_crtc->base, __func__) / 1000000;
+		if (pixclk < last_pixclk)
+			pixclk = last_pixclk;
 		DDPMSG("%s, %d, data_rate=%d, last_pixclk=%u, mmclk=%u pixclk_min=%d, dual=%u\n", __func__,
 				__LINE__, data_rate, last_pixclk, pixclk, pixclk_min, mtk_crtc->is_dual_pipe);
 
@@ -17019,31 +17041,44 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 		dsi->ddp_comp.id == DDP_COMPONENT_DSI0) || dsi->is_slave) {
 #ifndef CONFIG_MTK_DISP_NO_LK
 		if (disp_helper_get_stage() == DISP_HELPER_STAGE_NORMAL) {
-			phy_power_on(dsi->phy);
-			/* only prepare dsi clk after vdisp api been attached */
-			if (!pwr_node) {
-				ret = clk_prepare_enable(dsi->engine_clk);
-				if (ret < 0)
-					DDPPR_ERR("%s Failed to enable engine clock: %d\n",
-						__func__, ret);
+			/*
+			 * xaga: modules probe after clk_disable_unused, so the
+			 * LK-started DSI stream may already be gated by the time we
+			 * get here. Only take the handoff when the DSI state regs
+			 * still show a live LK stream; otherwise leave output_en
+			 * clear and let mtk_drm_crtc_first_enable do a full DSI
+			 * preconfig/start.
+			 */
+			if (dsi->lk_dsi_enabled) {
+				phy_power_on(dsi->phy);
+				/* only prepare dsi clk after vdisp api been attached */
+				if (!pwr_node) {
+					ret = clk_prepare_enable(dsi->engine_clk);
+					if (ret < 0)
+						DDPPR_ERR("%s Failed to enable engine clock: %d\n",
+							__func__, ret);
 
-				ret = clk_prepare_enable(dsi->digital_clk);
-				if (ret < 0)
-					DDPPR_ERR("%s Failed to enable digital clock: %d\n",
-						__func__, ret);
+					ret = clk_prepare_enable(dsi->digital_clk);
+					if (ret < 0)
+						DDPPR_ERR("%s Failed to enable digital clock: %d\n",
+							__func__, ret);
+				} else {
+					skip_clk_prepare = 1;
+				}
+
+				dsi->output_en = true;
+				if (dsi->panel) {
+					dsi->panel->prepared = true;
+					dsi->panel->enabled = true;
+				}
+				dsi->clk_refcnt = 1;
+				if (dsi->ext && dsi->ext->is_connected == -1)
+					dsi->ext->is_connected =
+						panel_connection_from_atag() & BIT(alias);
 			} else {
-				skip_clk_prepare = 1;
+				DDPPR_ERR("%s xaga: LK DSI off, defer full DSI init\n",
+					__func__);
 			}
-
-			dsi->output_en = true;
-			if (dsi->panel) {
-				dsi->panel->prepared = true;
-				dsi->panel->enabled = true;
-			}
-			dsi->clk_refcnt = 1;
-			if (dsi->ext && dsi->ext->is_connected == -1)
-				dsi->ext->is_connected =
-					panel_connection_from_atag() & BIT(alias);
 		}
 #endif
 	}

@@ -10120,11 +10120,9 @@ static int mtk_drm_pm_notifier(struct notifier_block *notifier, unsigned long pm
 }
 #endif
 
-static void mtk_drm_kms_lateinit(struct kthread_work *work)
+static void mtk_drm_kms_lateinit(struct drm_device *drm)
 {
-	struct lateinit_task *task = container_of(work, struct lateinit_task, work);
-	struct mtk_drm_private *private = container_of(task, struct mtk_drm_private, lateinit);
-	struct drm_device *drm = private->drm;
+	struct mtk_drm_private *private = drm->dev_private;
 
 #ifdef CONFIG_DRM_MEDIATEK_DEBUG_FS
 	mtk_drm_debugfs_init(drm, private);
@@ -10174,24 +10172,17 @@ static void mtk_drm_kms_lateinit(struct kthread_work *work)
 	 * MTCMOS on. Then, this keeping will be released after
 	 * display keep MTCMOS by itself.
 	 * Trigger mminfra gipc to hfrp.
+	 *
+	 * xaga: run this synchronously in mtk_drm_kms_init, before
+	 * drm_dev_register(), exactly like XagaForge 5.10. Running
+	 * first_enable asynchronously races with the first userspace
+	 * frame after drm_dev_register(), which causes the OVL frame
+	 * underflow / grey screen issue.
 	 */
-	/* xaga (2026-08-14): keep SMI larb power/config held until the display
-	 * data path is stable. Releasing it right after crtc first enable in
-	 * this async lateinit kthread drops the larb power/MMU config while
-	 * OVL is still starting -> OVL0/OVL1_2L frame underflow (grey screen)
-	 * for the whole boot on the 6.12 port. 5.10 did the same in its
-	 * synchronous kms_init with a much later crtc enable so the race never
-	 * hit. VERIFICATION build: fixed 1s delay; replace with a first-frame
-	 * wait once confirmed. */
-	msleep(1000);
 	mtk_smi_init_power_off();
 	DDPFUNC("mtk_smi_init_power_off\n");
 	mtk_mminfra_off_gipc();
 	mtk_dump_mminfra_ck(private);
-
-#ifndef DRM_OVL_SELF_PATTERN
-	mtk_drm_assert_init(drm);
-#endif
 
 	if (is_bdg_supported())
 		bdg_first_init();
@@ -10411,9 +10402,7 @@ static int mtk_drm_kms_init(struct drm_device *drm)
 
 	DDPINFO("%s-\n", __func__);
 
-	private->lateinit.worker = kthread_create_worker(0, "mtk_drm_bind");
-	kthread_init_work(&private->lateinit.work, mtk_drm_kms_lateinit);
-	kthread_queue_work(private->lateinit.worker, &private->lateinit.work);
+	mtk_drm_kms_lateinit(drm);
 
 	return 0;
 
@@ -11626,6 +11615,8 @@ static int mtk_drm_bind(struct device *dev)
 #ifdef DRM_OVL_SELF_PATTERN
 	mtk_drm_disp_test_init(drm);
 	mtk_drm_disp_test_show(test_crtc, 1);
+#else
+	mtk_drm_assert_init(drm);
 #endif
 	DDPINFO("%s-\n", __func__);
 
